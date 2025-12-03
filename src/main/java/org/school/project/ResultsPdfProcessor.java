@@ -18,7 +18,7 @@ public class ResultsPdfProcessor {
         // Укажите путь к папке с PDF файлами результатов
         String folderPath = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\МЦКО\\на обработку\\результаты";
         // Укажите путь для сохранения Excel файла
-        String outputExcelPath = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\МЦКО\\код_результат.xlsx";
+        String outputExcelPath = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\МЦКО\\КОД_результат.xlsx";
 
         try {
             List<StudentResultData> allResults = new ArrayList<>();
@@ -50,7 +50,7 @@ public class ResultsPdfProcessor {
             System.out.println("\n==========================================");
             System.out.println("Всего извлечено записей: " + allResults.size());
 
-            // Создаем Excel файл
+            // Создаем Excel файла
             createResultsExcelFile(allResults, outputExcelPath);
             System.out.println("Обработка завершена. Результат сохранен в: " + outputExcelPath);
 
@@ -95,6 +95,7 @@ public class ResultsPdfProcessor {
                 for (int i = 0; i < Math.min(3, studentResults.size()); i++) {
                     StudentResultData s = studentResults.get(i);
                     System.out.println("    Код: " + s.getCode() +
+                            " | Всего %: " + s.getOverallPercent() +
                             " | Уровень: " + s.getMasteryLevel() +
                             " | Раздел1: " + s.getSection1Percent() +
                             " | Раздел2: " + s.getSection2Percent() +
@@ -167,19 +168,18 @@ public class ResultsPdfProcessor {
         String[] lines = text.split("\n");
 
         boolean inResultsSection = false;
-        int lineNumber = 0;
 
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
 
             // Находим начало таблицы с результатами
             if (line.matches("\\d+\\s+\\d{4}-\\d{4}\\s+\\d+.*") ||
-                    (line.matches(".*\\d{4}-\\d{4}.*") && line.contains("+"))) {
+                    (line.matches(".*\\d{4}-\\d{4}.*") && (line.contains("+") || line.contains("-") || line.contains("N")))) {
                 inResultsSection = true;
             }
 
             // Ищем строку с заголовками таблицы
-            if (line.contains("Фамилия, имя") && line.contains("Код")) {
+            if (line.contains("Фамилия, имя") || line.contains("№ уч.")) {
                 inResultsSection = false; // Это заголовок, еще не данные
             }
 
@@ -216,24 +216,76 @@ public class ResultsPdfProcessor {
             // Удаляем лишние пробелы
             line = line.replaceAll("\\s+", " ").trim();
 
-            // Паттерн для поиска кода участника
-            Pattern codePattern = Pattern.compile("(\\d{4}-\\d{4})");
-            Matcher codeMatcher = codePattern.matcher(line);
-
-            if (!codeMatcher.find()) {
+            // Пропускаем строки, которые не содержат код
+            if (!line.matches(".*\\d{4}-\\d{4}.*")) {
                 return null;
             }
 
-            String code = codeMatcher.group(1);
+            // Разбиваем строку на части
+            String[] parts = line.split("\\s+");
+            if (parts.length < 5) {
+                return null;
+            }
 
-            // Ищем проценты выполнения по разделам
-            // Паттерн для поиска процентов (число с % или без)
+            // Ищем код участника
+            String code = "";
+            for (String part : parts) {
+                if (part.matches("\\d{4}-\\d{4}")) {
+                    code = part;
+                    break;
+                }
+            }
+
+            if (code.isEmpty()) {
+                return null;
+            }
+
+            // Ищем проценты выполнения (только числа без %)
+            List<String> percents = new ArrayList<>();
             Pattern percentPattern = Pattern.compile("(\\d{1,3})%");
             Matcher percentMatcher = percentPattern.matcher(line);
 
-            List<String> percents = new ArrayList<>();
             while (percentMatcher.find()) {
+                // Сохраняем только число без знака %
                 percents.add(percentMatcher.group(1));
+            }
+
+            // Ищем общий процент выполнения (Всех)
+            String overallPercent = "";
+            // Ищем паттерн, где процент стоит перед словом "Всех" или сразу после блока с ответами
+            Pattern overallPattern = Pattern.compile("(\\d{1,3})\\s*%\\s*Всех");
+            Matcher overallMatcher = overallPattern.matcher(line);
+
+            if (overallMatcher.find()) {
+                overallPercent = overallMatcher.group(1); // Сохраняем только число
+            } else if (!percents.isEmpty()) {
+                // Если не нашли явно, берем первый процент в строке (обычно это общий процент)
+                overallPercent = percents.get(0);
+            }
+
+            // Ищем проценты по разделам
+            String section1Percent = "";
+            String section2Percent = "";
+            String section3Percent = "";
+
+            if (percents.size() >= 7) {
+                // Пытаемся определить, какие проценты соответствуют разделам
+                // В примере: 17 81% 92% 63% 86% 100% 88% 33% 75% 71% 100%
+                // 81% - общий, затем уровни, затем разделы
+
+                // Вариант 1: последние 3 процента - это разделы
+                section1Percent = percents.get(percents.size() - 3);
+                section2Percent = percents.get(percents.size() - 2);
+                section3Percent = percents.get(percents.size() - 1);
+            }
+
+            // Альтернативный поиск: ищем после слов "Раздел"
+            Pattern sectionPattern = Pattern.compile("Раздел\\s*1\\s*(\\d{1,3})%\\s*Раздел\\s*2\\s*(\\d{1,3})%\\s*Раздел\\s*3\\s*(\\d{1,3})%");
+            Matcher sectionMatcher = sectionPattern.matcher(line);
+            if (sectionMatcher.find()) {
+                section1Percent = sectionMatcher.group(1);
+                section2Percent = sectionMatcher.group(2);
+                section3Percent = sectionMatcher.group(3);
             }
 
             // Ищем уровень овладения УУД
@@ -252,38 +304,11 @@ public class ResultsPdfProcessor {
                 if (words.length > 0) {
                     String lastWord = words[words.length - 1];
                     for (String level : levelKeywords) {
-                        if (lastWord.contains(level)) {
+                        if (lastWord.equals(level) || lastWord.contains(level)) {
                             masteryLevel = level;
                             break;
                         }
                     }
-                }
-            }
-
-            // Ищем проценты по разделам
-            String section1Percent = "";
-            String section2Percent = "";
-            String section3Percent = "";
-
-            // Ищем паттерн типа "71% 100% 88% 33% 75% 71% 100%"
-            // Или "Раздел 1 Раздел 2 Раздел 3"
-            // Сначала попробуем найти все числа с процентами
-            if (percents.size() >= 7) {
-                // Предполагаем, что последние 3 процента - это разделы
-                section1Percent = percents.size() >= 3 ? percents.get(percents.size() - 3) + "%" : "";
-                section2Percent = percents.size() >= 2 ? percents.get(percents.size() - 2) + "%" : "";
-                section3Percent = percents.size() >= 1 ? percents.get(percents.size() - 1) + "%" : "";
-            }
-
-            // Альтернативный поиск: ищем конкретно разделы
-            if (section1Percent.isEmpty()) {
-                // Ищем паттерн с разделителями
-                Pattern sectionPattern = Pattern.compile("(\\d{1,3})%\\s*(\\d{1,3})%\\s*(\\d{1,3})%\\s*[А-Яа-яЁё]+$");
-                Matcher sectionMatcher = sectionPattern.matcher(line);
-                if (sectionMatcher.find()) {
-                    section1Percent = sectionMatcher.group(1) + "%";
-                    section2Percent = sectionMatcher.group(2) + "%";
-                    section3Percent = sectionMatcher.group(3) + "%";
                 }
             }
 
@@ -293,10 +318,18 @@ public class ResultsPdfProcessor {
             result.setClassName(className);
             result.setSubject(subject);
             result.setDate(date);
-            result.setMasteryLevel(masteryLevel);
-            result.setSection1Percent(section1Percent.isEmpty() ? "0%" : section1Percent);
-            result.setSection2Percent(section2Percent.isEmpty() ? "0%" : section2Percent);
-            result.setSection3Percent(section3Percent.isEmpty() ? "0%" : section3Percent);
+            result.setOverallPercent(overallPercent.isEmpty() ? "0" : overallPercent);
+            result.setMasteryLevel(masteryLevel.isEmpty() ? "Не определен" : masteryLevel);
+            result.setSection1Percent(section1Percent.isEmpty() ? "0" : section1Percent);
+            result.setSection2Percent(section2Percent.isEmpty() ? "0" : section2Percent);
+            result.setSection3Percent(section3Percent.isEmpty() ? "0" : section3Percent);
+
+            if (DEBUG) {
+                System.out.println("  Распарсено: Код=" + code +
+                        ", Общий %=" + overallPercent +
+                        ", Уровень=" + masteryLevel +
+                        ", Разделы=" + section1Percent + "/" + section2Percent + "/" + section3Percent);
+            }
 
             return result;
 
@@ -321,12 +354,14 @@ public class ResultsPdfProcessor {
         for (String line : lines) {
             line = line.trim();
 
-            // Ищем строки, содержащие код участника
+            // Ищем строки, содержащие код участника и результаты
             if (line.matches(".*\\d{4}-\\d{4}.*")) {
                 // Пропускаем заголовки
                 if (line.contains("Код участника") ||
                         line.contains("Фамилия, имя") ||
-                        line.contains("№ уч.")) {
+                        line.contains("№ уч.") ||
+                        line.contains("Всех Уровень") ||
+                        line.contains("% выполнения")) {
                     continue;
                 }
 
@@ -343,6 +378,29 @@ public class ResultsPdfProcessor {
                     }
 
                     if (!code.isEmpty()) {
+                        // Ищем все проценты в строке (только числа без %)
+                        Pattern percentPattern = Pattern.compile("(\\d{1,3})%");
+                        Matcher percentMatcher = percentPattern.matcher(line);
+                        List<String> percents = new ArrayList<>();
+
+                        while (percentMatcher.find()) {
+                            percents.add(percentMatcher.group(1)); // Сохраняем только число
+                        }
+
+                        // Общий процент (первый процент в строке)
+                        String overallPercent = percents.isEmpty() ? "0" : percents.get(0);
+
+                        // Проценты по разделам (последние 3 процента)
+                        String section1Percent = "0";
+                        String section2Percent = "0";
+                        String section3Percent = "0";
+
+                        if (percents.size() >= 3) {
+                            section1Percent = percents.get(percents.size() - 3);
+                            section2Percent = percents.get(percents.size() - 2);
+                            section3Percent = percents.get(percents.size() - 1);
+                        }
+
                         // Ищем уровень овладения
                         String masteryLevel = "";
                         String[] levelKeywords = {"Повышенный", "Базовый", "Ниже базового", "Высокий", "Средний", "Низкий"};
@@ -353,32 +411,13 @@ public class ResultsPdfProcessor {
                             }
                         }
 
-                        // Ищем проценты
-                        String section1Percent = "0%";
-                        String section2Percent = "0%";
-                        String section3Percent = "0%";
-
-                        // Ищем все проценты в строке
-                        Pattern percentPattern = Pattern.compile("(\\d{1,3})%");
-                        Matcher percentMatcher = percentPattern.matcher(line);
-                        List<String> percents = new ArrayList<>();
-
-                        while (percentMatcher.find()) {
-                            percents.add(percentMatcher.group(1) + "%");
-                        }
-
-                        if (percents.size() >= 3) {
-                            section1Percent = percents.get(percents.size() - 3);
-                            section2Percent = percents.get(percents.size() - 2);
-                            section3Percent = percents.get(percents.size() - 1);
-                        }
-
                         // Создаем объект
                         StudentResultData result = new StudentResultData();
                         result.setCode(code);
                         result.setClassName(className);
                         result.setSubject(subject);
                         result.setDate(date);
+                        result.setOverallPercent(overallPercent);
                         result.setMasteryLevel(masteryLevel.isEmpty() ? "Не определен" : masteryLevel);
                         result.setSection1Percent(section1Percent);
                         result.setSection2Percent(section2Percent);
@@ -408,7 +447,7 @@ public class ResultsPdfProcessor {
         headerStyle.setAlignment(HorizontalAlignment.CENTER);
         headerStyle.setBorderBottom(BorderStyle.THIN);
 
-        // Создаем заголовки
+        // Создаем заголовки (без % в названиях)
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "№",
@@ -416,6 +455,7 @@ public class ResultsPdfProcessor {
                 "Класс",
                 "Предмет",
                 "Дата проведения",
+                "% выполнения заданий (Всех)",
                 "% выполнения заданий по разделу 1",
                 "% выполнения заданий по разделу 2",
                 "% выполнения заданий по разделу 3",
@@ -428,21 +468,94 @@ public class ResultsPdfProcessor {
             cell.setCellStyle(headerStyle);
         }
 
-        // Заполняем данные
+        // Заполняем данные (проценты как числа)
         int rowNum = 1;
         for (int i = 0; i < results.size(); i++) {
             StudentResultData result = results.get(i);
             Row row = sheet.createRow(rowNum++);
 
             row.createCell(0).setCellValue(i + 1); // Номер по порядку
-            row.createCell(1).setCellValue(result.getCode());
+
+            // Код участника
+            Cell codeCell = row.createCell(1);
+            codeCell.setCellValue(result.getCode());
+
+            // Класс
             row.createCell(2).setCellValue(result.getClassName());
+
+            // Предмет
             row.createCell(3).setCellValue(result.getSubject());
+
+            // Дата проведения
             row.createCell(4).setCellValue(result.getDate());
-            row.createCell(5).setCellValue(result.getSection1Percent());
-            row.createCell(6).setCellValue(result.getSection2Percent());
-            row.createCell(7).setCellValue(result.getSection3Percent());
-            row.createCell(8).setCellValue(result.getMasteryLevel());
+
+            // % выполнения заданий (Всех) - как число
+            Cell overallCell = row.createCell(5);
+            try {
+                if (!result.getOverallPercent().isEmpty() && !result.getOverallPercent().equals("0")) {
+                    overallCell.setCellValue(Double.parseDouble(result.getOverallPercent()));
+                } else {
+                    overallCell.setCellValue(0);
+                }
+            } catch (NumberFormatException e) {
+                overallCell.setCellValue(result.getOverallPercent());
+            }
+
+            // % выполнения заданий по разделу 1 - как число
+            Cell section1Cell = row.createCell(6);
+            try {
+                if (!result.getSection1Percent().isEmpty() && !result.getSection1Percent().equals("0")) {
+                    section1Cell.setCellValue(Double.parseDouble(result.getSection1Percent()));
+                } else {
+                    section1Cell.setCellValue(0);
+                }
+            } catch (NumberFormatException e) {
+                section1Cell.setCellValue(result.getSection1Percent());
+            }
+
+            // % выполнения заданий по разделу 2 - как число
+            Cell section2Cell = row.createCell(7);
+            try {
+                if (!result.getSection2Percent().isEmpty() && !result.getSection2Percent().equals("0")) {
+                    section2Cell.setCellValue(Double.parseDouble(result.getSection2Percent()));
+                } else {
+                    section2Cell.setCellValue(0);
+                }
+            } catch (NumberFormatException e) {
+                section2Cell.setCellValue(result.getSection2Percent());
+            }
+
+            // % выполнения заданий по разделу 3 - как число
+            Cell section3Cell = row.createCell(8);
+            try {
+                if (!result.getSection3Percent().isEmpty() && !result.getSection3Percent().equals("0")) {
+                    section3Cell.setCellValue(Double.parseDouble(result.getSection3Percent()));
+                } else {
+                    section3Cell.setCellValue(0);
+                }
+            } catch (NumberFormatException e) {
+                section3Cell.setCellValue(result.getSection3Percent());
+            }
+
+            // Уровень овладения УУД
+            row.createCell(9).setCellValue(result.getMasteryLevel());
+        }
+
+        // Стиль для числовых ячеек (процентов)
+        CellStyle numberStyle = workbook.createCellStyle();
+        numberStyle.setDataFormat(workbook.createDataFormat().getFormat("0"));
+
+        // Применяем числовой стиль к колонкам с процентами
+        for (int i = 5; i <= 8; i++) {
+            for (int rowIdx = 1; rowIdx <= results.size(); rowIdx++) {
+                Row row = sheet.getRow(rowIdx);
+                if (row != null) {
+                    Cell cell = row.getCell(i);
+                    if (cell != null) {
+                        cell.setCellStyle(numberStyle);
+                    }
+                }
+            }
         }
 
         // Автоподбор ширины колонок
@@ -470,10 +583,11 @@ public class ResultsPdfProcessor {
         private String className;
         private String subject;
         private String date;
+        private String overallPercent; // храним как строку без %
         private String masteryLevel;
-        private String section1Percent;
-        private String section2Percent;
-        private String section3Percent;
+        private String section1Percent; // храним как строку без %
+        private String section2Percent; // храним как строку без %
+        private String section3Percent; // храним как строку без %
 
         // Геттеры и сеттеры
         public String getCode() { return code; }
@@ -488,22 +602,37 @@ public class ResultsPdfProcessor {
         public String getDate() { return date; }
         public void setDate(String date) { this.date = date; }
 
+        public String getOverallPercent() { return overallPercent; }
+        public void setOverallPercent(String overallPercent) {
+            // Убираем % если он есть
+            this.overallPercent = overallPercent.replace("%", "");
+        }
+
         public String getMasteryLevel() { return masteryLevel; }
         public void setMasteryLevel(String masteryLevel) { this.masteryLevel = masteryLevel; }
 
         public String getSection1Percent() { return section1Percent; }
-        public void setSection1Percent(String section1Percent) { this.section1Percent = section1Percent; }
+        public void setSection1Percent(String section1Percent) {
+            // Убираем % если он есть
+            this.section1Percent = section1Percent.replace("%", "");
+        }
 
         public String getSection2Percent() { return section2Percent; }
-        public void setSection2Percent(String section2Percent) { this.section2Percent = section2Percent; }
+        public void setSection2Percent(String section2Percent) {
+            // Убираем % если он есть
+            this.section2Percent = section2Percent.replace("%", "");
+        }
 
         public String getSection3Percent() { return section3Percent; }
-        public void setSection3Percent(String section3Percent) { this.section3Percent = section3Percent; }
+        public void setSection3Percent(String section3Percent) {
+            // Убираем % если он есть
+            this.section3Percent = section3Percent.replace("%", "");
+        }
 
         @Override
         public String toString() {
-            return String.format("%s | %s | %s | %s | %s | %s | %s | %s",
-                    code, className, subject, date,
+            return String.format("%s | %s | %s | %s | %s | %s | %s | %s | %s",
+                    code, className, subject, date, overallPercent,
                     section1Percent, section2Percent, section3Percent, masteryLevel);
         }
     }
