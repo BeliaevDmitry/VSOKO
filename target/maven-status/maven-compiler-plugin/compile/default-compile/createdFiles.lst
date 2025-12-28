@@ -1,4 +1,12 @@
-org\school\project\ResultsPdfProcessor$StudentResultData.class
-org\school\project\PdfProcessor.class
-org\school\project\PdfProcessor$StudentData.class
-org\school\project\ResultsPdfProcessor.class
+org\school\Blank\DataCollectionSheetGenerator.class
+org\school\Blank\StudentDocumentsGenerator$1.class
+org\school\Blank\ReportAnalyzer$ParallelSummary.class
+org\school\Blank\DataCollectionSheetGenerator$1.class
+org\school\Blank\StudentDocumentsGenerator$Student.class
+org\school\Blank\DataCollectionSheetGenerator$Student.class
+org\school\Blank\ReportAnalyzer$TeacherRating.class
+org\school\Blank\ReportAnalyzer.class
+org\school\Blank\ReportAnalyzer$AnalysisResult.class
+org\school\Blank\ReportAnalyzer$TeacherSummary.class
+org\school\Blank\StudentDocumentsGenerator.class
+org\school\Blank\ReportAnalyzer$1.class

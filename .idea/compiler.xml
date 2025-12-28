@@ -9,5 +9,8 @@
         <module name="VSOKO" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="student-documents" target="11" />
+    </bytecodeTargetLevel>
   </component>
 </project>
