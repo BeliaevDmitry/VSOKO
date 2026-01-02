@@ -2,12 +2,14 @@ package org.school.analysis.service.impl;
 
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.service.FileOrganizerService;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 
+@Service
 public class FileOrganizerServiceImpl implements FileOrganizerService {
 
     private final String reportsBaseFolderTemplate;

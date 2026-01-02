@@ -3,6 +3,7 @@ package org.school.analysis.parser.strategy;
 import org.apache.poi.ss.usermodel.*;
 import org.school.analysis.model.TestMetadata;
 import org.school.analysis.util.ExcelParser;
+import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.Map;
 /**
  * Стратегия парсинга метаданных из Excel файла
  */
+@Component
 public class MetadataParser {
 
     /**
@@ -28,10 +30,8 @@ public class MetadataParser {
         metadata.setTestDate(parseDate(ExcelParser.getCellValueAsString(infoSheet, 1, 1)));
         metadata.setSubject(ExcelParser.getCellValueAsString(infoSheet, 2, 1, "Неизвестный предмет"));
         metadata.setClassName(ExcelParser.getCellValueAsString(infoSheet, 3, 1, "Неизвестный класс"));
-        metadata.setTestName(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Контрольная работа"));
-
-        // Дополнительная информация
-        metadata.setSchool("ГБОУ 7"); // По умолчанию
+        metadata.setTestType(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Неизвествный тип работы"));
+        metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 8, 1, "ГБОУ №7"));
 
         // Парсинг строки с максимальными баллами (если есть)
         String scoresText = ExcelParser.getCellValueAsString(infoSheet, 5, 1);
@@ -39,9 +39,6 @@ public class MetadataParser {
             metadata.setMaxScores(parseMaxScoresFromText(scoresText));
         }
 
-        // Критерии оценки (по умолчанию)
-        metadata.setGradeRanges(getDefaultGradeRanges());
-        metadata.setEvaluationSystem("5-балльная");
 
         return metadata;
     }

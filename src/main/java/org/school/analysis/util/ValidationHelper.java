@@ -3,6 +3,7 @@ package org.school.analysis.util;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.model.TestMetadata;
 
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -61,7 +62,7 @@ public class ValidationHelper {
     /**
      * Валидация результата ученика
      */
-    public static ValidationResult validateStudentResult(StudentResult student) {
+    public static ValidationResult validateStudentResult(StudentResult student, Map<Integer, Integer> maxScores) {
         ValidationResult result = new ValidationResult();
 
         if (student == null) {
@@ -85,11 +86,11 @@ public class ValidationHelper {
         }
 
         // Валидация баллов
-        if (student.getTaskScores() != null && student.getMaxScores() != null) {
+        if (student.getTaskScores() != null && maxScores != null) {
             for (var entry : student.getTaskScores().entrySet()) {
                 Integer taskNum = entry.getKey();
                 Integer score = entry.getValue();
-                Integer maxScore = student.getMaxScores().get(taskNum);
+                Integer maxScore = maxScores.get(taskNum);
 
                 if (maxScore == null) {
                     result.addError("Отсутствует максимальный балл для задания " + taskNum);
@@ -101,20 +102,6 @@ public class ValidationHelper {
                 }
             }
         }
-
-        // Проверка итогового балла
-        if (student.getTotalScore() < 0) {
-            result.addError("Итоговый балл не может быть отрицательным");
-        }
-
-        if (student.getMaxPossibleScore() > 0 &&
-                student.getTotalScore() > student.getMaxPossibleScore()) {
-            result.addError(String.format(
-                    "Итоговый балл (%d) превышает максимально возможный (%d)",
-                    student.getTotalScore(), student.getMaxPossibleScore()
-            ));
-        }
-
         return result;
     }
 
@@ -222,9 +209,17 @@ public class ValidationHelper {
             warnings.add(warning);
         }
 
-        public boolean isValid() { return valid && errors.isEmpty(); }
-        public java.util.List<String> getErrors() { return new java.util.ArrayList<>(errors); }
-        public java.util.List<String> getWarnings() { return new java.util.ArrayList<>(warnings); }
+        public boolean isValid() {
+            return valid && errors.isEmpty();
+        }
+
+        public java.util.List<String> getErrors() {
+            return new java.util.ArrayList<>(errors);
+        }
+
+        public java.util.List<String> getWarnings() {
+            return new java.util.ArrayList<>(warnings);
+        }
 
         @Override
         public String toString() {

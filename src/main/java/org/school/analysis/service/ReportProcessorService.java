@@ -14,6 +14,21 @@ import java.util.List;
 public interface ReportProcessorService {
 
     /**
+     * Полный цикл обработки
+     */
+    ProcessingSummary processAll(String folderPath);
+
+    @Data
+    class ProcessingSummary {
+        private int totalFilesFound;
+        private int successfullyParsed;
+        private int successfullySaved;
+        private int successfullyMoved;
+        private int totalStudentsProcessed;
+        private List<ReportFile> failedFiles;
+    }
+
+    /**
      * 1. Найти файлы в папке
      */
     List<ReportFile> findReports(String folderPath);
@@ -32,19 +47,4 @@ public interface ReportProcessorService {
      * 4. Перемещение обработанных файлов
      */
     List<ReportFile> moveProcessedFiles(List<ReportFile> successfullyProcessedFiles);
-
-    /**
-     * Полный цикл обработки
-     */
-    ProcessingSummary processAll(String folderPath);
-
-    @Data
-    class ProcessingSummary {
-        private int totalFilesFound;
-        private int successfullyParsed;
-        private int successfullySaved;
-        private int successfullyMoved;
-        private int totalStudentsProcessed;
-        private List<ReportFile> failedFiles;
-    }
 }

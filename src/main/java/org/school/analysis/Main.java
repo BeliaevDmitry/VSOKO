@@ -1,14 +1,15 @@
 package org.school.analysis;
 
-import org.school.analysis.repository.StudentResultRepository;
-import org.school.analysis.repository.impl.InMemoryStudentRepository;
 import org.school.analysis.service.*;
-import org.school.analysis.service.impl.*;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
 
 /**
  * Главный класс приложения
  * Содержит все конфигурационные константы
  */
+@SpringBootApplication
 public class Main {
 
     // ========== КОНФИГУРАЦИЯ ==========
@@ -34,7 +35,15 @@ public class Main {
 
     // ========== ТОЧКА ВХОДА ==========
 
+
     public static void main(String[] args) {
+        // Запускаем Spring контекст
+        ApplicationContext context = SpringApplication.run(Main.class, args);
+
+        // Получаем главный сервис из контекста
+        ReportProcessorService processor = context.getBean(ReportProcessorService.class);
+
+
         System.out.println("=== ЗАПУСК СИСТЕМЫ ОБРАБОТКИ ОТЧЁТОВ ВСОКО ===");
         System.out.println("Конфигурация:");
         System.out.println("  Папка с исходными файлами: " + INPUT_FOLDER);
@@ -43,20 +52,6 @@ public class Main {
         System.out.println();
 
         try {
-            // 1. Инициализация всех сервисов
-            ReportFileFinderService fileFinder = new ReportFileFinderServiceImpl();
-            ReportParserService parser = new ReportParserServiceImpl();
-            StudentResultRepository repository = new InMemoryStudentRepository();
-            FileOrganizerService fileOrganizer = new FileOrganizerServiceImpl(REPORTS_BASE_FOLDER);
-
-            // 2. Создание главного сервиса
-            ReportProcessorService processor = new ReportProcessorServiceImpl(
-                    fileFinder,
-                    parser,
-                    repository,
-                    fileOrganizer
-            );
-
             // 3. Запуск обработки
             var summary = processor.processAll(INPUT_FOLDER);
 

@@ -7,9 +7,9 @@ C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\util\Validat
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\ParseResult.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\Blank\AnalysisResult.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\repository\StudentResultRepository.java
+C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\exception\ValidationException.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\Blank\DataCollectionSheetGenerator.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\service\impl\FileOrganizerServiceImpl.java
-C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\parser\ExcelReportParser.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\service\FileOrganizerService.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\Blank\StudentDocumentsGenerator.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\service\impl\ReportParserServiceImpl.java

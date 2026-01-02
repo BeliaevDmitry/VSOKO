@@ -2,155 +2,131 @@ package org.school.analysis.service.impl;
 
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.school.analysis.exception.ValidationException;
 import org.school.analysis.model.*;
+import org.school.analysis.parser.strategy.MetadataParser;
+import org.school.analysis.parser.strategy.StudentDataParser;
 import org.school.analysis.service.ReportParserService;
-import org.school.analysis.util.ExcelParser;
+import org.springframework.stereotype.Service;
 
 import java.io.FileInputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
-import static org.school.analysis.model.ProcessingStatus.*;
-
+/**
+ * Главный парсер Excel отчетов
+ */
+@Service
 public class ReportParserServiceImpl implements ReportParserService {
 
-    private final ParsingStatistics statistics = new ParsingStatistics();
+    private final MetadataParser metadataParser;
+    private final StudentDataParser studentDataParser;
 
+    public ReportParserServiceImpl(MetadataParser metadataParser, StudentDataParser studentDataParser) {
+        this.metadataParser = metadataParser;
+        this.studentDataParser = studentDataParser;
+    }
+
+    /**
+     * Парсинг списка файлов
+     */
+    @Override
+    public List<ParseResult> parseFiles(List<ReportFile> reportFiles) {
+        return reportFiles.stream()
+                .map(this::parseFile)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Полный парсинг Excel файла
+     */
     @Override
     public ParseResult parseFile(ReportFile reportFile) {
-        ParseResult parseResult = new ParseResult();
-        parseResult.setReportFile(reportFile);
-        reportFile.setStatus(PARSING);
-
         try (FileInputStream file = new FileInputStream(reportFile.getFile());
              Workbook workbook = new XSSFWorkbook(file)) {
 
-            // 1. Получить метаданные
+            // 1. Парсинг метаданных
             Sheet infoSheet = workbook.getSheet("Информация");
-            if (infoSheet != null) {
-                String subject = ExcelParser.getCellValueAsString(infoSheet, 2, 1, "Неизвестный предмет");
-                String className = ExcelParser.getCellValueAsString(infoSheet, 3, 1, "Неизвестный класс");
-                reportFile.setSubject(subject);
-                reportFile.setClassName(className);
-            }
+            TestMetadata metadata = metadataParser.parseMetadata(infoSheet);
 
             // 2. Парсинг данных учеников
             Sheet dataSheet = workbook.getSheet("Сбор информации");
             if (dataSheet == null) {
-                throw new Exception("Лист 'Сбор информации' не найден");
+                return ParseResult.error(reportFile, "Лист 'Сбор информации' не найден");
             }
 
-            // 3. Чтение максимальных баллов
-            Map<Integer, Integer> maxScores = readMaxScores(dataSheet);
+            // 3. Получение максимальных баллов
+            var maxScores = studentDataParser.parseMaxScores(dataSheet);
+            metadata.setMaxScores(maxScores);
+            metadata.setTaskCount(maxScores.size());
+            metadata.calculateMaxTotalScore();
 
-            // 4. Парсинг учеников
-            List<StudentResult> studentResults = parseStudentData(dataSheet, maxScores);
+            // 4. Парсинг данных учеников (может бросить ValidationException)
+            List<StudentResult> studentResults = studentDataParser.parseStudentData(
+                    dataSheet, maxScores, metadata.getSubject(), metadata.getClassName());
 
-            // 5. Установка результатов
-            parseResult.setStudentResults(studentResults);
-            parseResult.setSuccess(true);
-            parseResult.setParsedStudents(studentResults.size());
-            reportFile.setStatus(PARSED);
+            // 5. Установка метаданных для каждого ученика
+            for (StudentResult student : studentResults) {
+                student.setSubject(metadata.getSubject());
+                student.setClassName(metadata.getClassName());
+                student.setTestDate(metadata.getTestDate());
+            }
+
+            // 6. Обновление ReportFile
+            reportFile.setSubject(metadata.getSubject());
+            reportFile.setClassName(metadata.getClassName());
             reportFile.setStudentCount(studentResults.size());
 
-            statistics.successfullyParsed++;
-            statistics.totalStudents += studentResults.size();
+            // 7. Формирование успешного результата
+            return ParseResult.success(reportFile, studentResults);
+
+        } catch (ValidationException e) {
+            // Специальная обработка ошибок валидации
+            return ParseResult.error(reportFile,
+                    "Ошибка валидации данных. Проверьте файл:\n" + e.getMessage());
 
         } catch (Exception e) {
-            parseResult.setSuccess(false);
-            parseResult.setErrorMessage(e.getMessage());
-            reportFile.setStatus(ERROR_PARSING);
-            reportFile.setErrorMessage(e.getMessage());
-            statistics.failedParsed++;
+            return ParseResult.error(reportFile,
+                    "Ошибка парсинга файла " + reportFile.getFile().getName() + ": " + e.getMessage());
         }
-
-        statistics.totalFiles++;
-        return parseResult;
     }
 
-    @Override
-    public List<ParseResult> parseFiles(List<ReportFile> reportFiles) {
-        List<ParseResult> results = new ArrayList<>();
-        for (ReportFile reportFile : reportFiles) {
-            results.add(parseFile(reportFile));
-        }
-        return results;
-    }
+    /**
+     * Быстрый парсинг только метаданных (без данных учеников)
+     */
+    public TestMetadata parseMetadataOnly(ReportFile reportFile) throws IOException {
+        try (FileInputStream file = new FileInputStream(reportFile.getFile());
+             Workbook workbook = new XSSFWorkbook(file)) {
 
-    @Override
-    public ParsingStatistics getStatistics() {
-        return statistics;
-    }
-
-    private Map<Integer, Integer> readMaxScores(Sheet sheet) {
-        Map<Integer, Integer> maxScores = new HashMap<>();
-        Row maxScoresRow = sheet.getRow(2); // 3-я строка с макс. баллами
-
-        if (maxScoresRow != null) {
-            int taskNumber = 1;
-            for (int col = 4; col < 100; col++) {
-                Cell cell = maxScoresRow.getCell(col);
-                if (cell == null) break;
-
-                Integer maxScore = ExcelParser.getCellValueAsInteger(cell);
-                if (maxScore != null) {
-                    maxScores.put(taskNumber, maxScore);
-                    taskNumber++;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        return maxScores;
-    }
-
-    private List<StudentResult> parseStudentData(Sheet sheet, Map<Integer, Integer> maxScores) {
-        List<StudentResult> results = new ArrayList<>();
-        int firstStudentRow = 3;
-        int maxStudents = 34;
-
-        for (int rowIdx = firstStudentRow; rowIdx < firstStudentRow + maxStudents; rowIdx++) {
-            Row row = sheet.getRow(rowIdx);
-            if (row == null) break;
-
-            String fio = ExcelParser.getCellValueAsString(row.getCell(1));
-            if (fio == null || fio.trim().isEmpty()) continue;
-
-            String presence = ExcelParser.getCellValueAsString(row.getCell(2));
-            if ("Не был".equalsIgnoreCase(presence)) continue;
-
-            StudentResult result = new StudentResult();
-            result.setFio(fio.trim());
-            result.setPresence(presence);
-            result.setVariant(ExcelParser.getCellValueAsString(row.getCell(3)));
-
-            // Парсинг баллов за задания
-            Map<Integer, Integer> taskScores = new HashMap<>();
-            int totalScore = 0;
-
-            for (Map.Entry<Integer, Integer> entry : maxScores.entrySet()) {
-                int taskNum = entry.getKey();
-                int columnIndex = 3 + taskNum;
-                Cell scoreCell = row.getCell(columnIndex);
-
-                Integer score = ExcelParser.getCellValueAsInteger(scoreCell);
-                if (score == null) score = 0;
-
-                taskScores.put(taskNum, score);
-                totalScore += score;
+            Sheet infoSheet = workbook.getSheet("Информация");
+            if (infoSheet != null) {
+                return metadataParser.parseMetadata(infoSheet);
             }
 
-            result.setTaskScores(taskScores);
-            result.setTotalScore(totalScore);
-            result.setMaxScores(new HashMap<>(maxScores));
-            result.calculateAll();
+            return metadataParser.parseFromFileName(reportFile.getFile().getName());
 
-            results.add(result);
+        } catch (Exception e) {
+            // Если не удалось прочитать файл, парсим только имя
+            return metadataParser.parseFromFileName(reportFile.getFile().getName());
         }
+    }
 
-        return results;
+    /**
+     * Проверка валидности Excel файла
+     */
+    public boolean validateExcelFile(ReportFile reportFile) {
+        try (FileInputStream file = new FileInputStream(reportFile.getFile());
+             Workbook workbook = new XSSFWorkbook(file)) {
+
+            // Проверяем наличие необходимых листов
+            boolean hasInfoSheet = workbook.getSheet("Информация") != null;
+            boolean hasDataSheet = workbook.getSheet("Сбор информации") != null;
+
+            return hasInfoSheet && hasDataSheet;
+
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

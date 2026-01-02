@@ -1,14 +1,18 @@
 package org.school.analysis.parser.strategy;
 
 import org.apache.poi.ss.usermodel.*;
+import org.school.analysis.exception.ValidationException;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.util.ExcelParser;
+import org.school.analysis.util.ValidationHelper;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 
 /**
  * Стратегия парсинга данных учеников
  */
+@Component
 public class StudentDataParser {
 
     /**
@@ -19,25 +23,54 @@ public class StudentDataParser {
                                                 String subject,
                                                 String className) {
         List<StudentResult> results = new ArrayList<>();
+        List<String> validationErrors = new ArrayList<>(); // Собираем ошибки
 
         if (dataSheet == null || maxScores.isEmpty()) {
             return results;
         }
 
-        int firstStudentRow = 3; // 4-я строка (после заголовков)
+        int firstStudentRow = 3;
         int maxStudents = 34;
 
-        for (int rowIdx = firstStudentRow;
-             rowIdx < firstStudentRow + maxStudents;
-             rowIdx++) {
-
+        for (int rowIdx = firstStudentRow; rowIdx < firstStudentRow + maxStudents; rowIdx++) {
             Row row = dataSheet.getRow(rowIdx);
             if (row == null) break;
 
             StudentResult result = parseStudentRow(row, maxScores, subject, className);
-            if (result != null && result.wasPresent()) {
-                results.add(result);
+
+            if (result != null) {
+                // ВАЛИДАЦИЯ и проверка результата
+                ValidationHelper.ValidationResult validation =
+                        ValidationHelper.validateStudentResult(result, maxScores);
+
+                if (!validation.isValid()) {
+                    // Добавляем ошибки в список
+                    String errorMsg = String.format("Строка %d, ученик '%s': %s",
+                            rowIdx + 1, result.getFio(),
+                            String.join("; ", validation.getErrors()));
+                    validationErrors.add(errorMsg);
+                    continue; // Пропускаем этого ученика
+                }
+
+                // Проверяем предупреждения
+                if (!validation.getWarnings().isEmpty()) {
+                    // Можно залогировать предупреждения
+                    for (String warning : validation.getWarnings()) {
+                        System.out.printf("Предупреждение (строка %d): %s%n",
+                                rowIdx + 1, warning);
+                    }
+                }
+
+                if (result.wasPresent()) {
+                    results.add(result);
+                }
             }
+        }
+
+        // Если есть критические ошибки, можно бросить исключение
+        if (!validationErrors.isEmpty()) {
+            throw new ValidationException("Ошибки валидации данных учеников:\n" +
+                    String.join("\n", validationErrors));
         }
 
         return results;
@@ -66,7 +99,6 @@ public class StudentDataParser {
             absent.setSubject(subject);
             absent.setClassName(className);
             absent.setTaskScores(new HashMap<>());
-            absent.setMaxScores(new HashMap<>(maxScores));
             return absent;
         }
 
@@ -84,8 +116,6 @@ public class StudentDataParser {
         result.setSubject(subject);
         result.setClassName(className);
         result.setTaskScores(taskScores);
-        result.setMaxScores(new HashMap<>(maxScores));
-        result.calculateAll();
 
         return result;
     }

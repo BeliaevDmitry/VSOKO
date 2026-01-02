@@ -12,7 +12,6 @@ org\school\analysis\service\FileOrganizerService.class
 org\school\analysis\repository\StudentResultRepository.class
 org\school\analysis\model\ReportFile.class
 org\school\analysis\service\impl\FileOrganizerServiceImpl.class
-org\school\analysis\service\ReportParserService$ParsingStatistics.class
 org\school\Blank\DataCollectionSheetGenerator.class
 org\school\analysis\util\ValidationHelper$ValidationResult.class
 org\school\Blank\StudentDocumentsGenerator$Student.class
@@ -22,8 +21,8 @@ org\school\Blank\StudentDocumentsGenerator.class
 org\school\analysis\model\TestMetadata.class
 org\school\analysis\service\impl\ReportParserServiceImpl.class
 org\school\Blank\AnalysisResult$1.class
+org\school\analysis\exception\ValidationException.class
 org\school\analysis\util\FileHelper.class
-org\school\analysis\parser\ExcelReportParser.class
 org\school\analysis\service\ReportFileFinderService.class
 org\school\analysis\util\FileHelper$1.class
 org\school\analysis\service\ReportParserService.class

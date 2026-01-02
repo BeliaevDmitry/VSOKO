@@ -2,6 +2,7 @@ package org.school.analysis.service.impl;
 
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.service.ReportFileFinderService;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ import java.util.List;
 
 import static org.school.analysis.model.ProcessingStatus.PENDING;
 
+@Service
 public class ReportFileFinderServiceImpl implements ReportFileFinderService {
 
     @Override

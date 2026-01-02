@@ -10,7 +10,7 @@ src/main/java/org/school/analysis/
 │   ├── 📂 impl/                       # Реализации сервисов
 │   │   ├── ReportProcessorServiceImpl.java     # Главный координатор
 │   │   ├── ReportFileFinderServiceImpl.java    # Поиск файлов
-│   │   ├── ReportParserServiceImpl.java        # Парсинг Excel
+│   │   ├── ReportParserServiceImpl.java        # Парсинг Excel (с заменой ExcelReportParser)
 │   │   └── FileOrganizerServiceImpl.java       # Организация файлов
 │   │
 │   ├── ReportProcessorService.java             # Интерфейс главного сервиса
@@ -18,14 +18,7 @@ src/main/java/org/school/analysis/
 │   ├── ReportParserService.java                # Интерфейс парсинга
 │   └── FileOrganizerService.java               # Интерфейс организации файлов
 │
-├── 📂 repository/                     # Слой доступа к данным
-│   ├── 📂 impl/
-│   │   └── InMemoryStudentRepository.java      # Заглушка для БД
-│   │
-│   └── StudentResultRepository.java            # Интерфейс репозитория
-│
 ├── 📂 parser/                         # Парсеры разных форматов
-│   ├── ExcelReportParser.java         # Парсинг Excel (детальная реализация)
 │   └── 📂 strategy/                   # Стратегии парсинга
 │       ├── StudentDataParser.java     # Парсинг данных учеников
 │       └── MetadataParser.java        # Парсинг метаданных
@@ -37,5 +30,8 @@ src/main/java/org/school/analysis/
 │
 ├── 📂 config/                         # Конфигурация
 │   └── AppConfig.java                 # Настройки путей и параметров
+│
+├── 📂 exception/                      # Кастомные исключения (НОВОЕ)
+│   └── ValidationException.java       # Исключение для ошибок валидации
 │
 └── Main.java                          # Точка входа
