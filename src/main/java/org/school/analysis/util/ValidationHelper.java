@@ -15,7 +15,7 @@ public class ValidationHelper {
     private static final Pattern FIO_PATTERN =
             Pattern.compile("^[А-ЯЁ][а-яё]+\\s[А-ЯЁ][а-яё]+(\\s[А-ЯЁ][а-яё]+)?$");
     private static final Pattern CLASS_NAME_PATTERN =
-            Pattern.compile("^\\d{1,2}[А-Яа-я]?$");
+            Pattern.compile("^(1[0-1]|[1-9])[-][А-Яа-я]$");
     private static final Pattern SUBJECT_PATTERN =
             Pattern.compile("^[А-Яа-яЁё\\s\\-]{3,50}$");
 

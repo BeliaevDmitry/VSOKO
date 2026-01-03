@@ -28,9 +28,9 @@ public class MetadataParser {
         metadata.setSubject(ExcelParser.getCellValueAsString(infoSheet, 2, 1, "Неизвестный предмет"));
         metadata.setClassName(ExcelParser.getCellValueAsString(infoSheet, 3, 1, "Неизвестный класс"));
         metadata.setTestType(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Неизвестный тип работы"));
-        metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 5, 1, "ГБОУ №7"));
+        metadata.setMaxScores(parseMaxScoresFromText(ExcelParser.getCellValueAsString(infoSheet, 5, 1,"нет баллов")));
         metadata.setComment(ExcelParser.getCellValueAsString(infoSheet, 6, 1, ""));
-
+        metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 7, 1, "ГБОУ №7"));
         return metadata;
     }
     /**
@@ -84,52 +84,6 @@ public class MetadataParser {
             return LocalDate.parse(dateString);
         } catch (Exception e) {
             return LocalDate.now();
-        }
-    }
-
-    /**
-     * Критерии оценок по умолчанию
-     */
-    private Map<String, Double> getDefaultGradeRanges() {
-        Map<String, Double> ranges = new HashMap<>();
-        ranges.put("5", 85.0);  // от 85%
-        ranges.put("4", 70.0);  // от 70%
-        ranges.put("3", 50.0);  // от 50%
-        ranges.put("2", 0.0);   // менее 50%
-        return ranges;
-    }
-
-    /**
-     * Извлечение метаданных из имени файла
-     */
-    public TestMetadata parseFromFileName(String fileName) {
-        TestMetadata metadata = new TestMetadata();
-
-        // Пример: "Сбор_данных_10А_История_2025-01-15.xlsx"
-        String nameWithoutExt = fileName.replace(".xlsx", "");
-        String[] parts = nameWithoutExt.split("_");
-
-        for (String part : parts) {
-            if (part.matches("\\d+[А-Яа-я]?")) {
-                metadata.setClassName(part); // Класс
-            } else if (isDate(part)) {
-                metadata.setTestDate(LocalDate.parse(part)); // Дата
-            } else if (!part.equalsIgnoreCase("Сбор") &&
-                    !part.equalsIgnoreCase("данных") &&
-                    !part.equalsIgnoreCase("класс")) {
-                metadata.setSubject(part); // Предмет
-            }
-        }
-
-        return metadata;
-    }
-
-    private boolean isDate(String str) {
-        try {
-            LocalDate.parse(str);
-            return true;
-        } catch (Exception e) {
-            return false;
         }
     }
 }

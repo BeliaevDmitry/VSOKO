@@ -7,6 +7,8 @@ import org.school.analysis.model.*;
 import org.school.analysis.parser.strategy.MetadataParser;
 import org.school.analysis.parser.strategy.StudentDataParser;
 import org.school.analysis.service.ReportParserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.FileInputStream;
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ReportParserServiceImpl implements ReportParserService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReportParserServiceImpl.class);
 
     private final MetadataParser metadataParser;
     private final StudentDataParser studentDataParser;
@@ -32,6 +36,7 @@ public class ReportParserServiceImpl implements ReportParserService {
      */
     @Override
     public List<ParseResult> parseFiles(List<ReportFile> reportFiles) {
+        log.info("Начало парсинга {} файлов", reportFiles.size());
         return reportFiles.stream()
                 .map(this::parseFile)
                 .collect(Collectors.toList());
@@ -42,30 +47,60 @@ public class ReportParserServiceImpl implements ReportParserService {
      */
     @Override
     public ParseResult parseFile(ReportFile reportFile) {
+        log.info("Начинаем парсинг файла: {}", reportFile.getFile().getName());
+        log.debug("Полный путь к файлу: {}", reportFile.getFile().getAbsolutePath());
+
         try (FileInputStream file = new FileInputStream(reportFile.getFile());
              Workbook workbook = new XSSFWorkbook(file)) {
 
-            // 1. Парсинг метаданных
+            log.debug("Файл успешно открыт, количество листов: {}", workbook.getNumberOfSheets());
+
+            // Выводим названия всех листов для отладки
+            for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                log.debug("Лист {}: {}", i, workbook.getSheetName(i));
+            }
+
+            // 1. Проверяем файл на структуру и парсим лист Информация
+            log.debug("Проверка структуры файла...");
             if (!validateExcelFile(reportFile)) {
+                log.error("Файл {} не прошел валидацию - неправильная структура", reportFile.getFile().getName());
                 return ParseResult.error(reportFile, "неправильная структура отчёта");
             }
+
             Sheet infoSheet = workbook.getSheet("Информация");
+            log.debug("Лист 'Информация' найден, строк: {}", infoSheet.getPhysicalNumberOfRows());
+
             TestMetadata metadata = metadataParser.parseMetadata(infoSheet);
+            var maxScores = metadata.getMaxScores();
+            log.debug("Парсинг максимальных баллов...");
+            log.info("Метаданные распарсены: предмет={}, класс={}, дата={}, учитель={}",
+                    metadata.getSubject(), metadata.getClassName(),
+                    metadata.getTestDate(), metadata.getTeacher());
 
             // 2. Парсинг данных учеников
             Sheet dataSheet = workbook.getSheet("Сбор информации");
-            if (dataSheet == null) {
-                return ParseResult.error(reportFile, "Лист 'Сбор информации' не найден");
-            }
+            log.debug("Лист 'Сбор информации' найден, строк: {}", dataSheet.getPhysicalNumberOfRows());
 
-            // 3. Получение максимальных баллов
-            var maxScores = studentDataParser.parseMaxScores(dataSheet);
+            // Просмотр первых нескольких строк для отладки
+            logFirstRows(dataSheet, 5);
 
-            // 4. Парсинг данных учеников
+            log.debug("Парсинг данных учеников...");
             List<StudentResult> studentResults = studentDataParser.parseStudentData(
                     dataSheet, maxScores, metadata.getSubject(), metadata.getClassName());
 
-            // 5. ПОЛНОЕ обновление ReportFile из TestMetadata
+            log.info("Найдено {} учеников в файле {}", studentResults.size(), reportFile.getFile().getName());
+
+            if (studentResults.isEmpty()) {
+                log.warn("В файле {} не найдено данных об учениках!", reportFile.getFile().getName());
+            } else {
+                log.debug("Первые 3 ученика: {}",
+                        studentResults.stream().limit(3)
+                                .map(StudentResult::getFio)
+                                .collect(Collectors.toList()));
+            }
+
+            // 3. ПОЛНОЕ обновление ReportFile из TestMetadata
+            log.debug("Обновление информации о файле...");
             reportFile.setSubject(metadata.getSubject());
             reportFile.setClassName(metadata.getClassName());
             reportFile.setTestDate(metadata.getTestDate());
@@ -77,12 +112,15 @@ public class ReportParserServiceImpl implements ReportParserService {
             // Параметры теста
             reportFile.setTaskCount(maxScores.size());
             reportFile.setMaxScores(maxScores);
-            metadata.setMaxScores(maxScores);  // ДОБАВИТЬ эту строку!
-            metadata.calculateMaxTotalScore();  // обновить metadata
-            reportFile.setMaxTotalScore(metadata.getMaxTotalScore());  // взять из metadata
-            reportFile.setStudentCount(studentResults.size());// Статистика
+            metadata.calculateMaxTotalScore();
+            reportFile.setMaxTotalScore(metadata.getMaxTotalScore());
+            reportFile.setStudentCount(studentResults.size());
 
-            // 6. Установка метаданных для каждого ученика
+            log.debug("Информация о файле обновлена: заданий={}, макс. балл={}, учеников={}",
+                    reportFile.getTaskCount(), reportFile.getMaxTotalScore(), reportFile.getStudentCount());
+
+            // 4. Установка метаданных для каждого ученика
+            log.debug("Установка метаданных для учеников...");
             for (StudentResult student : studentResults) {
                 student.setSubject(reportFile.getSubject());
                 student.setClassName(reportFile.getClassName());
@@ -90,14 +128,20 @@ public class ReportParserServiceImpl implements ReportParserService {
                 student.setTestType(reportFile.getTestType());
             }
 
-            // 7. Формирование успешного результата
+            // 5. Формирование успешного результата
+            log.info("Файл {} успешно обработан: {} учеников, {} заданий",
+                    reportFile.getFile().getName(), studentResults.size(), maxScores.size());
             return ParseResult.success(reportFile, studentResults);
 
         } catch (ValidationException e) {
+            log.error("Ошибка валидации в файле {}: {}",
+                    reportFile.getFile().getName(), e.getMessage(), e);
             return ParseResult.error(reportFile,
                     "Ошибка валидации данных. Проверьте файл:\n" + e.getMessage());
 
         } catch (Exception e) {
+            log.error("Критическая ошибка парсинга файла {}: {}",
+                    reportFile.getFile().getName(), e.getMessage(), e);
             return ParseResult.error(reportFile,
                     "Ошибка парсинга файла " + reportFile.getFile().getName() + ": " + e.getMessage());
         }
@@ -107,6 +151,8 @@ public class ReportParserServiceImpl implements ReportParserService {
      * Проверка валидности Excel файла
      */
     private boolean validateExcelFile(ReportFile reportFile) {
+        log.debug("Валидация структуры файла: {}", reportFile.getFile().getName());
+
         try (FileInputStream file = new FileInputStream(reportFile.getFile());
              Workbook workbook = new XSSFWorkbook(file)) {
 
@@ -114,10 +160,64 @@ public class ReportParserServiceImpl implements ReportParserService {
             boolean hasInfoSheet = workbook.getSheet("Информация") != null;
             boolean hasDataSheet = workbook.getSheet("Сбор информации") != null;
 
+            log.debug("Результаты валидации: hasInfoSheet={}, hasDataSheet={}",
+                    hasInfoSheet, hasDataSheet);
+
             return hasInfoSheet && hasDataSheet;
 
         } catch (Exception e) {
+            log.error("Ошибка при валидации файла {}: {}",
+                    reportFile.getFile().getName(), e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Вспомогательный метод для логирования первых строк листа
+     */
+    private void logFirstRows(Sheet sheet, int count) {
+        log.debug("=== Первые {} строк листа '{}' ===", count, sheet.getSheetName());
+
+        for (int i = 0; i <= Math.min(count, sheet.getLastRowNum()); i++) {
+            Row row = sheet.getRow(i);
+            if (row != null) {
+                StringBuilder rowData = new StringBuilder();
+                for (int j = 0; j < row.getLastCellNum(); j++) {
+                    Cell cell = row.getCell(j);
+                    if (cell != null) {
+                        rowData.append(getCellValue(cell)).append(" | ");
+                    }
+                }
+                log.debug("Строка {}: {}", i, rowData.toString());
+            }
+        }
+        log.debug("=== Конец отладки строк ===");
+    }
+
+    /**
+     * Получение значения ячейки в виде строки
+     */
+    private String getCellValue(Cell cell) {
+        if (cell == null) {
+            return "[ПУСТО]";
+        }
+
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue().trim();
+            case NUMERIC:
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    return cell.getDateCellValue().toString();
+                }
+                return String.valueOf(cell.getNumericCellValue());
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                return cell.getCellFormula();
+            case BLANK:
+                return "[ПУСТО]";
+            default:
+                return "[НЕИЗВЕСТНО]";
         }
     }
 }

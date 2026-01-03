@@ -1,7 +1,7 @@
 # application-docker.yml (или используйте переменные окружения)
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/school_analysis}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/school_analysis}
     username: ${SPRING_DATASOURCE_USERNAME:school_user}
     password: ${SPRING_DATASOURCE_PASSWORD:school_password}
     driver-class-name: org.postgresql.Driver

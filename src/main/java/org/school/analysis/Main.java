@@ -20,7 +20,7 @@ public class Main {
 
     // Шаблон для папок с обработанными отчетами
     // {предмет} будет заменен на название предмета
-    private static final String REPORTS_BASE_FOLDER =
+    public static final String REPORTS_BASE_FOLDER =
             "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы\\{предмет}\\Отчёты";
 
     // Папка для итоговых отчетов (сводная статистика)
@@ -72,9 +72,8 @@ public class Main {
         System.out.println("✅ Успешно распарсено: " + summary.getSuccessfullyParsed());
         System.out.println("💾 Сохранено в БД: " + summary.getSuccessfullySaved());
         System.out.println("📂 Перемещено файлов: " + summary.getSuccessfullyMoved());
-        System.out.println("👨‍🎓 Обработано учеников: " + summary.getTotalStudentsProcessed());
 
-        if (!summary.getFailedFiles().isEmpty()) {
+        if (summary.getFailedFiles() != null && !summary.getFailedFiles().isEmpty()) {
             System.out.println("\n⚠️ ФАЙЛЫ С ОШИБКАМИ:");
             for (var file : summary.getFailedFiles()) {
                 System.out.println("  • " + file.getFile().getName() +

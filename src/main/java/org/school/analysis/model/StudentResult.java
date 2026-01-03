@@ -22,14 +22,6 @@ public class StudentResult {
     // Результаты
     private Map<Integer, Integer> taskScores;  // Баллы за задания: {1=2, 2=1, 3=0}
 
-    
-    /**
-     * Получить балл за конкретное задание
-     */
-    public Integer getScoreForTask(int taskNumber) {
-        return taskScores.get(taskNumber);
-    }
-
     /**
      * Проверка, присутствовал ли ученик
      */

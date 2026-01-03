@@ -23,6 +23,9 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
     private final StudentResultRepositoryImpl repositoryImpl;
     private final FileOrganizerService fileOrganizerService;
 
+    // Добавьте это для контроля размера пакета
+    private static final int BATCH_SIZE = 100;
+
     @Override
     @Transactional
     public ProcessingSummary processAll(String folderPath) {
@@ -35,39 +38,31 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
             summary.setTotalFilesFound(foundFiles.size());
             log.info("Найдено {} файлов", foundFiles.size());
 
-            // 2. Парсинг файлов
-            List<ParseResult> parseResults = parseReports(foundFiles);
-            long successfullyParsed = parseResults.stream()
-                    .filter(ParseResult::isSuccess)
-                    .count();
-            log.info("Успешно распарсено {} файлов", successfullyParsed);
+            // 2. Обработка файлов небольшими партиями (для оптимизации памяти)
+            for (int i = 0; i < foundFiles.size(); i += BATCH_SIZE) {
+                int end = Math.min(i + BATCH_SIZE, foundFiles.size());
+                List<ReportFile> batch = foundFiles.subList(i, end);
 
-            // 3. Сохранение в БД
-            List<ReportFile> savedFiles = saveResultsToDatabase(parseResults);
-            summary.setSuccessfullySaved(savedFiles.size());
-            log.info("Успешно сохранено {} файлов", savedFiles.size());
+                // Обработка партии
+                List<ParseResult> parseResults = parseReports(batch);
+                List<ReportFile> savedFiles = saveResultsToDatabase(parseResults);
+                List<ReportFile> movedFiles = moveProcessedFiles(savedFiles);
 
-            // 4. Перемещение файлов
-            List<ReportFile> movedFiles = moveProcessedFiles(savedFiles);
-            summary.setSuccessfullyMoved(movedFiles.size());
+                // Обновление статистики
+                summary.setSuccessfullyParsed(summary.getSuccessfullyParsed() +
+                        (int) parseResults.stream().filter(ParseResult::isSuccess).count());
+                summary.setSuccessfullySaved(summary.getSuccessfullySaved() + savedFiles.size());
+                summary.setSuccessfullyMoved(summary.getSuccessfullyMoved() + movedFiles.size());
 
-            // 5. Сбор статистики
-            int totalStudents = parseResults.stream()
-                    .filter(ParseResult::isSuccess)
-                    .mapToInt(ParseResult::getParsedStudents)
-                    .sum();
-            summary.setTotalStudentsProcessed(totalStudents);
-            log.info("Обработано {} студентов", totalStudents);
-
-            // 6. Сбор ошибок
-            for (ReportFile file : foundFiles) {
-                if (file.getStatus() == ERROR_PARSING ||
-                        file.getStatus() == ERROR_SAVING ||
-                        file.getStatus() == ERROR_MOVING) {
-                    failedFiles.add(file);
-                }
+                log.debug("Обработано файлов: {}-{} из {}", i, end, foundFiles.size());
             }
-            summary.setFailedFiles(failedFiles);
+
+            // 3. Итоговая статистика
+            log.info("ИТОГО: Найдено={}, Распарсено={}, Сохранено={}, Перемещено={}",
+                    summary.getTotalFilesFound(),
+                    summary.getSuccessfullyParsed(),
+                    summary.getSuccessfullySaved(),
+                    summary.getSuccessfullyMoved());
 
         } catch (Exception e) {
             log.error("Ошибка при обработке отчетов: {}", e.getMessage(), e);

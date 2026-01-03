@@ -12,13 +12,15 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.school.analysis.Main.REPORTS_BASE_FOLDER;
+
 @Service
 public class FileOrganizerServiceImpl implements FileOrganizerService {
 
-    private final String reportsBaseFolderTemplate;
+    private final String reportsBaseFolderTemplate = REPORTS_BASE_FOLDER;
 
     public FileOrganizerServiceImpl() {
-        this.reportsBaseFolderTemplate = "./reports/{предмет}";
+
         System.out.println("Используется базовый путь: " + reportsBaseFolderTemplate);
     }
 

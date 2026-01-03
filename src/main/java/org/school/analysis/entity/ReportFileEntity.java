@@ -20,6 +20,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
 public class ReportFileEntity {
 
     @Id

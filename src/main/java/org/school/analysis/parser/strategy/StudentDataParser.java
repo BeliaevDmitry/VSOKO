@@ -1,6 +1,8 @@
 package org.school.analysis.parser.strategy;
 
 import org.apache.poi.ss.usermodel.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.school.analysis.exception.ValidationException;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.util.ExcelParser;
@@ -15,6 +17,8 @@ import java.util.*;
 @Component
 public class StudentDataParser {
 
+    private static final Logger log = LoggerFactory.getLogger(StudentDataParser.class);
+
     /**
      * Парсинг данных учеников с листа "Сбор информации"
      */
@@ -23,20 +27,27 @@ public class StudentDataParser {
                                                 String subject,
                                                 String className) {
         List<StudentResult> results = new ArrayList<>();
-        List<String> validationErrors = new ArrayList<>(); // Собираем ошибки
+        List<String> validationErrors = new ArrayList<>();
 
-        if (dataSheet == null || maxScores.isEmpty()) {
+        if (maxScores.isEmpty()) {
+            log.error("Нет данных о максимальных баллах. Невозможно парсить учеников.");
             return results;
         }
 
+        log.debug("Парсинг учеников. Максимальные баллы: {}", maxScores);
+        log.debug("Всего строк в листе: {}", dataSheet.getLastRowNum() + 1);
+
+        // Данные учеников начинаются с 4-й строки (индекс 3)
         int firstStudentRow = 3;
-        int maxStudents = 34;
 
-        for (int rowIdx = firstStudentRow; rowIdx < firstStudentRow + maxStudents; rowIdx++) {
+        for (int rowIdx = firstStudentRow; rowIdx <= dataSheet.getLastRowNum(); rowIdx++) {
             Row row = dataSheet.getRow(rowIdx);
-            if (row == null) break;
+            if (row == null) {
+                log.debug("Строка {} пустая", rowIdx);
+                continue;
+            }
 
-            StudentResult result = parseStudentRow(row, maxScores, subject, className);
+            StudentResult result = parseStudentRow(row, maxScores, subject, className, rowIdx);
 
             if (result != null) {
                 // ВАЛИДАЦИЯ и проверка результата
@@ -44,25 +55,28 @@ public class StudentDataParser {
                         ValidationHelper.validateStudentResult(result, maxScores);
 
                 if (!validation.isValid()) {
-                    // Добавляем ошибки в список
                     String errorMsg = String.format("Строка %d, ученик '%s': %s",
                             rowIdx + 1, result.getFio(),
                             String.join("; ", validation.getErrors()));
                     validationErrors.add(errorMsg);
-                    continue; // Пропускаем этого ученика
+                    log.warn(errorMsg);
+                    continue;
                 }
 
                 // Проверяем предупреждения
                 if (!validation.getWarnings().isEmpty()) {
-                    // Можно залогировать предупреждения
                     for (String warning : validation.getWarnings()) {
-                        System.out.printf("Предупреждение (строка %d): %s%n",
-                                rowIdx + 1, warning);
+                        log.warn("Предупреждение (строка {}): {}", rowIdx + 1, warning);
                     }
                 }
 
+                // Добавляем ученика, если он присутствовал
                 if (result.wasPresent()) {
                     results.add(result);
+                    log.debug("Добавлен ученик: {} (баллы: {})",
+                            result.getFio(), result.getTaskScores());
+                } else {
+                    log.debug("Ученик {} отсутствовал", result.getFio());
                 }
             }
         }
@@ -73,6 +87,7 @@ public class StudentDataParser {
                     String.join("\n", validationErrors));
         }
 
+        log.info("Найдено {} учеников (присутствовавших)", results.size());
         return results;
     }
 
@@ -82,52 +97,53 @@ public class StudentDataParser {
     private StudentResult parseStudentRow(Row row,
                                           Map<Integer, Integer> maxScores,
                                           String subject,
-                                          String className) {
+                                          String className,
+                                          int rowIndex) {
         // ФИО (колонка B, индекс 1)
         String fio = ExcelParser.getCellValueAsString(row.getCell(1));
-        if (fio == null || fio.trim().isEmpty()) {
-            return null; // Пустая строка
+        if (fio == null || fio.trim().isEmpty() || fio.equals("[ПУСТО]")) {
+            log.debug("Строка {}: ФИО пустое или '[ПУСТО]'", rowIndex + 1);
+            return null;
         }
+
+        fio = fio.trim();
+        log.debug("Парсинг ученика: {}", fio);
 
         // Присутствие (колонка C, индекс 2)
         String presence = ExcelParser.getCellValueAsString(row.getCell(2));
-        if ("Не был".equalsIgnoreCase(presence)) {
-            // Создаем запись для отсутствующего
-            StudentResult absent = new StudentResult();
-            absent.setFio(fio.trim());
-            absent.setPresence(presence);
-            absent.setSubject(subject);
-            absent.setClassName(className);
-            absent.setTaskScores(new HashMap<>());
-            return absent;
-        }
+        boolean wasPresent = "Был".equalsIgnoreCase(presence) || "Была".equalsIgnoreCase(presence);
 
         // Вариант (колонка D, индекс 3)
         String variant = ExcelParser.getCellValueAsString(row.getCell(3));
 
         // Парсинг баллов за задания (начиная с колонки E, индекс 4)
-        Map<Integer, Integer> taskScores = parseTaskScores(row, maxScores.keySet());
+        Map<Integer, Integer> taskScores = parseTaskScores(row, maxScores.keySet(), rowIndex);
 
         // Создание результата
         StudentResult result = new StudentResult();
-        result.setFio(fio.trim());
+        result.setFio(fio);
         result.setPresence(presence);
         result.setVariant(variant);
         result.setSubject(subject);
         result.setClassName(className);
         result.setTaskScores(taskScores);
-
         return result;
     }
 
     /**
      * Парсинг баллов за задания
      */
-    private Map<Integer, Integer> parseTaskScores(Row row, Set<Integer> taskNumbers) {
+    private Map<Integer, Integer> parseTaskScores(Row row, Set<Integer> taskNumbers, int rowIndex) {
         Map<Integer, Integer> scores = new HashMap<>();
 
+        log.debug("Строка {}: парсинг баллов для заданий {}", rowIndex + 1, taskNumbers);
+
         for (Integer taskNum : taskNumbers) {
-            int columnIndex = 3 + taskNum; // E=4, F=5, G=6, ...
+            // Начинаем с колонки E (индекс 4)
+            // Задание 1 -> колонка E (индекс 4)
+            // Задание 2 -> колонка F (индекс 5)
+            // и т.д.
+            int columnIndex = 4 + (taskNum - 1);
             Cell cell = row.getCell(columnIndex);
 
             Integer score = ExcelParser.getCellValueAsInteger(cell);
@@ -136,37 +152,41 @@ public class StudentDataParser {
             }
 
             scores.put(taskNum, score);
+            log.debug("  Задание {} (колонка {}): балл = {}", taskNum, columnIndex, score);
         }
 
         return scores;
     }
 
     /**
-     * Чтение максимальных баллов из 3-й строки
+     * Логирование содержимого строки
      */
-    public Map<Integer, Integer> parseMaxScores(Sheet dataSheet) {
-        Map<Integer, Integer> maxScores = new HashMap<>();
-
-        Row maxScoresRow = dataSheet.getRow(2); // 3-я строка
-        if (maxScoresRow == null) {
-            return maxScores;
+    private void logRowData(Row row) {
+        if (row == null) {
+            log.debug("  Строка пустая");
+            return;
         }
 
-        int taskNumber = 1;
-        for (int col = 4; col < 100; col++) { // Начиная с колонки E
-            Cell cell = maxScoresRow.getCell(col);
-            if (cell == null) break;
+        StringBuilder sb = new StringBuilder();
+        sb.append("  ");
 
-            Integer maxScore = ExcelParser.getCellValueAsInteger(cell);
-            if (maxScore != null) {
-                maxScores.put(taskNumber, maxScore);
-                taskNumber++;
-            } else {
-                break;
+        int cellCount = 0;
+        for (int i = 0; i <= row.getLastCellNum(); i++) {
+            Cell cell = row.getCell(i);
+            if (cell != null) {
+                String value = ExcelParser.getCellValueAsString(cell);
+                if (value != null && !value.isEmpty()) {
+                    sb.append("[").append(i).append("]=").append(value).append(" ");
+                    cellCount++;
+                }
             }
         }
 
-        return maxScores;
+        if (cellCount == 0) {
+            log.debug("  Нет данных в строке");
+        } else {
+            log.debug(sb.toString());
+        }
     }
 
     /**
@@ -180,7 +200,7 @@ public class StudentDataParser {
             return taskNumbers;
         }
 
-        for (int col = 4; col < 100; col++) {
+        for (int col = 4; col <= headerRow.getLastCellNum(); col++) {
             Cell cell = headerRow.getCell(col);
             if (cell == null) break;
 
@@ -192,6 +212,7 @@ public class StudentDataParser {
             }
         }
 
+        log.debug("Найдены номера заданий: {}", taskNumbers);
         return taskNumbers;
     }
 }
