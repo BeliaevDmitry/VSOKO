@@ -1,11 +1,13 @@
 package org.school.analysis.service.impl;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.model.ParseResult;
 import org.school.analysis.model.ReportFile;
-import org.school.analysis.repository.StudentResultRepository;
+import org.school.analysis.repository.impl.StudentResultRepositoryImpl;
 import org.school.analysis.service.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,14 +16,15 @@ import static org.school.analysis.model.ProcessingStatus.*;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class ReportProcessorServiceImpl implements ReportProcessorService {
 
-    private final ReportFileFinderService fileFinderService;
     private final ReportParserService parserService;
-    private final StudentResultRepository repository;
+    private final StudentResultRepositoryImpl repositoryImpl;
     private final FileOrganizerService fileOrganizerService;
 
     @Override
+    @Transactional
     public ProcessingSummary processAll(String folderPath) {
         ProcessingSummary summary = new ProcessingSummary();
         List<ReportFile> failedFiles = new ArrayList<>();
@@ -30,28 +33,31 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
             // 1. Найти файлы
             List<ReportFile> foundFiles = findReports(folderPath);
             summary.setTotalFilesFound(foundFiles.size());
+            log.info("Найдено {} файлов", foundFiles.size());
 
             // 2. Парсинг файлов
             List<ParseResult> parseResults = parseReports(foundFiles);
+            long successfullyParsed = parseResults.stream()
+                    .filter(ParseResult::isSuccess)
+                    .count();
+            log.info("Успешно распарсено {} файлов", successfullyParsed);
 
             // 3. Сохранение в БД
             List<ReportFile> savedFiles = saveResultsToDatabase(parseResults);
-            int successfullyParsedCount = (int) parseResults.stream()
-                    .filter(ParseResult::isSuccess)
-                    .count();
             summary.setSuccessfullySaved(savedFiles.size());
+            log.info("Успешно сохранено {} файлов", savedFiles.size());
 
             // 4. Перемещение файлов
             List<ReportFile> movedFiles = moveProcessedFiles(savedFiles);
             summary.setSuccessfullyMoved(movedFiles.size());
 
             // 5. Сбор статистики
-            summary.setTotalStudentsProcessed(
-                    parseResults.stream()
-                            .filter(ParseResult::isSuccess)
-                            .mapToInt(ParseResult::getParsedStudents)
-                            .sum()
-            );
+            int totalStudents = parseResults.stream()
+                    .filter(ParseResult::isSuccess)
+                    .mapToInt(ParseResult::getParsedStudents)
+                    .sum();
+            summary.setTotalStudentsProcessed(totalStudents);
+            log.info("Обработано {} студентов", totalStudents);
 
             // 6. Сбор ошибок
             for (ReportFile file : foundFiles) {
@@ -64,6 +70,7 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
             summary.setFailedFiles(failedFiles);
 
         } catch (Exception e) {
+            log.error("Ошибка при обработке отчетов: {}", e.getMessage(), e);
             throw new RuntimeException("Ошибка при обработке отчетов: " + e.getMessage(), e);
         }
 
@@ -71,33 +78,55 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
     }
 
     @Override
+    @Transactional
+    public List<ReportFile> saveResultsToDatabase(List<ParseResult> parseResults) {
+        List<ReportFile> savedFiles = new ArrayList<>();
+
+        for (ParseResult parseResult : parseResults) {
+            if (!parseResult.isSuccess()) {
+                continue;
+            }
+
+            ReportFile reportFile = parseResult.getReportFile();
+
+            try {
+                // СОХРАНЯЕМ В БД через единый репозиторий!
+                int savedCount = repositoryImpl.saveAll(
+                        reportFile,
+                        parseResult.getStudentResults()
+                );
+
+                if (savedCount > 0) {
+                    reportFile.setStatus(SAVED);
+                    savedFiles.add(reportFile);
+                    log.info("✅ Файл {} сохранен ({} студентов)",
+                            reportFile.getFileName(), savedCount);
+                } else {
+                    reportFile.setStatus(ERROR_SAVING);
+                    reportFile.setErrorMessage("Не удалось сохранить данные в БД");
+                    log.warn("⚠️ Файл {} не сохранен (0 студентов)",
+                            reportFile.getFileName());
+                }
+
+            } catch (Exception e) {
+                reportFile.setStatus(ERROR_SAVING);
+                reportFile.setErrorMessage("Ошибка БД: " + e.getMessage());
+                log.error("❌ Ошибка сохранения файла {}: {}",
+                        reportFile.getFileName(), e.getMessage());
+            }
+        }
+
+        return savedFiles;
+    }
+
+    @Override
     public List<ReportFile> findReports(String folderPath) {
-        return fileFinderService.findReportFiles(folderPath);
+        return fileOrganizerService.findReportFiles(folderPath);
     }
 
     @Override
     public List<ParseResult> parseReports(List<ReportFile> reportFiles) {
         return parserService.parseFiles(reportFiles);
-    }
-
-    @Override
-    public List<ReportFile> saveResultsToDatabase(List<ParseResult> parseResults) {
-        List<ReportFile> successfullySaved = new ArrayList<>();
-
-        for (ParseResult parseResult : parseResults) {
-            if (parseResult.isSuccess()) {
-                int savedCount = repository.saveAll(parseResult.getStudentResults());
-                if (savedCount > 0) {
-                    parseResult.getReportFile().setStatus(SAVED);
-                    successfullySaved.add(parseResult.getReportFile());
-                } else {
-                    parseResult.getReportFile().setStatus(ERROR_SAVING);
-                    parseResult.getReportFile().setErrorMessage("Не удалось сохранить в БД");
-                }
-            }
-        }
-
-        return successfullySaved;
     }
 
     @Override

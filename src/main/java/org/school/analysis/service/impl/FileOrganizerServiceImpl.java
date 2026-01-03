@@ -1,11 +1,14 @@
 package org.school.analysis.service.impl;
 
+import org.school.analysis.model.ProcessingStatus;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.service.FileOrganizerService;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,8 +17,9 @@ public class FileOrganizerServiceImpl implements FileOrganizerService {
 
     private final String reportsBaseFolderTemplate;
 
-    public FileOrganizerServiceImpl(String reportsBaseFolderTemplate) {
-        this.reportsBaseFolderTemplate = reportsBaseFolderTemplate;
+    public FileOrganizerServiceImpl() {
+        this.reportsBaseFolderTemplate = "./reports/{предмет}";
+        System.out.println("Используется базовый путь: " + reportsBaseFolderTemplate);
     }
 
     @Override
@@ -62,15 +66,73 @@ public class FileOrganizerServiceImpl implements FileOrganizerService {
     }
 
     @Override
-    public String createSubjectFolderStructure(String subject) throws IOException {
-        String safeSubject = subject.replaceAll("[\\\\/:*?\"<>|]", "_");
-        String targetFolderPath = reportsBaseFolderTemplate.replace("{предмет}", safeSubject);
+    public List<ReportFile> findReportFiles(String folderPath) {
+        List<ReportFile> reportFiles = new ArrayList<>();
+        File folder = new File(folderPath);
 
-        Path targetFolder = Paths.get(targetFolderPath);
-        if (!Files.exists(targetFolder)) {
-            Files.createDirectories(targetFolder);
+        if (!folder.exists() || !folder.isDirectory()) {
+            throw new IllegalArgumentException("Папка не существует: " + folderPath);
         }
 
-        return targetFolder.toString();
+        // Простой и понятный вариант
+        for (File file : folder.listFiles()) {
+            if (file.isFile() && file.getName().toLowerCase().endsWith(".xlsx")) {
+                ReportFile reportFile = new ReportFile();
+                reportFile.setFile(file);
+                reportFile.setStatus(ProcessingStatus.PENDING);
+                reportFile.setProcessedAt(LocalDateTime.now());
+
+                ReportFile metadata = extractMetadataFromFileName(file);
+                if (metadata.getSubject() != null) {
+                    reportFile.setSubject(metadata.getSubject());
+                }
+                if (metadata.getClassName() != null) {
+                    reportFile.setClassName(metadata.getClassName());
+                }
+
+                reportFiles.add(reportFile);
+            }
+        }
+
+        return reportFiles;
+    }
+
+    @Override
+    public ReportFile extractMetadataFromFileName(File file) {
+        ReportFile reportFile = new ReportFile();
+        reportFile.setFile(file);
+
+        // Пример: "Сбор_данных_10А_История.xlsx"
+        String[] parts = file.getName().replace(".xlsx", "").split("_");
+
+        // Ищем класс (формат: "10А", "6", "11Б")
+        for (String part : parts) {
+            if (part.matches("\\d+[А-Яа-я]?")) {
+                reportFile.setClassName(part);
+                break;
+            }
+        }
+
+        // Ищем предмет (последняя часть, не класс, не "Сбор", не "данных")
+        for (int i = parts.length - 1; i >= 0; i--) {
+            String part = parts[i];
+            if (!part.matches("\\d+[А-Яа-я]?") &&
+                    !part.equalsIgnoreCase("Сбор") &&
+                    !part.equalsIgnoreCase("данных") &&
+                    !part.equalsIgnoreCase("класс")) {
+                reportFile.setSubject(part);
+                break;
+            }
+        }
+
+        // Если не нашли, устанавливаем по умолчанию
+        if (reportFile.getSubject() == null) {
+            reportFile.setSubject("Неизвестный предмет");
+        }
+        if (reportFile.getClassName() == null) {
+            reportFile.setClassName("Неизвестный класс");
+        }
+
+        return reportFile;
     }
 }

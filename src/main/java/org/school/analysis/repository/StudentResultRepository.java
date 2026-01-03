@@ -1,26 +1,11 @@
 package org.school.analysis.repository;
 
-import org.school.analysis.model.StudentResult;
+import org.school.analysis.entity.StudentResultEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import java.util.UUID;
 
-/**
- * Репозиторий для сохранения результатов в БД
- */
-public interface StudentResultRepository {
-
-    /**
-     * Сохранить результаты одного ученика
-     */
-    boolean save(StudentResult studentResult);
-
-    /**
-     * Сохранить список результатов
-     */
-    int saveAll(List<StudentResult> studentResults);
-
-    /**
-     * Проверить существование ученика в БД
-     */
-    boolean exists(StudentResult studentResult);
+@Repository
+public interface StudentResultRepository extends JpaRepository<StudentResultEntity, UUID> {
 }

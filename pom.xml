@@ -5,110 +5,146 @@
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- Spring Boot Parent - управляет версиями зависимостей -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.3</version>
+        <relativePath/>
+    </parent>
+
     <groupId>org.school.project</groupId>
     <artifactId>vsoko-analysis-tool</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>PDF Processor for School</name>
-    <description>Application for processing PDF files with student data</description>
+    <name>School Analysis Tool</name>
+    <description>Application for processing school reports and student data</description>
 
     <properties>
-        <!-- Используем release для правильной настройки source/target -->
-        <maven.compiler.release>21</maven.compiler.release>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>21</java.version>
+        <!-- Версии сторонних библиотек (не управляемых Spring Boot) -->
+        <pdfbox.version>2.0.27</pdfbox.version>
+        <poi.version>5.4.0</poi.version>
+        <itextpdf.version>5.5.13.3</itextpdf.version>
+        <jfreechart.version>1.5.3</jfreechart.version>
+        <jcommon.version>1.0.24</jcommon.version>
     </properties>
 
     <dependencies>
-
+        <!-- ===== SPRING BOOT STARTERS ===== -->
+        <!-- Основной starter (логирование, конфигурация, автонастройка) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
-            <version>3.5.3</version>
         </dependency>
 
+        <!-- Spring Data JPA для работы с PostgreSQL -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- ===== ФАЙЛОВЫЕ ОПЕРАЦИИ ===== -->
+        <!-- PDFBox для работы с PDF (чтение/парсинг) -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
-            <version>2.0.27</version>
+            <version>${pdfbox.version}</version>
         </dependency>
 
+        <!-- Apache POI для работы с Excel -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi</artifactId>
-            <version>5.3.0</version>
+            <version>${poi.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.4.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.18.34</version>
-            <scope>provided</scope>
+            <version>${poi.version}</version>
         </dependency>
 
-        <!-- iText 5 (совместимый с com.itextpdf.text.Font) -->
+        <!-- ===== ГЕНЕРАЦИЯ ОТЧЕТОВ ===== -->
+        <!-- iTextPDF для создания PDF отчетов -->
         <dependency>
             <groupId>com.itextpdf</groupId>
             <artifactId>itextpdf</artifactId>
-            <version>5.5.13.3</version>
+            <version>${itextpdf.version}</version>
         </dependency>
 
-        <!-- JFreeChart для диаграмм -->
+        <!-- JFreeChart для графиков и диаграмм -->
         <dependency>
             <groupId>org.jfree</groupId>
             <artifactId>jfreechart</artifactId>
-            <version>1.5.3</version>
+            <version>${jfreechart.version}</version>
         </dependency>
 
         <!-- JCommon (зависимость JFreeChart) -->
         <dependency>
             <groupId>org.jfree</groupId>
             <artifactId>jcommon</artifactId>
-            <version>1.0.24</version>
+            <version>${jcommon.version}</version>
+        </dependency>
+
+        <!-- ===== БАЗА ДАННЫХ ===== -->
+        <!-- PostgreSQL драйвер -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ===== УТИЛИТЫ ===== -->
+        <!-- Lombok для сокращения кода -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ===== ТЕСТИРОВАНИЕ ===== -->
+        <!-- Spring Boot Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Spring Boot Maven Plugin - создает исполняемый JAR -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <!-- Явно указываем release вместо source/target -->
-                    <release>21</release>
-                    <encoding>UTF-8</encoding>
-                    <!-- Указываем параметры для Java 21 -->
-                    <compilerArgs>
-                        <arg>--enable-preview</arg>
-                    </compilerArgs>
+                    <excludes>
+                        <!-- Исключаем Lombok из финального JAR -->
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
                 </configuration>
             </plugin>
 
+            <!-- Maven Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.4.1</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>org.school.readMckoReport.sheet.Main</mainClass>
-                                </transformer>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <!-- Обработчик аннотаций Lombok -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
         </plugins>
     </build>

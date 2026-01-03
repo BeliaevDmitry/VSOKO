@@ -10,7 +10,6 @@ import org.school.analysis.service.ReportParserService;
 import org.springframework.stereotype.Service;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,6 +46,9 @@ public class ReportParserServiceImpl implements ReportParserService {
              Workbook workbook = new XSSFWorkbook(file)) {
 
             // 1. Парсинг метаданных
+            if (!validateExcelFile(reportFile)) {
+                return ParseResult.error(reportFile, "неправильная структура отчёта");
+            }
             Sheet infoSheet = workbook.getSheet("Информация");
             TestMetadata metadata = metadataParser.parseMetadata(infoSheet);
 
@@ -58,31 +60,40 @@ public class ReportParserServiceImpl implements ReportParserService {
 
             // 3. Получение максимальных баллов
             var maxScores = studentDataParser.parseMaxScores(dataSheet);
-            metadata.setMaxScores(maxScores);
-            metadata.setTaskCount(maxScores.size());
-            metadata.calculateMaxTotalScore();
 
-            // 4. Парсинг данных учеников (может бросить ValidationException)
+            // 4. Парсинг данных учеников
             List<StudentResult> studentResults = studentDataParser.parseStudentData(
                     dataSheet, maxScores, metadata.getSubject(), metadata.getClassName());
 
-            // 5. Установка метаданных для каждого ученика
-            for (StudentResult student : studentResults) {
-                student.setSubject(metadata.getSubject());
-                student.setClassName(metadata.getClassName());
-                student.setTestDate(metadata.getTestDate());
-            }
-
-            // 6. Обновление ReportFile
+            // 5. ПОЛНОЕ обновление ReportFile из TestMetadata
             reportFile.setSubject(metadata.getSubject());
             reportFile.setClassName(metadata.getClassName());
-            reportFile.setStudentCount(studentResults.size());
+            reportFile.setTestDate(metadata.getTestDate());
+            reportFile.setTeacher(metadata.getTeacher());
+            reportFile.setSchool(metadata.getSchool() != null ? metadata.getSchool() : "ГБОУ №7");
+            reportFile.setTestType(metadata.getTestType());
+            reportFile.setComment(metadata.getComment());
+
+            // Параметры теста
+            reportFile.setTaskCount(maxScores.size());
+            reportFile.setMaxScores(maxScores);
+            metadata.setMaxScores(maxScores);  // ДОБАВИТЬ эту строку!
+            metadata.calculateMaxTotalScore();  // обновить metadata
+            reportFile.setMaxTotalScore(metadata.getMaxTotalScore());  // взять из metadata
+            reportFile.setStudentCount(studentResults.size());// Статистика
+
+            // 6. Установка метаданных для каждого ученика
+            for (StudentResult student : studentResults) {
+                student.setSubject(reportFile.getSubject());
+                student.setClassName(reportFile.getClassName());
+                student.setTestDate(reportFile.getTestDate());
+                student.setTestType(reportFile.getTestType());
+            }
 
             // 7. Формирование успешного результата
             return ParseResult.success(reportFile, studentResults);
 
         } catch (ValidationException e) {
-            // Специальная обработка ошибок валидации
             return ParseResult.error(reportFile,
                     "Ошибка валидации данных. Проверьте файл:\n" + e.getMessage());
 
@@ -93,29 +104,9 @@ public class ReportParserServiceImpl implements ReportParserService {
     }
 
     /**
-     * Быстрый парсинг только метаданных (без данных учеников)
-     */
-    public TestMetadata parseMetadataOnly(ReportFile reportFile) throws IOException {
-        try (FileInputStream file = new FileInputStream(reportFile.getFile());
-             Workbook workbook = new XSSFWorkbook(file)) {
-
-            Sheet infoSheet = workbook.getSheet("Информация");
-            if (infoSheet != null) {
-                return metadataParser.parseMetadata(infoSheet);
-            }
-
-            return metadataParser.parseFromFileName(reportFile.getFile().getName());
-
-        } catch (Exception e) {
-            // Если не удалось прочитать файл, парсим только имя
-            return metadataParser.parseFromFileName(reportFile.getFile().getName());
-        }
-    }
-
-    /**
      * Проверка валидности Excel файла
      */
-    public boolean validateExcelFile(ReportFile reportFile) {
+    private boolean validateExcelFile(ReportFile reportFile) {
         try (FileInputStream file = new FileInputStream(reportFile.getFile());
              Workbook workbook = new XSSFWorkbook(file)) {
 

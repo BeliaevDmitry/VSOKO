@@ -9,12 +9,10 @@ src/main/java/org/school/analysis/
 ├── 📂 service/                        # Сервисный слой (бизнес-логика)
 │   ├── 📂 impl/                       # Реализации сервисов
 │   │   ├── ReportProcessorServiceImpl.java     # Главный координатор
-│   │   ├── ReportFileFinderServiceImpl.java    # Поиск файлов
 │   │   ├── ReportParserServiceImpl.java        # Парсинг Excel (с заменой ExcelReportParser)
 │   │   └── FileOrganizerServiceImpl.java       # Организация файлов
 │   │
 │   ├── ReportProcessorService.java             # Интерфейс главного сервиса
-│   ├── ReportFileFinderService.java            # Интерфейс поиска файлов
 │   ├── ReportParserService.java                # Интерфейс парсинга
 │   └── FileOrganizerService.java               # Интерфейс организации файлов
 │
@@ -25,7 +23,6 @@ src/main/java/org/school/analysis/
 │
 ├── 📂 util/                           # Утилиты и хелперы
 │   ├── ExcelParser.java               # Низкоуровневый парсинг Excel
-│   ├── FileHelper.java                # Работа с файлами
 │   └── ValidationHelper.java          # Валидация данных
 │
 ├── 📂 config/                         # Конфигурация

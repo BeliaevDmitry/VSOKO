@@ -1,0 +1,27 @@
+# application-docker.yml (или используйте переменные окружения)
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/school_analysis}
+    username: ${SPRING_DATASOURCE_USERNAME:school_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:school_password}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+# Папки в Docker контейнере
+file:
+  input-dir: /app/input
+  output-dir: /app/output
+  processed-dir: /app/processed
+
+logging:
+  level:
+    org.school.analysis: DEBUG
+    org.springframework.transaction: INFO

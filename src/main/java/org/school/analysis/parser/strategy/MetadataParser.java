@@ -15,9 +15,6 @@ import java.util.Map;
 @Component
 public class MetadataParser {
 
-    /**
-     * Парсинг метаданных из листа "Информация"
-     */
     public TestMetadata parseMetadata(Sheet infoSheet) {
         TestMetadata metadata = new TestMetadata();
 
@@ -25,24 +22,17 @@ public class MetadataParser {
             return metadata;
         }
 
-        // Основная информация (строки 1-5)
+        // Основная информация
         metadata.setTeacher(ExcelParser.getCellValueAsString(infoSheet, 0, 1, "Не указан"));
         metadata.setTestDate(parseDate(ExcelParser.getCellValueAsString(infoSheet, 1, 1)));
         metadata.setSubject(ExcelParser.getCellValueAsString(infoSheet, 2, 1, "Неизвестный предмет"));
         metadata.setClassName(ExcelParser.getCellValueAsString(infoSheet, 3, 1, "Неизвестный класс"));
-        metadata.setTestType(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Неизвествный тип работы"));
-        metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 8, 1, "ГБОУ №7"));
-
-        // Парсинг строки с максимальными баллами (если есть)
-        String scoresText = ExcelParser.getCellValueAsString(infoSheet, 5, 1);
-        if (scoresText != null) {
-            metadata.setMaxScores(parseMaxScoresFromText(scoresText));
-        }
-
+        metadata.setTestType(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Неизвестный тип работы"));
+        metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 5, 1, "ГБОУ №7"));
+        metadata.setComment(ExcelParser.getCellValueAsString(infoSheet, 6, 1, ""));
 
         return metadata;
     }
-
     /**
      * Парсинг максимальных баллов из текста
      * Формат: "1=2, 2=2, 3=3, 4=1, 5=2"
