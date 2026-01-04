@@ -12,6 +12,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TestSummaryDto {
+    private String reportFileId;
     private String school;
     private String subject;
     private String className;

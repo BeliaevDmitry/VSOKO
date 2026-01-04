@@ -18,4 +18,6 @@ public interface ReportFileRepository extends
 
     // Опционально, может пригодиться
     Optional<ReportFileEntity> findByFileHash(String fileHash);
+
+    Optional<ReportFileEntity> findByFileName(String fileName);
 }

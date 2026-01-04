@@ -79,6 +79,7 @@ public class ReportMapper {
                 .testType(model.getTestType())
                 .testDate(model.getTestDate())
                 .totalScore(JsonScoreUtils.calculateTotalScore(model.getTaskScores()))
+                .percentageScore(model.getPercentageScore()) // Добавьте это поле
                 .taskScoresJson(JsonScoreUtils.mapToJson(model.getTaskScores()))
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -99,6 +100,7 @@ public class ReportMapper {
         model.setTestType(entity.getTestType());
         model.setTestDate(entity.getTestDate());
         model.setTotalScore(entity.getTotalScore());
+        model.setPercentageScore(entity.getPercentageScore()); // Добавьте это поле
         model.setTaskScores(JsonScoreUtils.jsonToMap(entity.getTaskScoresJson()));
         return model;
     }

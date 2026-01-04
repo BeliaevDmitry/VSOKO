@@ -389,4 +389,200 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         style.setDataFormat(workbook.createDataFormat().getFormat("0.00"));
         return style;
     }
+
+    @Override
+    public File generateTestDetailReport(
+            TestSummaryDto testSummary,
+            List<StudentDetailedResultDto> studentResults,
+            Map<Integer, TaskStatisticsDto> taskStatistics) {
+
+        log.info("Генерация детального отчета для теста: {} - {}",
+                testSummary.getSubject(), testSummary.getClassName());
+
+        try {
+            Path reportsPath = Paths.get(FINAL_REPORT_FOLDER);
+            if (!Files.exists(reportsPath)) {
+                Files.createDirectories(reportsPath);
+            }
+
+            String fileName = String.format("Детальный_отчет_%s_%s_%s.xlsx",
+                    testSummary.getSubject(),
+                    testSummary.getClassName(),
+                    testSummary.getTestDate().format(DateTimeFormatter.ofPattern("ddMMyyyy")));
+            Path filePath = reportsPath.resolve(fileName);
+
+            try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+                // 1. Лист с результатами студентов
+                createStudentResultsSheet(workbook, testSummary, studentResults);
+
+                // 2. Лист с анализом по заданиям
+                createTaskAnalysisSheet(workbook, testSummary, taskStatistics);
+
+                // 3. Лист со статистикой
+                createStatisticsSheet(workbook, testSummary, studentResults, taskStatistics);
+
+                // Сохраняем файл
+                try (FileOutputStream outputStream = new FileOutputStream(filePath.toFile())) {
+                    workbook.write(outputStream);
+                }
+            }
+
+            log.info("Детальный отчет сохранен: {}", filePath);
+            return filePath.toFile();
+
+        } catch (Exception e) {
+            log.error("Ошибка при создании детального отчета", e);
+            return null;
+        }
+    }
+
+    @Override
+    public File generateTeacherReport(
+            String teacherName,
+            List<TestSummaryDto> teacherTests) {
+
+        log.info("Генерация отчета для учителя: {}", teacherName);
+
+        try {
+            Path reportsPath = Paths.get(FINAL_REPORT_FOLDER);
+            if (!Files.exists(reportsPath)) {
+                Files.createDirectories(reportsPath);
+            }
+
+            String fileName = String.format("Отчет_учителя_%s_%s.xlsx",
+                    teacherName.replace(" ", "_"),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("ddMMyyyy_HHmm")));
+            Path filePath = reportsPath.resolve(fileName);
+
+            try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+                // 1. Сводный лист по всем тестам
+                createTeacherSummarySheet(workbook, teacherName, teacherTests);
+
+                // 2. Лист по каждому тесту
+                for (int i = 0; i < teacherTests.size(); i++) {
+                    createTeacherTestSheet(workbook, teacherTests.get(i), teacherName, i);
+                }
+
+                // Сохраняем файл
+                try (FileOutputStream outputStream = new FileOutputStream(filePath.toFile())) {
+                    workbook.write(outputStream);
+                }
+            }
+
+            log.info("Отчет учителя сохранен: {}", filePath);
+            return filePath.toFile();
+
+        } catch (Exception e) {
+            log.error("Ошибка при создании отчета учителя", e);
+            return null;
+        }
+    }
+
+    // Методы для создания листов:
+
+    private void createStudentResultsSheet(Workbook workbook, TestSummaryDto test,
+                                           List<StudentDetailedResultDto> students) {
+        Sheet sheet = workbook.createSheet("Результаты студентов");
+
+        // Заголовки
+        String[] headers = {"№", "ФИО", "Присутствие", "Вариант", "Общий балл", "% выполнения"};
+
+        // Определяем максимальное количество заданий
+        int maxTasks = students.stream()
+                .map(StudentDetailedResultDto::getTaskScores)
+                .filter(Objects::nonNull)
+                .mapToInt(Map::size)
+                .max()
+                .orElse(0);
+
+        // Добавляем заголовки для заданий
+        String[] allHeaders = Arrays.copyOf(headers, headers.length + maxTasks);
+        for (int i = 0; i < maxTasks; i++) {
+            allHeaders[headers.length + i] = "Зад. " + (i + 1);
+        }
+
+        // Создаем таблицу
+        createHeaderRow(sheet, allHeaders);
+
+        // Заполняем данные
+        int rowNum = 1;
+        for (int i = 0; i < students.size(); i++) {
+            StudentDetailedResultDto student = students.get(i);
+            Row row = sheet.createRow(rowNum++);
+
+            row.createCell(0).setCellValue(i + 1); // №
+            row.createCell(1).setCellValue(student.getFio());
+            row.createCell(2).setCellValue(student.getPresence());
+            row.createCell(3).setCellValue(student.getVariant() != null ? student.getVariant() : "");
+            row.createCell(4).setCellValue(student.getTotalScore() != null ? student.getTotalScore() : 0);
+            row.createCell(5).setCellValue(student.getPercentageScore() != null ?
+                    student.getPercentageScore() / 100.0 : 0.0);
+
+            // Баллы по заданиям
+            Map<Integer, Integer> taskScores = student.getTaskScores();
+            for (int taskNum = 1; taskNum <= maxTasks; taskNum++) {
+                Integer score = taskScores != null ? taskScores.get(taskNum) : null;
+                row.createCell(5 + taskNum).setCellValue(score != null ? score : 0);
+            }
+        }
+
+        // Автонастройка ширины
+        for (int i = 0; i < allHeaders.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private void createTaskAnalysisSheet(Workbook workbook, TestSummaryDto test,
+                                         Map<Integer, TaskStatisticsDto> statistics) {
+        Sheet sheet = workbook.createSheet("Анализ по заданиям");
+
+        // Заголовки
+        String[] headers = {
+                "Задание",
+                "Макс. балл",
+                "Полностью",
+                "Частично",
+                "Не справилось",
+                "% выполнения",
+                "Распределение баллов"
+        };
+
+        createHeaderRow(sheet, headers);
+
+        // Заполняем данные
+        int rowNum = 1;
+        for (TaskStatisticsDto stats : statistics.values()) {
+            Row row = sheet.createRow(rowNum++);
+
+            row.createCell(0).setCellValue(stats.getTaskNumber());
+            row.createCell(1).setCellValue(stats.getMaxScore());
+            row.createCell(2).setCellValue(stats.getFullyCompletedCount());
+            row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
+            row.createCell(4).setCellValue(stats.getNotCompletedCount());
+            row.createCell(5).setCellValue(stats.getCompletionPercentage() / 100.0);
+
+            // Строка с распределением баллов
+            String distribution = stats.getScoreDistribution().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(e -> String.format("%d баллов: %d", e.getKey(), e.getValue()))
+                    .collect(Collectors.joining("; "));
+            row.createCell(6).setCellValue(distribution);
+        }
+
+        // Автонастройка ширины
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private void createHeaderRow(Sheet sheet, String[] headers) {
+        Row headerRow = sheet.createRow(0);
+        CellStyle headerStyle = createHeaderStyle(sheet.getWorkbook());
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+    }
 }

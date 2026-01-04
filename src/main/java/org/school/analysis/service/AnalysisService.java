@@ -1,23 +1,33 @@
 package org.school.analysis.service;
 
-import org.school.analysis.entity.StudentResultEntity;
+import org.school.analysis.model.dto.StudentDetailedResultDto;
+import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 
 import java.util.List;
+import java.util.Map;
 
 public interface AnalysisService {
 
-    /**
-     * Получить список всех тестов сгруппированных по предмету, классу, дате, учителю
-     * Формат: Школа, Предмет, Класс, Дата теста, Тип теста, Учитель,
-     * Кол-во учеников писавших, Кол-во учеников в классе, Кол-во заданий теста,
-     * Макс. балл, Средний балл теста
-     */
     List<TestSummaryDto> getAllTestsSummary();
 
     /**
-     * Получить список результатов учеников по работе для анализа
+     * Получить детальные результаты студентов для теста
      */
-    List<StudentResultEntity> getResultTest(String school, String testType, String subject,
-                                            String className);
+    List<StudentDetailedResultDto> getStudentDetailedResults(String reportFileId);
+
+    /**
+     * Получить статистику по заданиям для теста
+     */
+    Map<Integer, TaskStatisticsDto> getTaskStatistics(String reportFileId);
+
+    /**
+     * Получить тесты по учителю
+     */
+    List<TestSummaryDto> getTestsByTeacher(String teacherName);
+
+    /**
+     * Получить список уникальных учителей
+     */
+    List<String> getAllTeachers();
 }

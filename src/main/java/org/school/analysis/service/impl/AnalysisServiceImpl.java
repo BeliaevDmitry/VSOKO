@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.entity.ReportFileEntity;
 import org.school.analysis.entity.StudentResultEntity;
+import org.school.analysis.model.dto.StudentDetailedResultDto;
+import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 import org.school.analysis.repository.ReportFileRepository;
 import org.school.analysis.repository.StudentResultRepository;
@@ -20,6 +22,7 @@ import jakarta.persistence.criteria.JoinType;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -49,16 +52,6 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .collect(Collectors.toList());
     }
 
-    public List<StudentResultEntity> getResultTest(String school, String testType, String subject,
-                                                   String className) {
-        //получаем список результатов учеников
-        Map<Integer, Integer> taskScores;
-        return null;
-    }
-
-    /**
-     * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
-     */
     /**
      * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
      */
@@ -238,5 +231,117 @@ public class AnalysisServiceImpl implements AnalysisService {
                     reportFileId, e.getMessage());
             return Map.of();
         }
+    }
+
+    // Добавьте эти методы в AnalysisServiceImpl:
+
+    @Override
+    public List<StudentDetailedResultDto> getStudentDetailedResults(String reportFileId) {
+        log.info("Получение детальных результатов студентов для теста {}", reportFileId);
+
+        try {
+            ReportFileEntity reportFile = reportFileRepository.findById(java.util.UUID.fromString(reportFileId))
+                    .orElseThrow(() -> new IllegalArgumentException("Тест с ID " + reportFileId + " не найден"));
+
+            List<StudentResultEntity> students = getStudentsForReport(reportFile);
+
+            return students.stream()
+                    .map(this::convertToStudentDetailedResult)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Ошибка при получении детальных результатов студентов: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    @Override
+    public Map<Integer, TaskStatisticsDto> getTaskStatistics(String reportFileId) {
+        log.info("Получение статистики по заданиям для теста {}", reportFileId);
+
+        try {
+            ReportFileEntity reportFile = reportFileRepository.findById(java.util.UUID.fromString(reportFileId))
+                    .orElseThrow(() -> new IllegalArgumentException("Тест с ID " + reportFileId + " не найден"));
+
+            List<StudentResultEntity> students = getStudentsForReport(reportFile)
+                    .stream()
+                    .filter(s -> "Был".equalsIgnoreCase(s.getPresence()))
+                    .collect(Collectors.toList());
+
+            // Получаем максимальные баллы
+            Map<Integer, Integer> maxScores = JsonScoreUtils.jsonToMap(reportFile.getMaxScoresJson());
+            if (maxScores.isEmpty()) {
+                return Map.of();
+            }
+
+            Map<Integer, TaskStatisticsDto> statistics = new TreeMap<>();
+
+            // Инициализируем статистику для каждого задания
+            for (Integer taskNumber : maxScores.keySet()) {
+                statistics.put(taskNumber, TaskStatisticsDto.builder()
+                        .taskNumber(taskNumber)
+                        .maxScore(maxScores.get(taskNumber))
+                        .build());
+            }
+
+            // Собираем статистику
+            for (StudentResultEntity student : students) {
+                Map<Integer, Integer> studentScores = JsonScoreUtils.jsonToMap(student.getTaskScoresJson());
+
+                for (Map.Entry<Integer, Integer> entry : studentScores.entrySet()) {
+                    Integer taskNumber = entry.getKey();
+                    Integer score = entry.getValue();
+
+                    if (statistics.containsKey(taskNumber)) {
+                        TaskStatisticsDto stats = statistics.get(taskNumber);
+                        stats.incrementScoreCount(score);
+                    }
+                }
+            }
+
+            return statistics;
+
+        } catch (Exception e) {
+            log.error("Ошибка при получении статистики по заданиям: {}", e.getMessage(), e);
+            return Map.of();
+        }
+    }
+
+    @Override
+    public List<TestSummaryDto> getTestsByTeacher(String teacherName) {
+        log.info("Получение тестов учителя: {}", teacherName);
+
+        List<ReportFileEntity> teacherTests = reportFileRepository.findByTeacher(teacherName,
+                Sort.by(Sort.Direction.DESC, "testDate"));
+
+        return teacherTests.stream()
+                .map(this::convertToTestSummaryDto)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> getAllTeachers() {
+        log.info("Получение списка всех учителей");
+        return reportFileRepository.findAll()
+                .stream()
+                .map(ReportFileEntity::getTeacher)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    private StudentDetailedResultDto convertToStudentDetailedResult(StudentResultEntity entity) {
+        Map<Integer, Integer> scores = JsonScoreUtils.jsonToMap(entity.getTaskScoresJson());
+
+        return StudentDetailedResultDto.builder()
+                .fio(entity.getFio())
+                .presence(entity.getPresence())
+                .variant(entity.getVariant())
+                .totalScore(entity.getTotalScore())
+                .percentageScore(entity.getPercentageScore())
+                .taskScores(scores)
+                .build();
     }
 }

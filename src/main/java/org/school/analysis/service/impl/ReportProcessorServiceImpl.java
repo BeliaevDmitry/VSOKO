@@ -3,10 +3,13 @@ package org.school.analysis.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.config.AppConfig;
+import org.school.analysis.entity.ReportFileEntity;
 import org.school.analysis.model.ParseResult;
 import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
+import org.school.analysis.model.dto.StudentDetailedResultDto;
+import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 import org.school.analysis.repository.impl.StudentResultRepositoryImpl;
 import org.school.analysis.service.*;
@@ -17,11 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.school.analysis.model.ProcessingStatus.*;
 import static org.school.analysis.util.ValidationHelper.validateReportFile;
-import static org.school.analysis.util.ValidationHelper.validateStudentResult;
 
 @Service
 @RequiredArgsConstructor
@@ -112,6 +116,8 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
     /**
      * Генерация сводного отчета и отчетов по учителям
      */
+    // В методе generateSummaryReports() добавьте генерацию отчетов по учителям:
+
     private List<File> generateSummaryReports() {
         List<File> allGeneratedFiles = new ArrayList<>();
 
@@ -134,7 +140,10 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
             }
 
             // 3. Генерируем детальные отчеты для каждого теста
-            // TODO: реализовать при необходимости
+            generateDetailedTestReports(allTests, allGeneratedFiles);
+
+            // 4. Генерируем отчеты по учителям
+            generateTeacherReports(allGeneratedFiles);
 
         } catch (Exception e) {
             log.error("Ошибка при генерации сводных отчетов: {}", e.getMessage(), e);
@@ -142,6 +151,70 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
         }
 
         return allGeneratedFiles;
+    }
+
+    /**
+     * Генерация детальных отчетов для каждого теста
+     */
+    private void generateDetailedTestReports(List<TestSummaryDto> allTests, List<File> allGeneratedFiles) {
+        for (TestSummaryDto test : allTests) {
+            try {
+                if (test.getReportFileId() == null || test.getReportFileId().isEmpty()) {
+                    log.warn("Нет ID для файла: {}", test.getFileName());
+                    continue;
+                }
+
+                // Получаем детальные данные напрямую по ID
+                List<StudentDetailedResultDto> studentResults =
+                        analysisService.getStudentDetailedResults(test.getReportFileId());
+
+                Map<Integer, TaskStatisticsDto> taskStatistics =
+                        analysisService.getTaskStatistics(test.getReportFileId());
+                // Генерируем отчет
+                File detailReport = excelReportService.generateTestDetailReport(test, studentResults, taskStatistics);
+                if (detailReport != null && detailReport.exists()) {
+                    allGeneratedFiles.add(detailReport);
+                    log.info("Детальный отчет для теста {} сгенерирован", test.getFileName());
+                }
+            } catch (Exception e) {
+                log.error("Ошибка при генерации детального отчета для теста {}: {}",
+                        test.getFileName(), e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Генерация отчетов по учителям
+     */
+    private void generateTeacherReports(List<File> allGeneratedFiles) {
+        List<String> teachers = analysisService.getAllTeachers();
+
+        for (String teacher : teachers) {
+            try {
+                List<TestSummaryDto> teacherTests = analysisService.getTestsByTeacher(teacher);
+
+                File teacherReport = excelReportService.generateTeacherReport(teacher, teacherTests);
+                if (teacherReport != null && teacherReport.exists()) {
+                    allGeneratedFiles.add(teacherReport);
+                    log.info("Отчет для учителя {} сгенерирован", teacher);
+                }
+            } catch (Exception e) {
+                log.error("Ошибка при генерации отчета для учителя {}: {}", teacher, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Вспомогательный метод для получения ID файла (нужно реализовать логику)
+     */
+    private String getReportFileIdFromFileName(String fileName) {
+        // Вариант 1: Хранить маппинг в памяти (если файлов немного)
+        // Вариант 2: Создать таблицу file_mapping в БД
+        // Вариант 3: Искать по имени файла в report_files
+
+        // Пока используем вариант 3:
+        Optional<ReportFileEntity> fileEntity = reportFileRepository.findByFileName(fileName);
+        return fileEntity.map(entity -> entity.getId().toString()).orElse("");
     }
 
     @Override

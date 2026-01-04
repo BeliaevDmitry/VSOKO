@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.entity.ReportFileEntity;
 import org.school.analysis.entity.StudentResultEntity;
+import org.school.analysis.mapper.ReportMapper;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.repository.ReportFileRepository;
@@ -15,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.File;
 import java.nio.file.Files;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -26,6 +26,7 @@ public class StudentResultRepositoryImpl {
 
     private final EntityManager entityManager;
     private final ReportFileRepository reportFileRepository;
+    private final ReportMapper reportMapper; // Добавляем маппер
 
     @Transactional
     public int saveAll(ReportFile reportFile, List<StudentResult> studentResults) {
@@ -40,17 +41,17 @@ public class StudentResultRepositoryImpl {
                 return 0;
             }
 
-            // 2. Создаем ReportFileEntity и сохраняем сразу
-            ReportFileEntity reportFileEntity = createReportFileEntity(reportFile, fileHash, studentResults.size());
+            // 2. Создаем ReportFileEntity через маппер
+            ReportFileEntity reportFileEntity = reportMapper.toEntity(reportFile);
+            reportFileEntity.setFileHash(fileHash); // Устанавливаем хэш
+            reportFileEntity.setStudentCount(studentResults.size()); // Устанавливаем количество студентов
+
             entityManager.persist(reportFileEntity);
             entityManager.flush(); // Получаем ID для связей
 
-            // 3. Сохраняем студентов пакетно
+            // 3. Сохраняем студентов пакетно с использованием маппера
             AtomicInteger savedCount = new AtomicInteger(0);
             saveStudentsBatch(studentResults, reportFileEntity, savedCount);
-
-            // 4. Обновляем счетчик студентов
-            reportFileEntity.setStudentCount(savedCount.get());
 
             log.info("Сохранено {} студентов из файла {}", savedCount.get(), reportFile.getFileName());
             return savedCount.get();
@@ -62,34 +63,11 @@ public class StudentResultRepositoryImpl {
         }
     }
 
-    private ReportFileEntity createReportFileEntity(ReportFile reportFile, String fileHash, int studentCount) {
-        ReportFileEntity entity = ReportFileEntity.builder()
-                .filePath(reportFile.getFile().getAbsolutePath())
-                .fileName(reportFile.getFile().getName())
-                .fileHash(fileHash)
-                .subject(reportFile.getSubject())
-                .className(reportFile.getClassName())
-                .status(reportFile.getStatus())
-                .processedAt(LocalDateTime.now())
-                .errorMessage(reportFile.getErrorMessage())
-                .studentCount(studentCount)
-                .testDate(reportFile.getTestDate())
-                .teacher(reportFile.getTeacher())
-                .school(reportFile.getSchool())
-                .taskCount(reportFile.getTaskCount())
-                // Максимальные баллы сохраняем как JSON
-                .maxScoresJson(JsonScoreUtils.mapToJson(reportFile.getMaxScores()))
-                .testType(reportFile.getTestType())
-                .comment(reportFile.getComment())
-                .build();
-        return entity;
-    }
-
     private void saveStudentsBatch(List<StudentResult> studentResults,
                                    ReportFileEntity reportFileEntity,
                                    AtomicInteger savedCount) {
 
-        // Получаем максимальные баллы из JSON
+        // Получаем максимальные баллы из JSON для расчета процентов
         Map<Integer, Integer> maxScoresMap = JsonScoreUtils.jsonToMap(reportFileEntity.getMaxScoresJson());
         int maxTotalScore = calculateMaxTotalScore(maxScoresMap);
 
@@ -97,14 +75,20 @@ public class StudentResultRepositoryImpl {
             StudentResult student = studentResults.get(i);
 
             try {
-                StudentResultEntity studentEntity = createStudentEntity(
-                        student,
-                        reportFileEntity,
-                        maxScoresMap,
-                        maxTotalScore
-                );
-                entityManager.persist(studentEntity);
+                // Создаем сущность через маппер
+                StudentResultEntity studentEntity = reportMapper.toEntity(student, reportFileEntity);
 
+                // Дополнительные расчеты (процент выполнения)
+                if (studentEntity.getTaskScoresJson() != null && maxTotalScore > 0) {
+                    Map<Integer, Integer> taskScores = JsonScoreUtils.jsonToMap(studentEntity.getTaskScoresJson());
+                    if (taskScores != null && !taskScores.isEmpty()) {
+                        int totalScore = JsonScoreUtils.calculateTotalScore(taskScores);
+                        double percentage = (totalScore * 100.0) / maxTotalScore;
+                        studentEntity.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
+                    }
+                }
+
+                entityManager.persist(studentEntity);
                 savedCount.incrementAndGet();
 
                 // Периодически сбрасываем в базу (оптимизация памяти)
@@ -113,53 +97,16 @@ public class StudentResultRepositoryImpl {
                     entityManager.clear();
                     // После clear нужно повторно привязать reportFileEntity
                     reportFileEntity = entityManager.merge(reportFileEntity);
-                    // Также нужно обновить maxScoresMap
-                    maxScoresMap = JsonScoreUtils.jsonToMap(reportFileEntity.getMaxScoresJson());
-                    maxTotalScore = calculateMaxTotalScore(maxScoresMap);
                 }
 
             } catch (Exception e) {
-                log.error("Ошибка сохранения студента {}: {}", student.getFio(), e.getMessage());
+                log.error("Ошибка сохранения студента {}: {}", student.getFio(), e.getMessage(), e);
             }
         }
 
         // Финальный flush
         entityManager.flush();
         entityManager.clear();
-    }
-
-    private StudentResultEntity createStudentEntity(StudentResult student,
-                                                    ReportFileEntity reportFileEntity,
-                                                    Map<Integer, Integer> maxScoresMap,
-                                                    int maxTotalScore) {
-        StudentResultEntity entity = StudentResultEntity.builder()
-                .reportFile(reportFileEntity)
-                .subject(student.getSubject())
-                .className(student.getClassName())
-                .fio(student.getFio())
-                .presence(student.getPresence())
-                .variant(student.getVariant())
-                .testType(student.getTestType())
-                .testDate(student.getTestDate())
-                .build();
-
-        // Сохраняем баллы как JSON
-        if (student.getTaskScores() != null && !student.getTaskScores().isEmpty()) {
-            // Сохраняем JSON
-            entity.setTaskScoresJson(JsonScoreUtils.mapToJson(student.getTaskScores()));
-
-            // Вычисляем общий балл
-            int totalScore = JsonScoreUtils.calculateTotalScore(student.getTaskScores());
-            entity.setTotalScore(totalScore);
-
-            // Процент выполнения
-            if (maxTotalScore > 0) {
-                double percentage = (totalScore * 100.0) / maxTotalScore;
-                entity.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
-            }
-        }
-
-        return entity;
     }
 
     private int calculateMaxTotalScore(Map<Integer, Integer> maxScoresMap) {
@@ -191,10 +138,10 @@ public class StudentResultRepositoryImpl {
     }
 
     /**
-     * Альтернативный метод: массовое сохранение через JPA репозиторий
+     * Упрощенный метод с использованием маппера
      */
     @Transactional
-    public int saveAllOptimized(ReportFile reportFile, List<StudentResult> studentResults) {
+    public int saveAllWithMapper(ReportFile reportFile, List<StudentResult> studentResults) {
         try {
             // 1. Проверка дубликата
             String fileHash = calculateFileHash(reportFile.getFile());
@@ -203,29 +150,38 @@ public class StudentResultRepositoryImpl {
                 return 0;
             }
 
-            // 2. Создаем ReportFileEntity
-            ReportFileEntity reportFileEntity = createReportFileEntity(reportFile, fileHash, studentResults.size());
+            // 2. Создаем ReportFileEntity через маппер
+            ReportFileEntity reportFileEntity = reportMapper.toEntity(reportFile);
+            reportFileEntity.setFileHash(fileHash);
+            reportFileEntity.setStudentCount(studentResults.size());
 
-            // 3. Создаем StudentResultEntity для каждого студента
+            // 3. Создаем StudentResultEntity для каждого студента через маппер
+            List<StudentResultEntity> studentEntities = new ArrayList<>();
+
+            // Получаем максимальные баллы для расчета процентов
             Map<Integer, Integer> maxScoresMap = reportFile.getMaxScores();
             int maxTotalScore = calculateMaxTotalScore(maxScoresMap);
 
-            List<StudentResultEntity> studentEntities = new ArrayList<>();
             for (StudentResult student : studentResults) {
-                StudentResultEntity studentEntity = createStudentEntity(
-                        student,
-                        reportFileEntity,
-                        maxScoresMap,
-                        maxTotalScore
-                );
+                StudentResultEntity studentEntity = reportMapper.toEntity(student, reportFileEntity);
+
+                // Рассчитываем процент выполнения
+                if (studentEntity.getTaskScoresJson() != null && maxTotalScore > 0) {
+                    Map<Integer, Integer> taskScores = JsonScoreUtils.jsonToMap(studentEntity.getTaskScoresJson());
+                    if (taskScores != null && !taskScores.isEmpty()) {
+                        int totalScore = JsonScoreUtils.calculateTotalScore(taskScores);
+                        double percentage = (totalScore * 100.0) / maxTotalScore;
+                        studentEntity.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
+                    }
+                }
+
                 studentEntities.add(studentEntity);
             }
 
             // 4. Сохраняем все одной транзакцией
-            reportFileEntity = entityManager.merge(reportFileEntity);
+            entityManager.persist(reportFileEntity);
 
             for (StudentResultEntity studentEntity : studentEntities) {
-                studentEntity.setReportFile(reportFileEntity);
                 entityManager.persist(studentEntity);
             }
 
@@ -239,5 +195,29 @@ public class StudentResultRepositoryImpl {
                     reportFile.getFileName(), e.getMessage(), e);
             return 0;
         }
+    }
+
+    /**
+     * Метод для получения ReportFile по ID с использованием маппера
+     */
+    public ReportFile getReportFileById(UUID id) {
+        ReportFileEntity entity = entityManager.find(ReportFileEntity.class, id);
+        return reportMapper.toModel(entity);
+    }
+
+    /**
+     * Метод для получения результатов студента по ID файла
+     */
+    public List<StudentResult> getStudentResultsByReportFileId(UUID reportFileId) {
+        String query = "SELECT sr FROM StudentResultEntity sr WHERE sr.reportFile.id = :reportFileId";
+        List<StudentResultEntity> entities = entityManager.createQuery(query, StudentResultEntity.class)
+                .setParameter("reportFileId", reportFileId)
+                .getResultList();
+
+        List<StudentResult> results = new ArrayList<>();
+        for (StudentResultEntity entity : entities) {
+            results.add(reportMapper.toModel(entity));
+        }
+        return results;
     }
 }
