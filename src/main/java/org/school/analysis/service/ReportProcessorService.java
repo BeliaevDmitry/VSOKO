@@ -1,6 +1,5 @@
 package org.school.analysis.service;
 
-import lombok.Data;
 import org.school.analysis.model.ParseResult;
 import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.model.ReportFile;

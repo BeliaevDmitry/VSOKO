@@ -1,6 +1,7 @@
 package org.school.analysis.model;
 
 import lombok.Data;
+import org.school.analysis.util.JsonScoreUtils;
 
 import java.io.File;
 import java.time.LocalDate;
@@ -9,27 +10,51 @@ import java.util.Map;
 
 @Data
 public class ReportFile {
-    private File file;                    // Файл
-    private String subject;               // Предмет (из файла или имени)
-    private String className;             // Класс (из файла или имени)
-    private ProcessingStatus status;      // Статус обработки
-    private LocalDateTime processedAt;    // Когда обработан
-    private String errorMessage;          // Сообщение об ошибке (если есть)
-    private int studentCount;             // Количество учеников в файле
-    private LocalDate testDate;                // Дата проведения
-    private String teacher;                    // Учитель
-    private String school = "ГБОУ №7";          // Школа: "ГБОУ 7"
+    private File file;
+    private String subject;
+    private String className;
+    private ProcessingStatus status;
+    private LocalDateTime processedAt;
+    private String errorMessage;
+    private int studentCount;
+    private LocalDate testDate;
+    private String teacher;
+    private String school = "ГБОУ №7";
 
     // Параметры теста
-    private int taskCount;                     // Количество заданий
-    private Map<Integer, Integer> maxScores;   // Макс. баллы по заданиям
-    private int maxTotalScore;                 // Максимальный итоговый балл
+    private int taskCount;
+    private Map<Integer, Integer> maxScores;  // Теперь Map в памяти
+
+    // Удаляем maxTotalScore - будем вычислять
+    // private int maxTotalScore;
 
     // Дополнительно
-    private String testType;                   // Тип: "Входной", "Промежуточный", "Итоговый"
-    private String comment;                    // Комментарий
+    private String testType;
+    private String comment;
 
     public String getFileName() {
         return file != null ? file.getName() : "unknown";
     }
+
+    /**
+     * Получить максимальный балл как JSON для БД
+     */
+    public String getMaxScoresJson() {
+        return JsonScoreUtils.mapToJson(maxScores);
+    }
+
+    /**
+     * Установить максимальные баллы из JSON
+     */
+    public void setMaxScoresJson(String json) {
+        this.maxScores = JsonScoreUtils.jsonToMap(json);
+    }
+
+    /**
+     * Рассчитать максимальный итоговый балл
+     */
+    public int getMaxTotalScore() {
+        return JsonScoreUtils.calculateTotalScore(maxScores);
+    }
+
 }

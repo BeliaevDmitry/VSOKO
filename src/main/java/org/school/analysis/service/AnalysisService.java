@@ -1,9 +1,8 @@
 package org.school.analysis.service;
 
+import org.school.analysis.entity.StudentResultEntity;
 import org.school.analysis.model.dto.TestSummaryDto;
-import org.school.analysis.model.dto.TestResultsDto;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public interface AnalysisService {
@@ -17,21 +16,8 @@ public interface AnalysisService {
     List<TestSummaryDto> getAllTestsSummary();
 
     /**
-     * Получить список тестов с фильтрами
+     * Получить список результатов учеников по работе для анализа
      */
-    List<TestSummaryDto> getTestsSummaryWithFilters(String subject, String className,
-                                                    LocalDate startDate, LocalDate endDate,
-                                                    String teacher, String school);
-
-    /**
-     * Получить подробные результаты теста
-     */
-    TestResultsDto getTestResults(String subject, String className,
-                                  LocalDate testDate, String teacher);
-
-    /**
-     * Получить средний балл по тесту
-     */
-    Double getAverageScoreForTest(String subject, String className,
-                                  LocalDate testDate, String teacher);
+    List<StudentResultEntity> getResultTest(String school, String testType, String subject,
+                                            String className);
 }

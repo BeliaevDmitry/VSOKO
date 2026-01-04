@@ -24,7 +24,7 @@ public class TestSummaryDto {
     private Integer maxTotalScore;      // Макс. балл
     private Double averageScore;        // Средний балл теста
     private String fileName;            // Имя исходного файла
-    private Integer studentsTotal;      // Всего учеников в классе (из справочника)
+    private Integer studentsTotal;      // Всего учеников в классе
     private Integer studentsPresent;    // Присутствовало на тесте
     private Integer studentsAbsent;     // Отсутствовало на тесте
 
@@ -34,4 +34,35 @@ public class TestSummaryDto {
         return Math.round((studentsPresent * 100.0 / studentsTotal) * 10.0) / 10.0;
     }
 
+    // Вычисляемое поле для процента успеваемости
+    public Double getSuccessPercentage() {
+        if (averageScore == null || maxTotalScore == null || maxTotalScore == 0) {
+            return 0.0;
+        }
+        return Math.round((averageScore * 100.0 / maxTotalScore) * 10.0) / 10.0;
+    }
+
+    // Вычисляемое поле для процента отсутствия
+    public Double getAbsencePercentage() {
+        if (studentsTotal == null || studentsTotal == 0) return 0.0;
+        return Math.round((studentsAbsent * 100.0 / studentsTotal) * 10.0) / 10.0;
+    }
+
+    // Вычисляемое поле для процента не писавших тест
+    public Double getNotTestedPercentage() {
+        if (classSize == null || classSize == 0) return 0.0;
+        int notTested = classSize - studentsCount;
+        return Math.round((notTested * 100.0 / classSize) * 10.0) / 10.0;
+    }
+
+    // Получить информацию о тесте в виде строки
+    public String getTestInfo() {
+        return String.format("%s - %s (%s)", subject, className, testDate);
+    }
+
+    // Проверить, есть ли данные о тесте
+    public boolean hasValidData() {
+        return studentsCount != null && studentsCount > 0 &&
+                averageScore != null && maxTotalScore != null;
+    }
 }

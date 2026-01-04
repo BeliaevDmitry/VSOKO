@@ -6,14 +6,11 @@ import org.slf4j.LoggerFactory;
 import org.school.analysis.exception.ValidationException;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.util.ExcelParser;
-import org.school.analysis.util.ValidationHelper;
+import org.school.analysis.util.JsonScoreUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 
-/**
- * Стратегия парсинга данных учеников
- */
 @Component
 public class StudentDataParser {
 
@@ -47,51 +44,14 @@ public class StudentDataParser {
                 continue;
             }
 
-            StudentResult result = parseStudentRow(row, maxScores, subject, className,
-                    rowIdx);
+            StudentResult result = parseStudentRow(row, maxScores, subject, className, rowIdx);
 
             if (result != null) {
-                // ВАЛИДАЦИЯ и проверка результата
-                ValidationHelper.ValidationResult validation =
-                        ValidationHelper.validateStudentResult(result, maxScores);
-
-                if (!validation.isValid()) {
-                    String errorMsg = String.format("Строка %d, ученик '%s': %s",
-                            rowIdx + 1, result.getFio(),
-                            String.join("; ", validation.getErrors()));
-                    validationErrors.add(errorMsg);
-                    log.warn(errorMsg);
-                    continue;
-                }
-
-                // Проверяем предупреждения
-                if (!validation.getWarnings().isEmpty()) {
-                    for (String warning : validation.getWarnings()) {
-                        log.warn("Предупреждение (строка {}): {}", rowIdx + 1, warning);
-                    }
-                }
-
-                if (result.wasPresent()) {
-                    // Сохраняем с баллами
-                    results.add(result);
-                    log.debug("Добавлен присутствовавший ученик: {} (баллы: {})",
-                            result.getFio(), result.getTaskScores());
-                } else {
-                    // Сохраняем отсутствующего, но очищаем баллы
-                    result.setTaskScores(new HashMap<>()); // или null
-                    results.add(result);
-                    log.debug("Добавлен отсутствовавший ученик: {}", result.getFio());
-                }
+                results.add(result);
             }
         }
 
-        // Если есть критические ошибки, можно бросить исключение
-        if (!validationErrors.isEmpty()) {
-            throw new ValidationException("Ошибки валидации данных учеников:\n" +
-                    String.join("\n", validationErrors));
-        }
-
-        log.info("Найдено {} учеников (присутствовавших)", results.size());
+        log.info("Найдено {} учеников", results.size());
         return results;
     }
 
@@ -111,7 +71,6 @@ public class StudentDataParser {
         }
 
         fio = fio.trim();
-        log.debug("Парсинг ученика: {}", fio);
 
         // Присутствие (колонка C, индекс 2)
         String presence = ExcelParser.getCellValueAsString(row.getCell(2));
@@ -131,6 +90,12 @@ public class StudentDataParser {
         result.setSubject(subject);
         result.setClassName(className);
         result.setTaskScores(taskScores);
+
+        // Вычисляем totalScore сразу при парсинге
+        if (taskScores != null && !taskScores.isEmpty()) {
+            result.setTotalScore(JsonScoreUtils.calculateTotalScore(taskScores));
+        }
+
         return result;
     }
 
@@ -140,13 +105,8 @@ public class StudentDataParser {
     private Map<Integer, Integer> parseTaskScores(Row row, Set<Integer> taskNumbers, int rowIndex) {
         Map<Integer, Integer> scores = new HashMap<>();
 
-        log.debug("Строка {}: парсинг баллов для заданий {}", rowIndex + 1, taskNumbers);
-
         for (Integer taskNum : taskNumbers) {
             // Начинаем с колонки E (индекс 4)
-            // Задание 1 -> колонка E (индекс 4)
-            // Задание 2 -> колонка F (индекс 5)
-            // и т.д.
             int columnIndex = 4 + (taskNum - 1);
             Cell cell = row.getCell(columnIndex);
 
@@ -156,67 +116,8 @@ public class StudentDataParser {
             }
 
             scores.put(taskNum, score);
-            log.debug("  Задание {} (колонка {}): балл = {}", taskNum, columnIndex, score);
         }
 
         return scores;
-    }
-
-    /**
-     * Логирование содержимого строки
-     */
-    private void logRowData(Row row) {
-        if (row == null) {
-            log.debug("  Строка пустая");
-            return;
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("  ");
-
-        int cellCount = 0;
-        for (int i = 0; i <= row.getLastCellNum(); i++) {
-            Cell cell = row.getCell(i);
-            if (cell != null) {
-                String value = ExcelParser.getCellValueAsString(cell);
-                if (value != null && !value.isEmpty()) {
-                    sb.append("[").append(i).append("]=").append(value).append(" ");
-                    cellCount++;
-                }
-            }
-        }
-
-        if (cellCount == 0) {
-            log.debug("  Нет данных в строке");
-        } else {
-            log.debug(sb.toString());
-        }
-    }
-
-    /**
-     * Получение списка номеров заданий из заголовка
-     */
-    public Set<Integer> getTaskNumbers(Sheet dataSheet) {
-        Set<Integer> taskNumbers = new TreeSet<>();
-
-        Row headerRow = dataSheet.getRow(1); // 2-я строка с номерами заданий
-        if (headerRow == null) {
-            return taskNumbers;
-        }
-
-        for (int col = 4; col <= headerRow.getLastCellNum(); col++) {
-            Cell cell = headerRow.getCell(col);
-            if (cell == null) break;
-
-            String value = ExcelParser.getCellValueAsString(cell);
-            if (value != null && value.matches("\\d+")) {
-                taskNumbers.add(Integer.parseInt(value));
-            } else {
-                break;
-            }
-        }
-
-        log.debug("Найдены номера заданий: {}", taskNumbers);
-        return taskNumbers;
     }
 }
