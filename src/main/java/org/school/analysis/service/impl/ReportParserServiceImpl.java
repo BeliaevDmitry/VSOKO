@@ -7,6 +7,7 @@ import org.school.analysis.model.*;
 import org.school.analysis.parser.strategy.MetadataParser;
 import org.school.analysis.parser.strategy.StudentDataParser;
 import org.school.analysis.service.ReportParserService;
+import org.school.analysis.util.JsonScoreUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -85,7 +86,6 @@ public class ReportParserServiceImpl implements ReportParserService {
             List<StudentResult> studentResults = studentDataParser.parseStudentData(
                     dataSheet, maxScores, metadata.getSubject(), metadata.getClassName());
 
-
             // 3. ПОЛНОЕ обновление ReportFile из TestMetadata
             log.debug("Обновление информации о файле...");
             reportFile.setSubject(metadata.getSubject());
@@ -96,15 +96,14 @@ public class ReportParserServiceImpl implements ReportParserService {
             reportFile.setTestType(metadata.getTestType());
             reportFile.setComment(metadata.getComment());
 
-            // Параметры теста
+            // Параметры теста - НОВАЯ СТРУКТУРА
             reportFile.setTaskCount(maxScores.size());
             reportFile.setMaxScores(maxScores);
-            metadata.calculateMaxTotalScore();
-            reportFile.setMaxTotalScore(metadata.getMaxTotalScore());
+            // УДАЛЕНО: reportFile.setMaxTotalScore(metadata.getMaxTotalScore());
             reportFile.setStudentCount(studentResults.size());
 
-            log.debug("Информация о файле обновлена: заданий={}, макс. балл={}, учеников={}",
-                    reportFile.getTaskCount(), reportFile.getMaxTotalScore(), reportFile.getStudentCount());
+            log.debug("Информация о файле обновлена: заданий={}, учеников={}",
+                    reportFile.getTaskCount(), reportFile.getStudentCount());
 
             // 4. Установка метаданных для каждого ученика
             log.debug("Установка метаданных для учеников...");
@@ -113,6 +112,18 @@ public class ReportParserServiceImpl implements ReportParserService {
                 student.setClassName(reportFile.getClassName());
                 student.setTestDate(reportFile.getTestDate());
                 student.setTestType(reportFile.getTestType());
+
+                // Вычисляем totalScore для каждого студента
+                if (student.getTaskScores() != null) {
+                    int totalScore = JsonScoreUtils.calculateTotalScore(student.getTaskScores());
+                    student.setTotalScore(totalScore);
+
+                    // Вычисляем процент выполнения
+                    if (!maxScores.isEmpty() && reportFile.getMaxTotalScore() > 0) {
+                        double percentage = (totalScore * 100.0) / reportFile.getMaxTotalScore();
+                        student.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
+                    }
+                }
             }
 
             // 5. Формирование успешного результата

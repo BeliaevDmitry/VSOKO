@@ -110,6 +110,19 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <!-- Версию не указываем - Spring Boot управляет -->
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
+
+        <!-- УДАЛЕНО: MapStruct зависимости, так как используем кастомный маппер -->
     </dependencies>
 
     <build>
@@ -137,7 +150,7 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <annotationProcessorPaths>
-                        <!-- Обработчик аннотаций Lombok -->
+                        <!-- Только Lombok, MapStruct больше не нужен -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>

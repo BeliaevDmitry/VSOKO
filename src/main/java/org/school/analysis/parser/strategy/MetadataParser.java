@@ -1,6 +1,6 @@
 package org.school.analysis.parser.strategy;
 
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.school.analysis.model.TestMetadata;
 import org.school.analysis.util.ExcelParser;
 import org.springframework.stereotype.Component;
@@ -28,11 +28,12 @@ public class MetadataParser {
         metadata.setSubject(ExcelParser.getCellValueAsString(infoSheet, 2, 1, "Неизвестный предмет"));
         metadata.setClassName(ExcelParser.getCellValueAsString(infoSheet, 3, 1, "Неизвестный класс"));
         metadata.setTestType(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Неизвестный тип работы"));
-        metadata.setMaxScores(parseMaxScoresFromText(ExcelParser.getCellValueAsString(infoSheet, 5, 1,"нет баллов")));
+        metadata.setMaxScores(parseMaxScoresFromText(ExcelParser.getCellValueAsString(infoSheet, 5, 1, "нет баллов")));
         metadata.setComment(ExcelParser.getCellValueAsString(infoSheet, 6, 1, ""));
         metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 7, 1, "ГБОУ №7"));
         return metadata;
     }
+
     /**
      * Парсинг максимальных баллов из текста
      * Формат: "1=2, 2=2, 3=3, 4=1, 5=2"
@@ -40,7 +41,7 @@ public class MetadataParser {
     private Map<Integer, Integer> parseMaxScoresFromText(String text) {
         Map<Integer, Integer> maxScores = new HashMap<>();
 
-        if (text == null || text.trim().isEmpty()) {
+        if (text == null || text.trim().isEmpty() || "нет баллов".equalsIgnoreCase(text.trim())) {
             return maxScores;
         }
 

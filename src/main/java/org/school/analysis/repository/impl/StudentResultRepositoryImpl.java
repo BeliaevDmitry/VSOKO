@@ -3,10 +3,12 @@ package org.school.analysis.repository.impl;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.school.analysis.entity.*;
+import org.school.analysis.entity.ReportFileEntity;
+import org.school.analysis.entity.StudentResultEntity;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.repository.ReportFileRepository;
+import org.school.analysis.util.JsonScoreUtils;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,18 +45,11 @@ public class StudentResultRepositoryImpl {
             entityManager.persist(reportFileEntity);
             entityManager.flush(); // Получаем ID для связей
 
-            // 3. Сохраняем максимальные баллы пакетно
-            saveMaxScoresBatch(reportFile, reportFileEntity);
-
-            // 4. Сохраняем студентов пакетно
+            // 3. Сохраняем студентов пакетно
             AtomicInteger savedCount = new AtomicInteger(0);
-            List<StudentTaskScoreEntity> allTaskScores = new ArrayList<>();
-            saveStudentsBatch(studentResults, reportFileEntity, savedCount, allTaskScores);
+            saveStudentsBatch(studentResults, reportFileEntity, savedCount);
 
-            // 5. Сохраняем все баллы заданий пакетно
-            saveTaskScoresBatch(allTaskScores);
-
-            // 6. Обновляем счетчик студентов
+            // 4. Обновляем счетчик студентов
             reportFileEntity.setStudentCount(savedCount.get());
 
             log.info("Сохранено {} студентов из файла {}", savedCount.get(), reportFile.getFileName());
@@ -82,65 +77,33 @@ public class StudentResultRepositoryImpl {
                 .teacher(reportFile.getTeacher())
                 .school(reportFile.getSchool())
                 .taskCount(reportFile.getTaskCount())
-                .maxTotalScore(reportFile.getMaxTotalScore())
+                // Максимальные баллы сохраняем как JSON
+                .maxScoresJson(JsonScoreUtils.mapToJson(reportFile.getMaxScores()))
                 .testType(reportFile.getTestType())
                 .comment(reportFile.getComment())
                 .build();
         return entity;
     }
 
-    private void saveMaxScoresBatch(ReportFile reportFile, ReportFileEntity reportFileEntity) {
-        if (reportFile.getMaxScores() == null || reportFile.getMaxScores().isEmpty()) {
-            return;
-        }
-
-        List<MaxScoreEntity> maxScores = new ArrayList<>();
-        reportFile.getMaxScores().forEach((taskNumber, maxScore) -> {
-            MaxScoreEntity maxScoreEntity = MaxScoreEntity.builder()
-                    .reportFile(reportFileEntity)
-                    .taskNumber(taskNumber)
-                    .maxScore(maxScore)
-                    .build();
-            maxScores.add(maxScoreEntity);
-            reportFileEntity.getMaxScores().add(maxScoreEntity);
-        });
-
-        // Пакетное сохранение максимальных баллов
-        for (int i = 0; i < maxScores.size(); i++) {
-            entityManager.persist(maxScores.get(i));
-            if (i % 50 == 0 && i > 0) {
-                entityManager.flush();
-                entityManager.clear();
-            }
-        }
-        entityManager.flush();
-        entityManager.clear();
-    }
-
     private void saveStudentsBatch(List<StudentResult> studentResults,
                                    ReportFileEntity reportFileEntity,
-                                   AtomicInteger savedCount,
-                                   List<StudentTaskScoreEntity> allTaskScores) {
+                                   AtomicInteger savedCount) {
 
-        // Собираем все максимальные баллы в Map для быстрого доступа
-        Map<Integer, Integer> maxScoresMap = new HashMap<>();
-        if (reportFileEntity.getMaxScores() != null) {
-            for (MaxScoreEntity maxScoreEntity : reportFileEntity.getMaxScores()) {
-                maxScoresMap.put(maxScoreEntity.getTaskNumber(), maxScoreEntity.getMaxScore());
-            }
-        }
+        // Получаем максимальные баллы из JSON
+        Map<Integer, Integer> maxScoresMap = JsonScoreUtils.jsonToMap(reportFileEntity.getMaxScoresJson());
+        int maxTotalScore = calculateMaxTotalScore(maxScoresMap);
 
         for (int i = 0; i < studentResults.size(); i++) {
             StudentResult student = studentResults.get(i);
 
             try {
-                StudentResultEntity studentEntity = createStudentEntity(student, reportFileEntity, maxScoresMap);
+                StudentResultEntity studentEntity = createStudentEntity(
+                        student,
+                        reportFileEntity,
+                        maxScoresMap,
+                        maxTotalScore
+                );
                 entityManager.persist(studentEntity);
-
-                // Собираем баллы заданий для пакетного сохранения
-                if (student.getTaskScores() != null) {
-                    collectTaskScores(student, studentEntity, maxScoresMap, allTaskScores);
-                }
 
                 savedCount.incrementAndGet();
 
@@ -150,6 +113,9 @@ public class StudentResultRepositoryImpl {
                     entityManager.clear();
                     // После clear нужно повторно привязать reportFileEntity
                     reportFileEntity = entityManager.merge(reportFileEntity);
+                    // Также нужно обновить maxScoresMap
+                    maxScoresMap = JsonScoreUtils.jsonToMap(reportFileEntity.getMaxScoresJson());
+                    maxTotalScore = calculateMaxTotalScore(maxScoresMap);
                 }
 
             } catch (Exception e) {
@@ -164,7 +130,8 @@ public class StudentResultRepositoryImpl {
 
     private StudentResultEntity createStudentEntity(StudentResult student,
                                                     ReportFileEntity reportFileEntity,
-                                                    Map<Integer, Integer> maxScoresMap) {
+                                                    Map<Integer, Integer> maxScoresMap,
+                                                    int maxTotalScore) {
         StudentResultEntity entity = StudentResultEntity.builder()
                 .reportFile(reportFileEntity)
                 .subject(student.getSubject())
@@ -176,17 +143,18 @@ public class StudentResultRepositoryImpl {
                 .testDate(student.getTestDate())
                 .build();
 
-        // Вычисляем общий балл
+        // Сохраняем баллы как JSON
         if (student.getTaskScores() != null && !student.getTaskScores().isEmpty()) {
-            int totalScore = student.getTaskScores().values().stream()
-                    .mapToInt(Integer::intValue)
-                    .sum();
+            // Сохраняем JSON
+            entity.setTaskScoresJson(JsonScoreUtils.mapToJson(student.getTaskScores()));
+
+            // Вычисляем общий балл
+            int totalScore = JsonScoreUtils.calculateTotalScore(student.getTaskScores());
             entity.setTotalScore(totalScore);
 
             // Процент выполнения
-            if (reportFileEntity.getMaxTotalScore() != null &&
-                    reportFileEntity.getMaxTotalScore() > 0) {
-                double percentage = (totalScore * 100.0) / reportFileEntity.getMaxTotalScore();
+            if (maxTotalScore > 0) {
+                double percentage = (totalScore * 100.0) / maxTotalScore;
                 entity.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
             }
         }
@@ -194,37 +162,13 @@ public class StudentResultRepositoryImpl {
         return entity;
     }
 
-    private void collectTaskScores(StudentResult student,
-                                   StudentResultEntity studentEntity,
-                                   Map<Integer, Integer> maxScoresMap,
-                                   List<StudentTaskScoreEntity> allTaskScores) {
-
-        student.getTaskScores().forEach((taskNumber, score) -> {
-            Integer maxScore = maxScoresMap.getOrDefault(taskNumber, 0);
-            StudentTaskScoreEntity taskScore = StudentTaskScoreEntity.builder()
-                    .studentResult(studentEntity)
-                    .taskNumber(taskNumber)
-                    .score(score)
-                    .maxScore(maxScore)
-                    .build();
-            allTaskScores.add(taskScore);
-        });
-    }
-
-    private void saveTaskScoresBatch(List<StudentTaskScoreEntity> taskScores) {
-        if (taskScores.isEmpty()) {
-            return;
+    private int calculateMaxTotalScore(Map<Integer, Integer> maxScoresMap) {
+        if (maxScoresMap == null || maxScoresMap.isEmpty()) {
+            return 0;
         }
-
-        for (int i = 0; i < taskScores.size(); i++) {
-            entityManager.persist(taskScores.get(i));
-            if (i % 100 == 0 && i > 0) { // Больший размер для мелких записей
-                entityManager.flush();
-                entityManager.clear();
-            }
-        }
-        entityManager.flush();
-        entityManager.clear();
+        return maxScoresMap.values().stream()
+                .mapToInt(Integer::intValue)
+                .sum();
     }
 
     private String calculateFileHash(File file) {
@@ -243,6 +187,57 @@ public class StudentResultRepositoryImpl {
         } catch (Exception e) {
             log.error("Ошибка вычисления хеша файла: {}", e.getMessage());
             return UUID.randomUUID().toString().replace("-", "");
+        }
+    }
+
+    /**
+     * Альтернативный метод: массовое сохранение через JPA репозиторий
+     */
+    @Transactional
+    public int saveAllOptimized(ReportFile reportFile, List<StudentResult> studentResults) {
+        try {
+            // 1. Проверка дубликата
+            String fileHash = calculateFileHash(reportFile.getFile());
+            if (reportFileRepository.existsByFileHash(fileHash)) {
+                log.warn("Файл уже был обработан: {}", reportFile.getFileName());
+                return 0;
+            }
+
+            // 2. Создаем ReportFileEntity
+            ReportFileEntity reportFileEntity = createReportFileEntity(reportFile, fileHash, studentResults.size());
+
+            // 3. Создаем StudentResultEntity для каждого студента
+            Map<Integer, Integer> maxScoresMap = reportFile.getMaxScores();
+            int maxTotalScore = calculateMaxTotalScore(maxScoresMap);
+
+            List<StudentResultEntity> studentEntities = new ArrayList<>();
+            for (StudentResult student : studentResults) {
+                StudentResultEntity studentEntity = createStudentEntity(
+                        student,
+                        reportFileEntity,
+                        maxScoresMap,
+                        maxTotalScore
+                );
+                studentEntities.add(studentEntity);
+            }
+
+            // 4. Сохраняем все одной транзакцией
+            reportFileEntity = entityManager.merge(reportFileEntity);
+
+            for (StudentResultEntity studentEntity : studentEntities) {
+                studentEntity.setReportFile(reportFileEntity);
+                entityManager.persist(studentEntity);
+            }
+
+            entityManager.flush();
+
+            log.info("Сохранено {} студентов из файла {}", studentEntities.size(), reportFile.getFileName());
+            return studentEntities.size();
+
+        } catch (Exception e) {
+            log.error("Ошибка сохранения файла {}: {}",
+                    reportFile.getFileName(), e.getMessage(), e);
+            return 0;
         }
     }
 }

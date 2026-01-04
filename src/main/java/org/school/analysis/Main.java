@@ -11,10 +11,10 @@ import static org.school.analysis.config.AppConfig.*;
 @SpringBootApplication
 public class Main {
     public static void main(String[] args) {
-        // Запускаем Spring контекст
+        // 1. Запускаем Spring контекст
         ApplicationContext context = SpringApplication.run(Main.class, args);
 
-        // Получаем главный сервис из контекста
+        // 2. Получаем главный сервис из контекста
         ReportProcessorService processor = context.getBean(ReportProcessorService.class);
 
 
