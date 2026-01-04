@@ -21,7 +21,6 @@ public class TestMetadata {
     private Map<Integer, Integer> maxScores;
     private int taskCount;
     private int maxTotalScore;
-
     // Дополнительно
     private String testType;
     private String comment;

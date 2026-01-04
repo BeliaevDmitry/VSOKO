@@ -81,23 +81,10 @@ public class ReportParserServiceImpl implements ReportParserService {
             Sheet dataSheet = workbook.getSheet("Сбор информации");
             log.debug("Лист 'Сбор информации' найден, строк: {}", dataSheet.getPhysicalNumberOfRows());
 
-            // Просмотр первых нескольких строк для отладки
-            logFirstRows(dataSheet, 5);
-
             log.debug("Парсинг данных учеников...");
             List<StudentResult> studentResults = studentDataParser.parseStudentData(
                     dataSheet, maxScores, metadata.getSubject(), metadata.getClassName());
 
-            log.info("Найдено {} учеников в файле {}", studentResults.size(), reportFile.getFile().getName());
-
-            if (studentResults.isEmpty()) {
-                log.warn("В файле {} не найдено данных об учениках!", reportFile.getFile().getName());
-            } else {
-                log.debug("Первые 3 ученика: {}",
-                        studentResults.stream().limit(3)
-                                .map(StudentResult::getFio)
-                                .collect(Collectors.toList()));
-            }
 
             // 3. ПОЛНОЕ обновление ReportFile из TestMetadata
             log.debug("Обновление информации о файле...");

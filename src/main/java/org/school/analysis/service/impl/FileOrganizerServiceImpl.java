@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.school.analysis.Main.REPORTS_BASE_FOLDER;
+import static org.school.analysis.config.AppConfig.*;
 
 @Service
 public class FileOrganizerServiceImpl implements FileOrganizerService {

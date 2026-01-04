@@ -47,7 +47,8 @@ public class StudentDataParser {
                 continue;
             }
 
-            StudentResult result = parseStudentRow(row, maxScores, subject, className, rowIdx);
+            StudentResult result = parseStudentRow(row, maxScores, subject, className,
+                    rowIdx);
 
             if (result != null) {
                 // ВАЛИДАЦИЯ и проверка результата
@@ -70,13 +71,16 @@ public class StudentDataParser {
                     }
                 }
 
-                // Добавляем ученика, если он присутствовал
                 if (result.wasPresent()) {
+                    // Сохраняем с баллами
                     results.add(result);
-                    log.debug("Добавлен ученик: {} (баллы: {})",
+                    log.debug("Добавлен присутствовавший ученик: {} (баллы: {})",
                             result.getFio(), result.getTaskScores());
                 } else {
-                    log.debug("Ученик {} отсутствовал", result.getFio());
+                    // Сохраняем отсутствующего, но очищаем баллы
+                    result.setTaskScores(new HashMap<>()); // или null
+                    results.add(result);
+                    log.debug("Добавлен отсутствовавший ученик: {}", result.getFio());
                 }
             }
         }

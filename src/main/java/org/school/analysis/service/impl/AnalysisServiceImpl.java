@@ -4,9 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.entity.ReportFileEntity;
 import org.school.analysis.entity.StudentResultEntity;
-import org.school.analysis.model.dto.StudentTestResultDto;
-import org.school.analysis.model.dto.TestResultsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
+import org.school.analysis.model.dto.TestResultsDto;
 import org.school.analysis.repository.ReportFileRepository;
 import org.school.analysis.repository.StudentResultRepository;
 import org.school.analysis.service.AnalysisService;
@@ -14,16 +13,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,83 +35,209 @@ public class AnalysisServiceImpl implements AnalysisService {
     public List<TestSummaryDto> getAllTestsSummary() {
         log.info("Получение сводки по всем тестам");
 
+        // Сортируем по дате (сначала новые), затем по предмету и классу
         List<ReportFileEntity> reportFiles = reportFileRepository.findAll(
                 Sort.by(Sort.Direction.DESC, "testDate")
                         .and(Sort.by("subject"))
                         .and(Sort.by("className"))
         );
 
-        return convertToTestSummaryDto(reportFiles);
+        // Конвертируем в DTO и рассчитываем средний балл для каждого теста
+        return reportFiles.stream()
+                .map(this::convertToTestSummaryDto)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<TestSummaryDto> getTestsSummaryWithFilters(String subject, String className,
                                                            LocalDate startDate, LocalDate endDate,
-                                                           String teacher) {
-        log.info("Получение тестов с фильтрами: subject={}, className={}, startDate={}, endDate={}, teacher={}",
-                subject, className, startDate, endDate, teacher);
+                                                           String teacher, String school) {
+        log.info("Получение тестов с фильтрами");
 
-        Specification<ReportFileEntity> specification = buildReportFileSpecification(
-                subject, className, startDate, endDate, teacher, null
-        );
+        Specification<ReportFileEntity> spec = buildReportFileSpecification(
+                subject, className, startDate, endDate, teacher, school);
 
         List<ReportFileEntity> reportFiles = reportFileRepository.findAll(
-                specification,
+                spec,
                 Sort.by(Sort.Direction.DESC, "testDate")
                         .and(Sort.by("subject"))
                         .and(Sort.by("className"))
         );
 
-        return convertToTestSummaryDto(reportFiles);
+        return reportFiles.stream()
+                .map(this::convertToTestSummaryDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public TestResultsDto getTestResults(String subject, String className, LocalDate testDate, String teacher) {
-        log.info("Получение результатов теста: {} {} {} {}", subject, className, testDate, teacher);
+    public TestResultsDto getTestResults(String subject, String className,
+                                         LocalDate testDate, String teacher) {
+        // TODO: Реализовать позже
+        return null;
+    }
 
-        Specification<ReportFileEntity> specification = buildReportFileSpecification(
-                subject, className, null, null, teacher, testDate
-        );
+    @Override
+    public Double getAverageScoreForTest(String subject, String className,
+                                         LocalDate testDate, String teacher) {
+        // TODO: Реализовать позже
+        return null;
+    }
 
-        List<ReportFileEntity> reportFiles = reportFileRepository.findAll(specification);
+    /**
+     * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
+     */
+    private TestSummaryDto convertToTestSummaryDto(ReportFileEntity reportFile) {
+        // Получаем всех студентов для этого отчета
+        List<StudentResultEntity> allStudents = getStudentsForReport(reportFile);
 
-        if (reportFiles.isEmpty()) {
-            log.warn("Тест не найден: {} {} {} {}", subject, className, testDate, teacher);
-            return TestResultsDto.builder().build();
+        // Считаем присутствующих и отсутствующих
+        long presentCount = allStudents.stream()
+                .filter(s -> s.getPresence() != null && "Был".equalsIgnoreCase(s.getPresence()))
+                .count();
+
+        long absentCount = allStudents.stream()
+                .filter(s -> s.getPresence() != null && "Не был".equalsIgnoreCase(s.getPresence()))
+                .count();
+
+        // Получаем средний балл для этого теста (только по присутствующим)
+        Double averageScore = calculateAverageScoreForReport(reportFile, true);
+
+        // Получаем количество учеников в классе (из справочника или заглушка)
+        Integer classSize = getClassSize(reportFile.getClassName());
+
+        // Если classSize не получен из справочника, используем данные из теста
+        if (classSize == null || classSize == 0) {
+            classSize = (int) (presentCount + absentCount);
         }
 
-        // Если найдено несколько, берем первый
-        ReportFileEntity reportFile = reportFiles.get(0);
-        return getTestResultsByReportFile(reportFile);
+        return TestSummaryDto.builder()
+                .school(reportFile.getSchool())
+                .subject(reportFile.getSubject())
+                .className(reportFile.getClassName())
+                .testDate(reportFile.getTestDate())
+                .testType(reportFile.getTestType())
+                .teacher(reportFile.getTeacher())
+                .studentsTotal((int) (presentCount + absentCount)) // Всего в файле
+                .studentsPresent((int) presentCount)               // Присутствовало
+                .studentsAbsent((int) absentCount)                 // Отсутствовало
+                .classSize(reportFile.getStudentCount())           // Всего в классе (из справочника)
+                .taskCount(reportFile.getTaskCount())
+                .maxTotalScore(reportFile.getMaxTotalScore())
+                .averageScore(averageScore)                       // Средний балл (по присутствующим)
+                .fileName(reportFile.getFileName())
+                .build();
     }
 
-    @Override
-    public TestResultsDto getTestResultsByReportFileId(String reportFileId) {
-        log.info("Получение результатов теста по ID файла: {}", reportFileId);
-
+    /**
+     * Рассчитывает средний балл для отчета
+     * @param onlyPresent true - считать только присутствующих, false - считать всех
+     */
+    private Double calculateAverageScoreForReport(ReportFileEntity reportFile, boolean onlyPresent) {
         try {
-            UUID id = UUID.fromString(reportFileId);
-            ReportFileEntity reportFile = reportFileRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Файл отчета не найден: " + reportFileId));
+            // Находим всех студентов для этого отчета
+            Specification<StudentResultEntity> studentSpec = (root, query, criteriaBuilder) -> {
+                Join<StudentResultEntity, ReportFileEntity> reportFileJoin =
+                        root.join("reportFile", JoinType.INNER);
+                return criteriaBuilder.equal(reportFileJoin.get("id"), reportFile.getId());
+            };
 
-            return getTestResultsByReportFile(reportFile);
+            List<StudentResultEntity> students = studentResultRepository.findAll(studentSpec);
 
-        } catch (IllegalArgumentException e) {
-            log.error("Неверный формат UUID: {}", reportFileId, e);
-            return TestResultsDto.builder().build();
+            if (students.isEmpty()) {
+                return 0.0;
+            }
+
+            // Фильтруем студентов если нужно считать только присутствующих
+            List<StudentResultEntity> studentsToCalculate = students;
+            if (onlyPresent) {
+                studentsToCalculate = students.stream()
+                        .filter(s -> s.getPresence() != null && "Был".equalsIgnoreCase(s.getPresence()))
+                        .collect(Collectors.toList());
+            }
+
+            // Рассчитываем средний балл
+            double totalScore = studentsToCalculate.stream()
+                    .filter(s -> s.getTotalScore() != null)
+                    .mapToInt(StudentResultEntity::getTotalScore)
+                    .sum();
+
+            long count = studentsToCalculate.stream()
+                    .filter(s -> s.getTotalScore() != null)
+                    .count();
+
+            return count > 0 ? Math.round((totalScore / count) * 100.0) / 100.0 : 0.0;
+
+        } catch (Exception e) {
+            log.error("Ошибка расчета среднего балла для отчета {}: {}",
+                    reportFile.getId(), e.getMessage());
+            return 0.0;
         }
     }
 
-    @Override
-    public List<TestSummaryDto> getTestsBySubject(String subject) {
-        log.info("Получение тестов по предмету: {}", subject);
-        return getTestsSummaryWithFilters(subject, null, null, null, null);
+    /**
+     * Получает всех студентов для отчета (вспомогательный метод)
+     */
+    private List<StudentResultEntity> getStudentsForReport(ReportFileEntity reportFile) {
+        Specification<StudentResultEntity> studentSpec = (root, query, criteriaBuilder) -> {
+            Join<StudentResultEntity, ReportFileEntity> reportFileJoin =
+                    root.join("reportFile", JoinType.INNER);
+            return criteriaBuilder.equal(reportFileJoin.get("id"), reportFile.getId());
+        };
+
+        return studentResultRepository.findAll(studentSpec);
     }
 
-    @Override
-    public List<TestSummaryDto> getTestsByClass(String className) {
-        log.info("Получение тестов по классу: {}", className);
-        return getTestsSummaryWithFilters(null, className, null, null, null);
+    /**
+     * Заглушка для получения количества учеников в классе
+     * TODO: Реализовать получение из таблицы классов/учеников
+     */
+
+
+    /**
+     * Рассчитывает средний балл для отчета
+     */
+    private Double calculateAverageScoreForReport(ReportFileEntity reportFile) {
+        try {
+            // Находим всех студентов для этого отчета
+            Specification<StudentResultEntity> studentSpec = (root, query, criteriaBuilder) -> {
+                Join<StudentResultEntity, ReportFileEntity> reportFileJoin =
+                        root.join("reportFile", JoinType.INNER);
+                return criteriaBuilder.equal(reportFileJoin.get("id"), reportFile.getId());
+            };
+
+            List<StudentResultEntity> students = studentResultRepository.findAll(studentSpec);
+
+            if (students.isEmpty()) {
+                return 0.0;
+            }
+
+            // Рассчитываем средний балл
+            double totalScore = students.stream()
+                    .filter(s -> s.getTotalScore() != null)
+                    .mapToInt(StudentResultEntity::getTotalScore)
+                    .sum();
+
+            long count = students.stream()
+                    .filter(s -> s.getTotalScore() != null)
+                    .count();
+
+            return count > 0 ? Math.round((totalScore / count) * 100.0) / 100.0 : 0.0;
+
+        } catch (Exception e) {
+            log.error("Ошибка расчета среднего балла для отчета {}: {}",
+                    reportFile.getId(), e.getMessage());
+            return 0.0;
+        }
+    }
+
+    /**
+     * Заглушка для получения количества учеников в классе
+     * TODO: Реализовать получение из таблицы классов/учеников
+     */
+    private Integer getClassSize(String className) {
+        // Временная логика - предполагаем стандартный размер класса
+        // Можно добавить конфигурацию в AppConfig
+        return 25; // Средний размер класса
     }
 
     /**
@@ -124,39 +246,36 @@ public class AnalysisServiceImpl implements AnalysisService {
     private Specification<ReportFileEntity> buildReportFileSpecification(
             String subject, String className,
             LocalDate startDate, LocalDate endDate,
-            String teacher, LocalDate exactDate) {
+            String teacher, String school) {
 
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Фильтр по предмету
-            if (StringUtils.hasText(subject)) {
+            if (subject != null && !subject.trim().isEmpty()) {
                 predicates.add(criteriaBuilder.equal(root.get("subject"), subject));
             }
 
-            // Фильтр по классу
-            if (StringUtils.hasText(className)) {
+            if (className != null && !className.trim().isEmpty()) {
                 predicates.add(criteriaBuilder.equal(root.get("className"), className));
             }
 
-            // Фильтр по дате (точная дата ИЛИ диапазон)
-            if (exactDate != null) {
-                predicates.add(criteriaBuilder.equal(root.get("testDate"), exactDate));
-            } else {
-                if (startDate != null) {
-                    predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("testDate"), startDate));
-                }
-                if (endDate != null) {
-                    predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("testDate"), endDate));
-                }
+            if (startDate != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("testDate"), startDate));
             }
 
-            // Фильтр по учителю
-            if (StringUtils.hasText(teacher)) {
+            if (endDate != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("testDate"), endDate));
+            }
+
+            if (teacher != null && !teacher.trim().isEmpty()) {
                 predicates.add(criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("teacher")),
                         "%" + teacher.toLowerCase() + "%"
                 ));
+            }
+
+            if (school != null && !school.trim().isEmpty()) {
+                predicates.add(criteriaBuilder.equal(root.get("school"), school));
             }
 
             // Только обработанные файлы
@@ -164,81 +283,5 @@ public class AnalysisServiceImpl implements AnalysisService {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
-    }
-
-    /**
-     * Конвертирует список сущностей ReportFileEntity в DTO
-     */
-    private List<TestSummaryDto> convertToTestSummaryDto(List<ReportFileEntity> reportFiles) {
-        return reportFiles.stream()
-                .map(this::convertToTestSummaryDto)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Конвертирует одну сущность ReportFileEntity в DTO
-     */
-    private TestSummaryDto convertToTestSummaryDto(ReportFileEntity reportFile) {
-        return TestSummaryDto.builder()
-                .subject(reportFile.getSubject())
-                .className(reportFile.getClassName())
-                .testDate(reportFile.getTestDate())
-                .teacher(reportFile.getTeacher())
-                .school(reportFile.getSchool())
-                .studentCount(reportFile.getStudentCount())
-                .taskCount(reportFile.getTaskCount())
-                .maxTotalScore(reportFile.getMaxTotalScore())
-                .testType(reportFile.getTestType())
-                .fileName(reportFile.getFileName())
-                .build();
-    }
-
-    /**
-     * Получает результаты теста по сущности ReportFileEntity
-     */
-    private TestResultsDto getTestResultsByReportFile(ReportFileEntity reportFile) {
-        // Создаем спецификацию для студентов этого отчета
-        Specification<StudentResultEntity> studentSpec = (root, query, criteriaBuilder) -> {
-            Join<StudentResultEntity, ReportFileEntity> reportFileJoin = root.join("reportFile", JoinType.INNER);
-            return criteriaBuilder.equal(reportFileJoin.get("id"), reportFile.getId());
-        };
-
-        // Получаем всех студентов для этого отчета
-        List<StudentResultEntity> studentResults = studentResultRepository.findAll(
-                studentSpec,
-                Sort.by("fio")
-        );
-
-        // Конвертируем студентов в DTO
-        List<StudentTestResultDto> studentDtos = studentResults.stream()
-                .map(this::convertToStudentTestResultDto)
-                .collect(Collectors.toList());
-
-        // Сортируем студентов по баллам (от большего к меньшему) и добавляем позиции
-        studentDtos.sort(Comparator.comparing(StudentTestResultDto::getTotalScore,
-                Comparator.nullsLast(Comparator.reverseOrder())));
-
-        for (int i = 0; i < studentDtos.size(); i++) {
-            studentDtos.get(i).setPositionInClass(i + 1);
-        }
-
-        // Создаем итоговый DTO
-        return TestResultsDto.builder()
-                .testSummary(convertToTestSummaryDto(reportFile))
-                .studentResults(studentDtos)
-                .build();
-    }
-
-    /**
-     * Конвертирует сущность StudentResultEntity в DTO
-     */
-    private StudentTestResultDto convertToStudentTestResultDto(StudentResultEntity student) {
-        return StudentTestResultDto.builder()
-                .fio(student.getFio())
-                .presence(student.getPresence())
-                .variant(student.getVariant())
-                .totalScore(student.getTotalScore())
-                .percentageScore(student.getPercentageScore())
-                .build();
     }
 }

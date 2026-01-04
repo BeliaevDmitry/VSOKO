@@ -6,58 +6,32 @@ import org.school.analysis.model.dto.TestResultsDto;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * Сервис для анализа результатов тестов
- */
 public interface AnalysisService {
 
     /**
-     * Получить список всех тестов сгруппированных по предмету, классу, дате и учителю
-     * @return список сводок по тестам
+     * Получить список всех тестов сгруппированных по предмету, классу, дате, учителю
+     * Формат: Школа, Предмет, Класс, Дата теста, Тип теста, Учитель,
+     * Кол-во учеников писавших, Кол-во учеников в классе, Кол-во заданий теста,
+     * Макс. балл, Средний балл теста
      */
     List<TestSummaryDto> getAllTestsSummary();
 
     /**
-     * Получить список тестов с фильтрацией
-     * @param subject предмет (опционально)
-     * @param className класс (опционально)
-     * @param startDate начальная дата (опционально)
-     * @param endDate конечная дата (опционально)
-     * @param teacher учитель (опционально)
-     * @return отфильтрованный список тестов
+     * Получить список тестов с фильтрами
      */
     List<TestSummaryDto> getTestsSummaryWithFilters(String subject, String className,
                                                     LocalDate startDate, LocalDate endDate,
-                                                    String teacher);
+                                                    String teacher, String school);
 
     /**
-     * Получить подробные результаты теста по указанным критериям
-     * @param subject предмет
-     * @param className класс
-     * @param testDate дата теста
-     * @param teacher учитель (опционально, для уточнения если есть дубли)
-     * @return результаты теста со списком студентов
+     * Получить подробные результаты теста
      */
-    TestResultsDto getTestResults(String subject, String className, LocalDate testDate, String teacher);
+    TestResultsDto getTestResults(String subject, String className,
+                                  LocalDate testDate, String teacher);
 
     /**
-     * Получить результаты теста по ID файла отчета
-     * @param reportFileId ID файла отчета
-     * @return результаты теста
+     * Получить средний балл по тесту
      */
-    TestResultsDto getTestResultsByReportFileId(String reportFileId);
-
-    /**
-     * Получить статистику по предмету
-     * @param subject предмет
-     * @return список тестов по предмету
-     */
-    List<TestSummaryDto> getTestsBySubject(String subject);
-
-    /**
-     * Получить статистику по классу
-     * @param className класс
-     * @return список тестов в классе
-     */
-    List<TestSummaryDto> getTestsByClass(String className);
+    Double getAverageScoreForTest(String subject, String className,
+                                  LocalDate testDate, String teacher);
 }
