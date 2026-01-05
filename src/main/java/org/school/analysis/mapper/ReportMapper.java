@@ -19,7 +19,6 @@ public class ReportMapper {
         }
 
         return ReportFileEntity.builder()
-                .id(UUID.randomUUID())
                 .filePath(model.getFile() != null ? model.getFile().getAbsolutePath() : "")
                 .fileName(model.getFileName())
                 .fileHash("") // Вычисляется отдельно
@@ -69,7 +68,6 @@ public class ReportMapper {
         }
 
         return StudentResultEntity.builder()
-                .id(UUID.randomUUID())
                 .reportFile(reportFile)
                 .subject(model.getSubject())
                 .className(model.getClassName())

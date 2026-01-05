@@ -55,6 +55,9 @@ public class AnalysisServiceImpl implements AnalysisService {
     /**
      * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
      */
+    /**
+     * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
+     */
     private TestSummaryDto convertToTestSummaryDto(ReportFileEntity reportFile) {
         if (reportFile == null) {
             log.warn("ReportFileEntity is null");
@@ -89,6 +92,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             int classSize = reportFile.getStudentCount() != null ? reportFile.getStudentCount() : 0;
 
             return TestSummaryDto.builder()
+                    .reportFileId(reportFile.getId().toString()) // ДОБАВЛЕНО: ID файла
                     .school(reportFile.getSchool())
                     .subject(reportFile.getSubject())
                     .className(reportFile.getClassName())

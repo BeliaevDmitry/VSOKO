@@ -7,6 +7,8 @@ import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.analysis.config.AppConfig;
+import org.school.analysis.model.dto.StudentDetailedResultDto;
+import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 import org.school.analysis.service.ExcelReportService;
 import org.school.analysis.util.DateTimeFormatters;
@@ -18,7 +20,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -418,7 +423,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                 // 2. Лист с анализом по заданиям
                 createTaskAnalysisSheet(workbook, testSummary, taskStatistics);
 
-                // 3. Лист со статистикой
+                // 3. Лист со статистикой (опционально)
                 createStatisticsSheet(workbook, testSummary, studentResults, taskStatistics);
 
                 // Сохраняем файл
@@ -559,14 +564,19 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             row.createCell(2).setCellValue(stats.getFullyCompletedCount());
             row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
             row.createCell(4).setCellValue(stats.getNotCompletedCount());
-            row.createCell(5).setCellValue(stats.getCompletionPercentage() / 100.0);
+
+            // Процент выполнения (double, не может быть null)
+            double completionPercentage = stats.getCompletionPercentage();
+            row.createCell(5).setCellValue(completionPercentage / 100.0);
 
             // Строка с распределением баллов
-            String distribution = stats.getScoreDistribution().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .map(e -> String.format("%d баллов: %d", e.getKey(), e.getValue()))
-                    .collect(Collectors.joining("; "));
-            row.createCell(6).setCellValue(distribution);
+            if (stats.getScoreDistribution() != null) {
+                String distribution = stats.getScoreDistribution().entrySet().stream()
+                        .sorted(Map.Entry.comparingByKey())
+                        .map(e -> String.format("%d баллов: %d", e.getKey(), e.getValue()))
+                        .collect(Collectors.joining("; "));
+                row.createCell(6).setCellValue(distribution);
+            }
         }
 
         // Автонастройка ширины
@@ -575,9 +585,116 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         }
     }
 
+    private void createStatisticsSheet(Workbook workbook, TestSummaryDto test,
+                                       List<StudentDetailedResultDto> students,
+                                       Map<Integer, TaskStatisticsDto> taskStatistics) {
+        Sheet sheet = workbook.createSheet("Общая статистика");
+
+        // Заголовок
+        Row titleRow = sheet.createRow(0);
+        titleRow.createCell(0).setCellValue("Общая статистика теста");
+
+        // Основные показатели
+        int rowNum = 2;
+        String[][] statsData = {
+                {"Предмет", test.getSubject()},
+                {"Класс", test.getClassName()},
+                {"Дата", test.getTestDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))},
+                {"Учитель", test.getTeacher()},
+                {"Всего студентов", String.valueOf(test.getClassSize())},
+                {"Присутствовало", String.valueOf(test.getStudentsPresent())},
+                {"Отсутствовало", String.valueOf(test.getStudentsAbsent())},
+                {"% присутствия", String.format("%.1f%%", test.getAttendancePercentage())},
+                {"Средний балл", String.format("%.2f", test.getAverageScore())},
+                {"% выполнения", String.format("%.1f%%", test.getSuccessPercentage())}
+        };
+
+        for (String[] rowData : statsData) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(rowData[0]);
+            row.createCell(1).setCellValue(rowData[1]);
+        }
+
+        // Автонастройка ширины
+        sheet.autoSizeColumn(0);
+        sheet.autoSizeColumn(1);
+    }
+
+    private void createTeacherSummarySheet(Workbook workbook, String teacherName,
+                                           List<TestSummaryDto> teacherTests) {
+        Sheet sheet = workbook.createSheet("Сводка по тестам");
+
+        // Заголовок
+        Row titleRow = sheet.createRow(0);
+        titleRow.createCell(0).setCellValue("Отчет по тестам учителя: " + teacherName);
+
+        // Заголовки таблицы
+        String[] headers = {
+                "Предмет", "Класс", "Дата", "Тип",
+                "Присутствовало", "Отсутствовало", "Всего", "% присутствия",
+                "Средний балл", "% выполнения"
+        };
+
+        createHeaderRow(sheet, headers, 2);
+
+        // Данные
+        int rowNum = 3;
+        for (TestSummaryDto test : teacherTests) {
+            Row row = sheet.createRow(rowNum++);
+
+            row.createCell(0).setCellValue(test.getSubject());
+            row.createCell(1).setCellValue(test.getClassName());
+            row.createCell(2).setCellValue(test.getTestDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")));
+            row.createCell(3).setCellValue(test.getTestType());
+            row.createCell(4).setCellValue(test.getStudentsPresent());
+            row.createCell(5).setCellValue(test.getStudentsAbsent());
+            row.createCell(6).setCellValue(test.getClassSize());
+            row.createCell(7).setCellValue(test.getAttendancePercentage() != null ?
+                    test.getAttendancePercentage() / 100.0 : 0.0);
+            row.createCell(8).setCellValue(test.getAverageScore());
+            row.createCell(9).setCellValue(test.getSuccessPercentage() != null ?
+                    test.getSuccessPercentage() / 100.0 : 0.0);
+        }
+
+        // Автонастройка ширины
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private void createTeacherTestSheet(Workbook workbook, TestSummaryDto test,
+                                        String teacherName, int sheetIndex) {
+        // Ограничиваем имя листа (макс 31 символ)
+        String sheetName = String.format("%s_%s",
+                test.getSubject().substring(0, Math.min(10, test.getSubject().length())),
+                test.getClassName());
+
+        if (sheetName.length() > 31) {
+            sheetName = sheetName.substring(0, 31);
+        }
+
+        // Если имя уже существует, добавляем индекс
+        if (workbook.getSheet(sheetName) != null) {
+            sheetName = String.format("%s_%d", sheetName, sheetIndex);
+        }
+
+        Sheet sheet = workbook.createSheet(sheetName);
+
+        // Заголовок
+        Row titleRow = sheet.createRow(0);
+        titleRow.createCell(0).setCellValue(
+                String.format("%s - %s (%s)", test.getSubject(), test.getClassName(),
+                        test.getTestDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")))
+        );
+    }
+
     private void createHeaderRow(Sheet sheet, String[] headers) {
-        Row headerRow = sheet.createRow(0);
-        CellStyle headerStyle = createHeaderStyle(sheet.getWorkbook());
+        createHeaderRow(sheet, headers, 0);
+    }
+
+    private void createHeaderRow(Sheet sheet, String[] headers, int startRow) {
+        Row headerRow = sheet.createRow(startRow);
+        CellStyle headerStyle = createHeaderStyle((XSSFWorkbook) sheet.getWorkbook());
 
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);

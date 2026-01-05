@@ -12,7 +12,6 @@ public class TaskStatisticsDto {
     private Integer taskNumber;
     private Integer maxScore;
 
-    // Распределение баллов: балл -> количество студентов
     @Builder.Default
     private Map<Integer, Integer> scoreDistribution = new HashMap<>();
 
@@ -42,6 +41,7 @@ public class TaskStatisticsDto {
                 .sum();
     }
 
+    // Возвращает double (не может быть null)
     public double getCompletionPercentage() {
         int totalStudents = getTotalStudents();
         if (totalStudents == 0) return 0.0;
@@ -51,6 +51,8 @@ public class TaskStatisticsDto {
                 .sum();
 
         double maxPossibleSum = maxScore * totalStudents;
+        if (maxPossibleSum == 0) return 0.0;
+
         return (totalScoreSum / maxPossibleSum) * 100.0;
     }
 }
