@@ -11,7 +11,7 @@ import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.repository.ReportFileRepository;
 import org.school.analysis.repository.StudentResultRepository;
-import org.school.analysis.service.StudentResultService;
+import org.school.analysis.service.SavedService;
 import org.school.analysis.util.JsonScoreUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +24,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class StudentResultServiceImpl implements StudentResultService {
+public class SavedServiceImpl implements SavedService {
 
     @PersistenceContext
     private final EntityManager entityManager; // Добавляем EntityManager

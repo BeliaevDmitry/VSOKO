@@ -6,7 +6,7 @@ import org.school.analysis.exception.ValidationException;
 import org.school.analysis.model.*;
 import org.school.analysis.parser.strategy.MetadataParser;
 import org.school.analysis.parser.strategy.StudentDataParser;
-import org.school.analysis.service.ReportParserService;
+import org.school.analysis.service.ParserService;
 import org.school.analysis.util.JsonScoreUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,14 +20,14 @@ import java.util.stream.Collectors;
  * Главный парсер Excel отчетов
  */
 @Service
-public class ReportParserServiceImpl implements ReportParserService {
+public class ParserServiceImpl implements ParserService {
 
-    private static final Logger log = LoggerFactory.getLogger(ReportParserServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(ParserServiceImpl.class);
 
     private final MetadataParser metadataParser;
     private final StudentDataParser studentDataParser;
 
-    public ReportParserServiceImpl(MetadataParser metadataParser, StudentDataParser studentDataParser) {
+    public ParserServiceImpl(MetadataParser metadataParser, StudentDataParser studentDataParser) {
         this.metadataParser = metadataParser;
         this.studentDataParser = studentDataParser;
     }
