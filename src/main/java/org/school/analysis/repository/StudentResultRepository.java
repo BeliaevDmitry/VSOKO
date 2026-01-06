@@ -1,6 +1,6 @@
 package org.school.analysis.repository;
 
-import org.school.analysis.entity.StudentResultEntity;
+import org.school.analysis.model.entity.StudentResultEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
