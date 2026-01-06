@@ -9,6 +9,7 @@ import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.model.dto.StudentDetailedResultDto;
 import org.school.analysis.model.dto.TaskStatisticsDto;
+import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 import org.school.analysis.service.*;
 import org.school.analysis.util.JsonScoreUtils;
@@ -253,7 +254,7 @@ public class GeneralServiceImpl implements GeneralService {
             log.debug("Для теста {} получено: {} студентов, {} заданий",
                     test.getFileName(), studentResults.size(), taskStatistics.size());
 
-            // Генерируем отчет с графиками
+            // Генерируем отчет с графиками на одном листе
             File detailReport = excelReportService.generateTestDetailReport(
                     test, studentResults, taskStatistics);
 
@@ -281,17 +282,61 @@ public class GeneralServiceImpl implements GeneralService {
             try {
                 List<TestSummaryDto> teacherTests = analysisService.getTestsByTeacher(teacher);
 
-                File teacherReport = excelReportService.generateTeacherReport(
-                        teacher, teacherTests);
+                // Для каждого теста учителя получаем детальные данные
+                List<TeacherTestDetailDto> teacherTestDetails = getTeacherTestDetails(teacherTests);
+
+                // Генерируем полный отчет учителя с детальными данными
+                File teacherReport = excelReportService.generateTeacherReportWithDetails(
+                        teacher, teacherTests, teacherTestDetails);
 
                 addReportIfValid(teacherReport, allReports,
-                        String.format("Отчет для учителя '%s'", teacher));
+                        String.format("Отчет для учителя '%s' с детализацией", teacher));
 
             } catch (Exception e) {
                 log.error("Ошибка генерации отчета для учителя {}: {}",
-                        teacher, e.getMessage());
+                        teacher, e.getMessage(), e);
             }
         }
+    }
+
+    /**
+     * Получает детальные данные для тестов учителя
+     */
+    /**
+     * Получает детальные данные для тестов учителя
+     */
+    private List<TeacherTestDetailDto> getTeacherTestDetails(List<TestSummaryDto> teacherTests) {
+        List<TeacherTestDetailDto> details = new ArrayList<>();
+
+        for (TestSummaryDto test : teacherTests) {
+            if (test.getReportFileId() == null || test.getReportFileId().trim().isEmpty()) {
+                continue;
+            }
+
+            try {
+                String testId = test.getReportFileId();
+
+                List<StudentDetailedResultDto> studentResults =
+                        analysisService.getStudentDetailedResults(testId);
+
+                Map<Integer, TaskStatisticsDto> taskStatistics =
+                        analysisService.getTaskStatistics(testId);
+
+                TeacherTestDetailDto detailDto = TeacherTestDetailDto.builder()
+                        .testSummary(test)
+                        .studentResults(studentResults)
+                        .taskStatistics(taskStatistics)
+                        .build();
+
+                details.add(detailDto);
+
+            } catch (Exception e) {
+                log.error("Ошибка получения детальных данных для теста {}: {}",
+                        test.getFileName(), e.getMessage());
+            }
+        }
+
+        return details;
     }
 
     /**
