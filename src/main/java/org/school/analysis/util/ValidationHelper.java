@@ -1,7 +1,10 @@
 package org.school.analysis.util;
 
+import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.model.TestMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -11,11 +14,13 @@ import java.util.regex.Pattern;
  */
 public class ValidationHelper {
 
+    private static final Logger log = LoggerFactory.getLogger(ValidationHelper.class);
+
     // Паттерны для валидации
     private static final Pattern FIO_PATTERN =
             Pattern.compile("^[А-ЯЁ][а-яё]+\\s[А-ЯЁ][а-яё]+(\\s[А-ЯЁ][а-яё]+)?$");
     private static final Pattern CLASS_NAME_PATTERN =
-            Pattern.compile("^\\d{1,2}[А-Яа-я]?$");
+            Pattern.compile("^(1[0-1]|[1-9])[-][А-Яа-я]$");
     private static final Pattern SUBJECT_PATTERN =
             Pattern.compile("^[А-Яа-яЁё\\s\\-]{3,50}$");
 
@@ -76,17 +81,25 @@ public class ValidationHelper {
         }
 
         // Валидация класса
-        if (!isValidClassName(student.getClassName())) {
+        if (student.getClassName() != null && !isValidClassName(student.getClassName())) {
             result.addWarning("Некорректный формат класса: " + student.getClassName());
         }
 
         // Валидация предмета
-        if (!isValidSubject(student.getSubject())) {
+        if (student.getSubject() != null && !isValidSubject(student.getSubject())) {
             result.addWarning("Некорректный предмет: " + student.getSubject());
         }
 
+        // Валидация присутствия
+        String presence = student.getPresence();
+        if (presence == null || presence.trim().isEmpty()) {
+            result.addError("Не указано присутствие");
+        } else if (!isValidPresence(presence)) {
+            result.addWarning("Некорректное значение присутствия: " + presence);
+        }
+
         // Валидация баллов
-        if (student.getTaskScores() != null && maxScores != null) {
+        if (student.wasPresent() && student.getTaskScores() != null && maxScores != null) {
             for (var entry : student.getTaskScores().entrySet()) {
                 Integer taskNum = entry.getKey();
                 Integer score = entry.getValue();
@@ -101,7 +114,19 @@ public class ValidationHelper {
                     ));
                 }
             }
+
+            // Валидация общего балла (если он установлен)
+            if (student.getTotalScore() != null) {
+                int calculatedTotal = JsonScoreUtils.calculateTotalScore(student.getTaskScores());
+                if (student.getTotalScore() != calculatedTotal) {
+                    result.addWarning(String.format(
+                            "Несоответствие общего балла: указано %d, рассчитано %d",
+                            student.getTotalScore(), calculatedTotal
+                    ));
+                }
+            }
         }
+
         return result;
     }
 
@@ -126,9 +151,9 @@ public class ValidationHelper {
             result.addError("Некорректный класс: " + metadata.getClassName());
         }
 
-        // Валидация количества заданий
-        if (metadata.getTaskCount() <= 0 || metadata.getTaskCount() > 100) {
-            result.addError("Некорректное количество заданий: " + metadata.getTaskCount());
+        // Валидация даты теста
+        if (metadata.getTestDate() == null) {
+            result.addError("Не указана дата теста");
         }
 
         // Валидация максимальных баллов
@@ -136,16 +161,229 @@ public class ValidationHelper {
             result.addError("Отсутствуют максимальные баллы");
         } else {
             for (var entry : metadata.getMaxScores().entrySet()) {
-                if (entry.getKey() <= 0 || entry.getKey() > metadata.getTaskCount()) {
-                    result.addError("Некорректный номер задания: " + entry.getKey());
+                Integer taskNum = entry.getKey();
+                Integer maxScore = entry.getValue();
+
+                if (taskNum <= 0 || taskNum > 100) {
+                    result.addError("Некорректный номер задания: " + taskNum);
                 }
-                if (entry.getValue() <= 0 || entry.getValue() > 100) {
-                    result.addError("Некорректный максимальный балл: " + entry.getValue());
+                if (maxScore <= 0 || maxScore > 100) {
+                    result.addError(String.format(
+                            "Некорректный максимальный балл для задания %d: %d",
+                            taskNum, maxScore
+                    ));
                 }
+            }
+
+            // Проверяем последовательность номеров заданий
+            int expectedTaskNum = 1;
+            for (Integer taskNum : metadata.getMaxScores().keySet().stream().sorted().toList()) {
+                if (taskNum != expectedTaskNum) {
+                    result.addWarning(String.format(
+                            "Пропущен номер задания: ожидалось %d, найдено %d",
+                            expectedTaskNum, taskNum
+                    ));
+                }
+                expectedTaskNum++;
             }
         }
 
         return result;
+    }
+
+    /**
+     * Валидация ReportFile - возвращает true/false и логирует ошибки
+     */
+    public static boolean validateReportFile(ReportFile reportFile) {
+        if (reportFile == null) {
+            log.error("ReportFile не может быть null");
+            return false;
+        }
+
+        boolean isValid = true;
+        String fileName = reportFile.getFileName();
+
+        // Валидация файла
+        if (reportFile.getFile() == null) {
+            log.error("Файл {}: файл не может быть null", fileName);
+            isValid = false;
+        }
+
+        // Валидация предмета
+        if (!isValidSubject(reportFile.getSubject())) {
+            log.error("Файл {}: некорректный предмет: {}", fileName, reportFile.getSubject());
+            isValid = false;
+        }
+
+        // Валидация класса
+        if (!isValidClassName(reportFile.getClassName())) {
+            log.error("Файл {}: некорректный класс: {}", fileName, reportFile.getClassName());
+            isValid = false;
+        }
+
+        // Валидация даты теста
+        if (reportFile.getTestDate() == null) {
+            log.error("Файл {}: не указана дата теста", fileName);
+            isValid = false;
+        }
+
+        // Валидация максимальных баллов
+        Map<Integer, Integer> maxScores = reportFile.getMaxScores();
+        if (maxScores == null || maxScores.isEmpty()) {
+            log.error("Файл {}: отсутствуют максимальные баллы", fileName);
+            isValid = false;
+        } else {
+            // Проверяем согласованность taskCount и количества заданий
+            int actualTaskCount = maxScores.size();
+            if (reportFile.getTaskCount() != actualTaskCount) {
+                log.warn("Файл {}: несоответствие количества заданий: указано {}, найдено {}",
+                        fileName, reportFile.getTaskCount(), actualTaskCount);
+                // Автоматически исправляем
+                reportFile.setTaskCount(actualTaskCount);
+            }
+
+            // Валидация каждого задания
+            for (var entry : maxScores.entrySet()) {
+                Integer taskNum = entry.getKey();
+                Integer maxScore = entry.getValue();
+
+                if (taskNum <= 0 || taskNum > 100) {
+                    log.error("Файл {}: некорректный номер задания: {}", fileName, taskNum);
+                    isValid = false;
+                }
+                if (maxScore <= 0 || maxScore > 100) {
+                    log.error("Файл {}: некорректный максимальный балл для задания {}: {}",
+                            fileName, taskNum, maxScore);
+                    isValid = false;
+                }
+            }
+        }
+
+        // Валидация количества студентов
+        if (reportFile.getStudentCount() < 0) {
+            log.error("Файл {}: некорректное количество студентов: {}",
+                    fileName, reportFile.getStudentCount());
+            isValid = false;
+        }
+
+        if (isValid) {
+            log.debug("Файл {}: валидация пройдена успешно", fileName);
+        } else {
+            log.warn("Файл {}: валидация не пройдена", fileName);
+        }
+
+        return isValid;
+    }
+
+    /**
+     * Расширенная валидация ReportFile с возвратом результата
+     */
+    public static ValidationResult validateReportFileDetailed(ReportFile reportFile) {
+        ValidationResult result = new ValidationResult();
+        String fileName = reportFile != null && reportFile.getFile() != null
+                ? reportFile.getFileName()
+                : "unknown";
+
+        if (reportFile == null) {
+            result.addError("ReportFile не может быть null");
+            log.error("Файл unknown: ReportFile не может быть null");
+            return result;
+        }
+
+        // Валидация файла
+        if (reportFile.getFile() == null) {
+            result.addError("Файл не может быть null");
+            log.error("Файл {}: файл не может быть null", fileName);
+        }
+
+        // Валидация предмета
+        if (!isValidSubject(reportFile.getSubject())) {
+            String error = "Некорректный предмет: " + reportFile.getSubject();
+            result.addError(error);
+            log.error("Файл {}: {}", fileName, error);
+        }
+
+        // Валидация класса
+        if (!isValidClassName(reportFile.getClassName())) {
+            String error = "Некорректный класс: " + reportFile.getClassName();
+            result.addError(error);
+            log.error("Файл {}: {}", fileName, error);
+        }
+
+        // Валидация даты теста
+        if (reportFile.getTestDate() == null) {
+            String error = "Не указана дата теста";
+            result.addError(error);
+            log.error("Файл {}: {}", fileName, error);
+        }
+
+        // Валидация максимальных баллов
+        Map<Integer, Integer> maxScores = reportFile.getMaxScores();
+        if (maxScores == null || maxScores.isEmpty()) {
+            String error = "Отсутствуют максимальные баллы";
+            result.addError(error);
+            log.error("Файл {}: {}", fileName, error);
+        } else {
+            // Проверяем согласованность taskCount и количества заданий
+            int actualTaskCount = maxScores.size();
+            if (reportFile.getTaskCount() != actualTaskCount) {
+                String warning = String.format(
+                        "Несоответствие количества заданий: указано %d, найдено %d",
+                        reportFile.getTaskCount(), actualTaskCount
+                );
+                result.addWarning(warning);
+                log.warn("Файл {}: {}", fileName, warning);
+                // Автоматически исправляем
+                reportFile.setTaskCount(actualTaskCount);
+            }
+
+            // Валидация каждого задания
+            for (var entry : maxScores.entrySet()) {
+                Integer taskNum = entry.getKey();
+                Integer maxScore = entry.getValue();
+
+                if (taskNum <= 0 || taskNum > 100) {
+                    String error = "Некорректный номер задания: " + taskNum;
+                    result.addError(error);
+                    log.error("Файл {}: {}", fileName, error);
+                }
+                if (maxScore <= 0 || maxScore > 100) {
+                    String error = String.format(
+                            "Некорректный максимальный балл для задания %d: %d",
+                            taskNum, maxScore
+                    );
+                    result.addError(error);
+                    log.error("Файл {}: {}", fileName, error);
+                }
+            }
+        }
+
+        // Валидация количества студентов
+        if (reportFile.getStudentCount() < 0) {
+            String error = "Некорректное количество студентов: " + reportFile.getStudentCount();
+            result.addError(error);
+            log.error("Файл {}: {}", fileName, error);
+        }
+
+        if (result.isValid()) {
+            log.debug("Файл {}: валидация пройдена успешно", fileName);
+        }
+
+        return result;
+    }
+
+    /**
+     * Проверка корректности значения присутствия
+     */
+    private static boolean isValidPresence(String presence) {
+        if (presence == null) {
+            return false;
+        }
+        String normalized = presence.trim().toLowerCase();
+        return normalized.equals("был") ||
+                normalized.equals("была") ||
+                normalized.equals("отсутствовал") ||
+                normalized.equals("отсутствовала");
     }
 
     /**
@@ -193,6 +431,31 @@ public class ValidationHelper {
     }
 
     /**
+     * Валидация JSON строки с баллами
+     */
+    public static boolean isValidScoreJson(String json) {
+        if (json == null || json.trim().isEmpty() || json.trim().equals("{}")) {
+            return true; // Пустой JSON допустим для отсутствующих студентов
+        }
+
+        try {
+            Map<Integer, Integer> scores = JsonScoreUtils.jsonToMap(json);
+            if (scores == null) {
+                return false;
+            }
+            // Проверяем, что все значения корректны
+            for (var entry : scores.entrySet()) {
+                if (entry.getKey() <= 0 || entry.getValue() < 0) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Результат валидации
      */
     public static class ValidationResult {
@@ -213,12 +476,28 @@ public class ValidationHelper {
             return valid && errors.isEmpty();
         }
 
+        public boolean hasErrors() {
+            return !errors.isEmpty();
+        }
+
+        public boolean hasWarnings() {
+            return !warnings.isEmpty();
+        }
+
         public java.util.List<String> getErrors() {
             return new java.util.ArrayList<>(errors);
         }
 
         public java.util.List<String> getWarnings() {
             return new java.util.ArrayList<>(warnings);
+        }
+
+        public String getErrorsAsString() {
+            return String.join("; ", errors);
+        }
+
+        public String getWarningsAsString() {
+            return String.join("; ", warnings);
         }
 
         @Override

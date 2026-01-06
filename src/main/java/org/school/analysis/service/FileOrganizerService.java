@@ -2,6 +2,7 @@ package org.school.analysis.service;
 
 import org.school.analysis.model.ReportFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
@@ -21,7 +22,14 @@ public interface FileOrganizerService {
     List<ReportFile> moveFilesToSubjectFolders(List<ReportFile> reportFiles);
 
     /**
-     * Создать структуру папок для предмета
+     * Найти все Excel файлы в указанной папке
+     * и создать объекты ReportFile
      */
-    String createSubjectFolderStructure(String subject) throws IOException;
+    List<ReportFile> findReportFiles(String folderPath);
+
+    /**
+     * Извлечь предмет и класс из имени файла
+     */
+    ReportFile extractMetadataFromFileName(File file);
+
 }

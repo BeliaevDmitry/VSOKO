@@ -1,39 +1,45 @@
 package org.school.analysis.model;
 
 import lombok.Data;
+import org.school.analysis.util.JsonScoreUtils;
 
 import java.time.LocalDate;
 import java.util.Map;
 
-/**
- * Полная модель результатов ученика с вычисляемыми полями
- */
 @Data
 public class StudentResult {
-    // Основные данные
-    private String subject;                    // Предмет: "История", "Математика"
-    private String className;                  // Класс: "10А", "6Б", "11"
-    private String fio;                        // ФИО: "Иванов Иван Иванович"
-    private String presence;                   // Присутствие: "Был"/"Не был"
-    private String variant;                    // Вариант: "Вариант 1", "Вариант 2"
-    private String testType;                    // Тип: "Входной", "Промежуточный", "Итоговый"
-    private LocalDate testDate;                // Дата проведения
+    private String subject;
+    private String className;
+    private String fio;
+    private String presence;
+    private String variant;
+    private String testType;
+    private LocalDate testDate;
+    private Integer totalScore;
+    private Double percentageScore;
 
-    // Результаты
-    private Map<Integer, Integer> taskScores;  // Баллы за задания: {1=2, 2=1, 3=0}
+    // Map в памяти для удобной работы
+    private Map<Integer, Integer> taskScores;
 
-    
-    /**
-     * Получить балл за конкретное задание
-     */
-    public Integer getScoreForTask(int taskNumber) {
-        return taskScores.get(taskNumber);
+    // Для удобства - геттер JSON
+    public String getTaskScoresJson() {
+        return JsonScoreUtils.mapToJson(taskScores);
     }
 
-    /**
-     * Проверка, присутствовал ли ученик
-     */
+    // Для удобства - сеттер из JSON
+    public void setTaskScoresJson(String json) {
+        this.taskScores = JsonScoreUtils.jsonToMap(json);
+    }
+
+    // Вычисляемые методы
     public boolean wasPresent() {
-        return "Был".equalsIgnoreCase(presence);
+        return "Был".equalsIgnoreCase(presence) || "был".equalsIgnoreCase(presence);
+    }
+
+    public Integer getTotalScore() {
+        if (totalScore != null) {
+            return totalScore;
+        }
+        return JsonScoreUtils.calculateTotalScore(taskScores);
     }
 }

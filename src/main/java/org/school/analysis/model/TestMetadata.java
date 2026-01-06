@@ -1,48 +1,33 @@
 package org.school.analysis.model;
 
 import lombok.Data;
+import org.school.analysis.util.JsonScoreUtils;
 
 import java.time.LocalDate;
 import java.util.Map;
 
-/**
- * Метаданные контрольной работы/тестирования
- */
 @Data
 public class TestMetadata {
-    // Основная информация
-    private String subject;                    // Предмет
-    private String className;                  // Класс
-    private LocalDate testDate;                // Дата проведения
-    private String teacher;                    // Учитель
-    private String school = "ГБОУ №7";          // Школа: "ГБОУ 7"
-
-    // Параметры теста
-    private int taskCount;                     // Количество заданий
-    private Map<Integer, Integer> maxScores;   // Макс. баллы по заданиям
-    private int maxTotalScore;                 // Максимальный итоговый балл
-
-    // Дополнительно
-    private String testType;                   // Тип: "Входной", "Промежуточный", "Итоговый"
-    private String comment;                    // Комментарий
+    private String subject;
+    private String className;
+    private LocalDate testDate;
+    private String teacher;
+    private String school = "ГБОУ №7";
+    private Map<Integer, Integer> maxScores; // Map в памяти
+    private String testType;
+    private String comment;
 
     /**
-     * Рассчитать максимальный итоговый балл
+     * Вычислить максимальный общий балл
      */
-    public int calculateMaxTotalScore() {
-        this.maxTotalScore = maxScores.values().stream()
-                .mapToInt(Integer::intValue)
-                .sum();
-        return this.maxTotalScore;
+    public int getMaxTotalScore() {
+        return JsonScoreUtils.calculateTotalScore(maxScores);
     }
 
     /**
-     * Проверка валидности метаданных
+     * Получить количество заданий
      */
-    public boolean isValid() {
-        return subject != null &&
-                className != null &&
-                taskCount > 0 &&
-                !maxScores.isEmpty();
+    public int getTaskCount() {
+        return maxScores != null ? maxScores.size() : 0;
     }
 }

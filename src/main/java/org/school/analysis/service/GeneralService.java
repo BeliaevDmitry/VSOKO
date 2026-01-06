@@ -1,9 +1,8 @@
 package org.school.analysis.service;
 
-import lombok.Data;
 import org.school.analysis.model.ParseResult;
+import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.model.ReportFile;
-import org.school.analysis.model.StudentResult;
 
 import java.util.List;
 
@@ -11,22 +10,12 @@ import java.util.List;
  * Главный сервис обработки отчетов
  * Координирует работу всех остальных сервисов
  */
-public interface ReportProcessorService {
+public interface GeneralService {
 
     /**
      * Полный цикл обработки
      */
     ProcessingSummary processAll(String folderPath);
-
-    @Data
-    class ProcessingSummary {
-        private int totalFilesFound;
-        private int successfullyParsed;
-        private int successfullySaved;
-        private int successfullyMoved;
-        private int totalStudentsProcessed;
-        private List<ReportFile> failedFiles;
-    }
 
     /**
      * 1. Найти файлы в папке

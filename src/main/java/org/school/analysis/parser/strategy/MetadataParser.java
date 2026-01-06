@@ -1,6 +1,6 @@
 package org.school.analysis.parser.strategy;
 
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.school.analysis.model.TestMetadata;
 import org.school.analysis.util.ExcelParser;
 import org.springframework.stereotype.Component;
@@ -15,9 +15,6 @@ import java.util.Map;
 @Component
 public class MetadataParser {
 
-    /**
-     * Парсинг метаданных из листа "Информация"
-     */
     public TestMetadata parseMetadata(Sheet infoSheet) {
         TestMetadata metadata = new TestMetadata();
 
@@ -25,21 +22,15 @@ public class MetadataParser {
             return metadata;
         }
 
-        // Основная информация (строки 1-5)
+        // Основная информация
         metadata.setTeacher(ExcelParser.getCellValueAsString(infoSheet, 0, 1, "Не указан"));
         metadata.setTestDate(parseDate(ExcelParser.getCellValueAsString(infoSheet, 1, 1)));
         metadata.setSubject(ExcelParser.getCellValueAsString(infoSheet, 2, 1, "Неизвестный предмет"));
         metadata.setClassName(ExcelParser.getCellValueAsString(infoSheet, 3, 1, "Неизвестный класс"));
-        metadata.setTestType(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Неизвествный тип работы"));
-        metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 8, 1, "ГБОУ №7"));
-
-        // Парсинг строки с максимальными баллами (если есть)
-        String scoresText = ExcelParser.getCellValueAsString(infoSheet, 5, 1);
-        if (scoresText != null) {
-            metadata.setMaxScores(parseMaxScoresFromText(scoresText));
-        }
-
-
+        metadata.setTestType(ExcelParser.getCellValueAsString(infoSheet, 4, 1, "Неизвестный тип работы"));
+        metadata.setMaxScores(parseMaxScoresFromText(ExcelParser.getCellValueAsString(infoSheet, 5, 1, "нет баллов")));
+        metadata.setComment(ExcelParser.getCellValueAsString(infoSheet, 6, 1, ""));
+        metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 7, 1, "ГБОУ №7"));
         return metadata;
     }
 
@@ -50,7 +41,7 @@ public class MetadataParser {
     private Map<Integer, Integer> parseMaxScoresFromText(String text) {
         Map<Integer, Integer> maxScores = new HashMap<>();
 
-        if (text == null || text.trim().isEmpty()) {
+        if (text == null || text.trim().isEmpty() || "нет баллов".equalsIgnoreCase(text.trim())) {
             return maxScores;
         }
 
@@ -94,52 +85,6 @@ public class MetadataParser {
             return LocalDate.parse(dateString);
         } catch (Exception e) {
             return LocalDate.now();
-        }
-    }
-
-    /**
-     * Критерии оценок по умолчанию
-     */
-    private Map<String, Double> getDefaultGradeRanges() {
-        Map<String, Double> ranges = new HashMap<>();
-        ranges.put("5", 85.0);  // от 85%
-        ranges.put("4", 70.0);  // от 70%
-        ranges.put("3", 50.0);  // от 50%
-        ranges.put("2", 0.0);   // менее 50%
-        return ranges;
-    }
-
-    /**
-     * Извлечение метаданных из имени файла
-     */
-    public TestMetadata parseFromFileName(String fileName) {
-        TestMetadata metadata = new TestMetadata();
-
-        // Пример: "Сбор_данных_10А_История_2025-01-15.xlsx"
-        String nameWithoutExt = fileName.replace(".xlsx", "");
-        String[] parts = nameWithoutExt.split("_");
-
-        for (String part : parts) {
-            if (part.matches("\\d+[А-Яа-я]?")) {
-                metadata.setClassName(part); // Класс
-            } else if (isDate(part)) {
-                metadata.setTestDate(LocalDate.parse(part)); // Дата
-            } else if (!part.equalsIgnoreCase("Сбор") &&
-                    !part.equalsIgnoreCase("данных") &&
-                    !part.equalsIgnoreCase("класс")) {
-                metadata.setSubject(part); // Предмет
-            }
-        }
-
-        return metadata;
-    }
-
-    private boolean isDate(String str) {
-        try {
-            LocalDate.parse(str);
-            return true;
-        } catch (Exception e) {
-            return false;
         }
     }
 }
