@@ -120,4 +120,24 @@ public class ProcessingSummary {
 
         return stats.toString();
     }
+    // Добавить эти методы
+    public void incrementSuccessfullyParsed(int count) {
+        this.successfullyParsed += count;
+    }
+
+    public void incrementSuccessfullySaved(int count) {
+        this.successfullySaved += count;
+    }
+
+    public void incrementSuccessfullyMoved(int count) {
+        this.successfullyMoved += count;
+    }
+
+    public void incrementTotalFilesFound(int count) {
+        this.totalFilesFound += count;
+    }
+
+    public void incrementGeneratedReportsCount(int count) {
+        this.generatedReportsCount += count;
+    }
 }
