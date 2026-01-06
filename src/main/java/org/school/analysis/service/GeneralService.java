@@ -10,7 +10,7 @@ import java.util.List;
  * Главный сервис обработки отчетов
  * Координирует работу всех остальных сервисов
  */
-public interface ReportProcessorService {
+public interface GeneralService {
 
     /**
      * Полный цикл обработки

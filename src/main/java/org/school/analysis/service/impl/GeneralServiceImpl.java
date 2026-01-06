@@ -3,7 +3,6 @@ package org.school.analysis.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.config.AppConfig;
-import org.school.analysis.entity.ReportFileEntity;
 import org.school.analysis.model.ParseResult;
 import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.model.ReportFile;
@@ -28,10 +27,10 @@ import static org.school.analysis.util.ValidationHelper.validateReportFile;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ReportProcessorServiceImpl implements ReportProcessorService {
+public class GeneralServiceImpl implements GeneralService {
 
-    private final ReportParserService parserService;
-    private final StudentResultService studentResultService;
+    private final ParserService parserService;
+    private final SavedService savedService;
     private final FileOrganizerService fileOrganizerService;
     private final AnalysisService analysisService;
     private final ExcelReportService excelReportService;
@@ -114,8 +113,6 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
     /**
      * Генерация сводного отчета и отчетов по учителям
      */
-    // В методе generateSummaryReports() добавьте генерацию отчетов по учителям:
-
     private List<File> generateSummaryReports() {
         List<File> allGeneratedFiles = new ArrayList<>();
 
@@ -256,8 +253,7 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
                     }
                 }
 
-                // 🔄 ИЗМЕНЕНИЕ: используем новый сервис
-                int savedCount = studentResultService.saveAll(reportFile, studentResults);
+                int savedCount = savedService.saveAll(reportFile, studentResults);
 
                 if (savedCount > 0) {
                     reportFile.setStatus(SAVED);

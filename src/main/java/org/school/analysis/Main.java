@@ -15,7 +15,7 @@ public class Main {
         ApplicationContext context = SpringApplication.run(Main.class, args);
 
         // 2. Получаем главный сервис из контекста
-        ReportProcessorService processor = context.getBean(ReportProcessorService.class);
+        GeneralService processor = context.getBean(GeneralService.class);
 
 
         System.out.println("=== ЗАПУСК СИСТЕМЫ ОБРАБОТКИ ОТЧЁТОВ ВСОКО ===");
