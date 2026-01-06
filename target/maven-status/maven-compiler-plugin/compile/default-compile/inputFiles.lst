@@ -1,7 +1,5 @@
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\config\AppConfig.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\config\ReportConfig.java
-C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\entity\ReportFileEntity.java
-C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\entity\StudentResultEntity.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\exception\ValidationException.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\Main.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\mapper\ReportMapper.java
@@ -9,6 +7,8 @@ C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\dto\St
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\dto\TaskStatisticsDto.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\dto\TeacherTestDetailDto.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\dto\TestSummaryDto.java
+C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\entity\ReportFileEntity.java
+C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\entity\StudentResultEntity.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\ParseResult.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\ProcessingStatus.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\model\ProcessingSummary.java
@@ -35,7 +35,6 @@ C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\util\ChartSt
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\util\DateTimeFormatters.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\util\ExcelParser.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\util\JsonScoreUtils.java
-C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\util\ModernGradientBarPainter.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\analysis\util\ValidationHelper.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\Blank\AnalysisResult.java
 C:\Users\dimah\IdeaProjects\VSOKO\src\main\java\org\school\Blank\DataCollectionSheetGenerator.java
