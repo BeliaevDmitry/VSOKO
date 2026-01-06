@@ -6,7 +6,7 @@ import org.school.analysis.model.StudentResult;
 import java.util.List;
 import java.util.UUID;
 
-public interface StudentResultService {
+public interface SavedService {
 
     /**
      * Сохраняет все результаты студентов из файла

@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * Сервис парсинга отчетов
  */
-public interface ReportParserService {
+public interface ParserService {
 
     /**
      * Парсинг одного файла
