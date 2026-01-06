@@ -311,7 +311,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         ));
 
         for (int i = 1; i <= maxTasks; i++) {
-            headers.add("З" + i);
+            headers.add("№" + i); // Изменено здесь с "З" + i на "№" + i
         }
 
         Row headerRow = sheet.createRow(startRow++);
@@ -341,7 +341,11 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             for (int taskNum = 1; taskNum <= maxTasks; taskNum++) {
                 Integer score = taskScores != null ? taskScores.get(taskNum) : null;
                 Cell scoreCell = row.createCell(5 + taskNum);
-                scoreCell.setCellValue(score != null ? score : 0);
+                if (score != null) {
+                    scoreCell.setCellValue(score);
+                } else {
+                    scoreCell.setCellValue(0);
+                }
                 scoreCell.setCellStyle(createCenteredStyle(workbook));
             }
         }
@@ -362,7 +366,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
         String[] headers = {
-                "Задание", "Макс. балл", "Полностью", "Частично", "Не справилось",
+                "№ задания", "Макс. балл", "Полностью", "Частично", "Не справилось",
                 "% выполнения", "Распределение баллов"
         };
 
@@ -378,7 +382,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                 .collect(Collectors.toList())) {
             Row row = sheet.createRow(startRow++);
 
-            row.createCell(0).setCellValue(stats.getTaskNumber());
+            row.createCell(0).setCellValue("№" + stats.getTaskNumber()); // Изменено здесь
             row.createCell(1).setCellValue(stats.getMaxScore());
             row.createCell(2).setCellValue(stats.getFullyCompletedCount());
             row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
@@ -454,7 +458,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             TaskStatisticsDto task = tasks.get(i);
             Row row = sheet.createRow(startRow++);
 
-            row.createCell(0).setCellValue("З" + task.getTaskNumber());
+            row.createCell(0).setCellValue("№" + task.getTaskNumber()); // Изменено здесь
             row.createCell(1).setCellValue(task.getFullyCompletedCount());
             row.createCell(2).setCellValue(task.getPartiallyCompletedCount());
             row.createCell(3).setCellValue(task.getNotCompletedCount());
