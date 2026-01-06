@@ -37,7 +37,7 @@ public class StudentResultEntity {
     @Column(name = "fio", nullable = false, length = 200)
     private String fio;
 
-    @Column(name = "presence", nullable = false, length = 50)
+    @Column(name = "presence", nullable = true, length = 50)
     private String presence;
 
     @Column(name = "variant", length = 100)

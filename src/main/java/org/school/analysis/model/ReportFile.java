@@ -25,8 +25,6 @@ public class ReportFile {
     private int taskCount;
     private Map<Integer, Integer> maxScores;  // Теперь Map в памяти
 
-    // Удаляем maxTotalScore - будем вычислять
-    // private int maxTotalScore;
 
     // Дополнительно
     private String testType;

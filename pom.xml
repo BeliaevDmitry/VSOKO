@@ -122,7 +122,9 @@
             <artifactId>jackson-core</artifactId>
         </dependency>
 
-        <!-- УДАЛЕНО: MapStruct зависимости, так как используем кастомный маппер -->
+
+
+
     </dependencies>
 
     <build>

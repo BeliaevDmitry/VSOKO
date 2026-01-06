@@ -1,10 +1,12 @@
-// src/main/java/org/school/analysis/service/ExcelReportService.java
 package org.school.analysis.service;
 
+import org.school.analysis.model.dto.StudentDetailedResultDto;
+import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Сервис для генерации Excel-отчетов
@@ -13,9 +15,21 @@ public interface ExcelReportService {
 
     /**
      * Генерирует сводный отчет по всем тестам в Excel
-     * @param tests список тестов из getAllTestsSummary
-     * @return путь к созданному файлу
      */
     File generateSummaryReport(List<TestSummaryDto> tests);
 
+    /**
+     * Генерирует детальный отчет по тесту
+     */
+    File generateTestDetailReport(
+            TestSummaryDto testSummary,
+            List<StudentDetailedResultDto> studentResults,
+            Map<Integer, TaskStatisticsDto> taskStatistics);
+
+    /**
+     * Генерирует отчет для учителя со всеми его тестами
+     */
+    File generateTeacherReport(
+            String teacherName,
+            List<TestSummaryDto> teacherTests);
 }

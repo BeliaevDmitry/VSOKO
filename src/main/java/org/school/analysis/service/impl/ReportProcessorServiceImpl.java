@@ -3,12 +3,14 @@ package org.school.analysis.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.config.AppConfig;
+import org.school.analysis.entity.ReportFileEntity;
 import org.school.analysis.model.ParseResult;
 import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
+import org.school.analysis.model.dto.StudentDetailedResultDto;
+import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
-import org.school.analysis.repository.impl.StudentResultRepositoryImpl;
 import org.school.analysis.service.*;
 import org.school.analysis.util.JsonScoreUtils;
 import org.springframework.stereotype.Service;
@@ -17,11 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.school.analysis.model.ProcessingStatus.*;
 import static org.school.analysis.util.ValidationHelper.validateReportFile;
-import static org.school.analysis.util.ValidationHelper.validateStudentResult;
 
 @Service
 @RequiredArgsConstructor
@@ -29,7 +31,7 @@ import static org.school.analysis.util.ValidationHelper.validateStudentResult;
 public class ReportProcessorServiceImpl implements ReportProcessorService {
 
     private final ReportParserService parserService;
-    private final StudentResultRepositoryImpl repositoryImpl;
+    private final StudentResultService studentResultService;
     private final FileOrganizerService fileOrganizerService;
     private final AnalysisService analysisService;
     private final ExcelReportService excelReportService;
@@ -112,6 +114,8 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
     /**
      * Генерация сводного отчета и отчетов по учителям
      */
+    // В методе generateSummaryReports() добавьте генерацию отчетов по учителям:
+
     private List<File> generateSummaryReports() {
         List<File> allGeneratedFiles = new ArrayList<>();
 
@@ -134,7 +138,10 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
             }
 
             // 3. Генерируем детальные отчеты для каждого теста
-            // TODO: реализовать при необходимости
+            generateDetailedTestReports(allTests, allGeneratedFiles);
+
+            // 4. Генерируем отчеты по учителям
+            generateTeacherReports(allGeneratedFiles);
 
         } catch (Exception e) {
             log.error("Ошибка при генерации сводных отчетов: {}", e.getMessage(), e);
@@ -142,6 +149,70 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
         }
 
         return allGeneratedFiles;
+    }
+
+    /**
+     * Генерация детальных отчетов для каждого теста
+     */
+    private void generateDetailedTestReports(List<TestSummaryDto> allTests, List<File> allGeneratedFiles) {
+        for (TestSummaryDto test : allTests) {
+            try {
+                // Проверяем наличие ID
+                if (test.getReportFileId() == null || test.getReportFileId().trim().isEmpty()) {
+                    log.warn("Нет ID для файла: {}", test.getFileName());
+                    continue;
+                }
+
+                log.info("Генерация детального отчета для теста ID: {}, {}",
+                        test.getReportFileId(), test.getFileName());
+
+                // Получаем детальные данные напрямую по ID
+                List<StudentDetailedResultDto> studentResults =
+                        analysisService.getStudentDetailedResults(test.getReportFileId());
+
+                Map<Integer, TaskStatisticsDto> taskStatistics =
+                        analysisService.getTaskStatistics(test.getReportFileId());
+
+                if (studentResults.isEmpty()) {
+                    log.warn("Нет данных студентов для теста: {}", test.getFileName());
+                    continue;
+                }
+
+                // Генерируем отчет
+                File detailReport = excelReportService.generateTestDetailReport(
+                        test, studentResults, taskStatistics);
+
+                if (detailReport != null && detailReport.exists()) {
+                    allGeneratedFiles.add(detailReport);
+                    log.info("✅ Детальный отчет для теста {} сгенерирован: {}",
+                            test.getFileName(), detailReport.getName());
+                }
+            } catch (Exception e) {
+                log.error("❌ Ошибка при генерации детального отчета для теста {}: {}",
+                        test.getFileName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Генерация отчетов по учителям
+     */
+    private void generateTeacherReports(List<File> allGeneratedFiles) {
+        List<String> teachers = analysisService.getAllTeachers();
+
+        for (String teacher : teachers) {
+            try {
+                List<TestSummaryDto> teacherTests = analysisService.getTestsByTeacher(teacher);
+
+                File teacherReport = excelReportService.generateTeacherReport(teacher, teacherTests);
+                if (teacherReport != null && teacherReport.exists()) {
+                    allGeneratedFiles.add(teacherReport);
+                    log.info("Отчет для учителя {} сгенерирован", teacher);
+                }
+            } catch (Exception e) {
+                log.error("Ошибка при генерации отчета для учителя {}: {}", teacher, e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -167,28 +238,26 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
                     continue;
                 }
 
-                // Устанавливаем taskCount на основе количества заданий
+                // Устанавливаем taskCount
                 if (reportFile.getMaxScores() != null) {
                     reportFile.setTaskCount(reportFile.getMaxScores().size());
                 }
 
-                // Вычисляем totalScore для каждого студента перед сохранением
+                // Вычисляем totalScore для каждого студента
                 for (StudentResult student : studentResults) {
                     if (student.getTaskScores() != null) {
-                        // Вычисляем и устанавливаем totalScore
                         int totalScore = JsonScoreUtils.calculateTotalScore(student.getTaskScores());
                         student.setTotalScore(totalScore);
 
-                        // Вычисляем процент выполнения (опционально)
-                        if (reportFile.getMaxScores() != null && reportFile.getMaxTotalScore() > 0) {
+                        if (reportFile.getMaxTotalScore() > 0) {
                             double percentage = (totalScore * 100.0) / reportFile.getMaxTotalScore();
                             student.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
                         }
                     }
                 }
 
-                // СОХРАНЯЕМ В БД через единый репозиторий
-                int savedCount = repositoryImpl.saveAll(reportFile, studentResults);
+                // 🔄 ИЗМЕНЕНИЕ: используем новый сервис
+                int savedCount = studentResultService.saveAll(reportFile, studentResults);
 
                 if (savedCount > 0) {
                     reportFile.setStatus(SAVED);
@@ -216,6 +285,7 @@ public class ReportProcessorServiceImpl implements ReportProcessorService {
         log.info("Всего сохранено студентов: {}", totalStudentsSaved.get());
         return savedFiles;
     }
+
 
     @Override
     public List<ReportFile> findReports(String folderPath) {
