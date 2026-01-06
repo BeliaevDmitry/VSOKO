@@ -9,6 +9,7 @@ import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.model.dto.StudentDetailedResultDto;
 import org.school.analysis.model.dto.TaskStatisticsDto;
+import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 import org.school.analysis.service.*;
 import org.school.analysis.util.JsonScoreUtils;
@@ -39,176 +40,314 @@ public class GeneralServiceImpl implements GeneralService {
     @Transactional
     public ProcessingSummary processAll(String folderPath) {
         ProcessingSummary summary = new ProcessingSummary();
-        List<ReportFile> failedFiles = new ArrayList<>();
 
         try {
-            // 1. Найти файлы
-            List<ReportFile> foundFiles = findReports(folderPath);
+            // 1. Найти и обработать файлы
+            List<ReportFile> foundFiles = findAndProcessFiles(folderPath, summary);
 
-            summary.setTotalFilesFound(foundFiles.size());
-            log.info("Найдено {} файлов", foundFiles.size());
-
-            // 2. Обработка файлов небольшими партиями (для оптимизации памяти)
-            for (int i = 0; i < foundFiles.size(); i += AppConfig.BATCH_SIZE) {
-                int end = Math.min(i + AppConfig.BATCH_SIZE, foundFiles.size());
-                List<ReportFile> batch = foundFiles.subList(i, end);
-
-                // Обработка партии
-                List<ParseResult> parseResults = parseReports(batch);
-                List<ReportFile> savedFiles = saveResultsToDatabase(parseResults);
-                List<ReportFile> movedFiles = moveProcessedFiles(savedFiles);
-
-                // Обновление статистики
-                summary.setSuccessfullyParsed(summary.getSuccessfullyParsed() +
-                        (int) parseResults.stream().filter(ParseResult::isSuccess).count());
-                summary.setSuccessfullySaved(summary.getSuccessfullySaved() + savedFiles.size());
-                summary.setSuccessfullyMoved(summary.getSuccessfullyMoved() + movedFiles.size());
-
-                // Собираем информацию о неудачных файлах
-                for (ParseResult parseResult : parseResults) {
-                    if (!parseResult.isSuccess() && parseResult.getReportFile() != null) {
-                        failedFiles.add(parseResult.getReportFile());
-                    }
-                }
-
-                log.debug("Обработано файлов: {}-{} из {}", i, end, foundFiles.size());
+            // Проверка результата
+            if (foundFiles.isEmpty()) {
+                log.warn("В папке {} не найдено файлов для обработки", folderPath);
+                summary.setReportGenerationError("Файлы не найдены");
+                return summary;
             }
 
-            // 3. Сохраняем информацию о неудачных файлах
-            summary.setFailedFiles(failedFiles);
+            // Дополнительная проверка результатов
+            validateProcessingResults(foundFiles, summary);
 
-            // 4. Генерация отчетов после обработки всех файлов
-            generateReportsAfterProcessing(summary);
+            // 2. Генерация отчетов
+            generateReports(summary);
 
         } catch (Exception e) {
-            log.error("Ошибка при обработке отчетов: {}", e.getMessage(), e);
-            throw new RuntimeException("Ошибка при обработке отчетов: " + e.getMessage(), e);
+            log.error("Критическая ошибка при обработке отчетов", e);
+            throw new RuntimeException("Ошибка обработки: " + e.getMessage(), e);
         }
 
         return summary;
     }
 
     /**
-     * Генерация отчетов после обработки файлов
+     * Валидация результатов обработки
      */
-    private void generateReportsAfterProcessing(ProcessingSummary summary) {
+    private void validateProcessingResults(List<ReportFile> processedFiles,
+                                           ProcessingSummary summary) {
+        // Проверка, что хотя бы некоторые файлы обработаны успешно
+        if (summary.getSuccessfullySaved() == 0) {
+            log.warn("Все {} файлов обработаны с ошибками", processedFiles.size());
+            summary.setReportGenerationError("Нет успешно обработанных файлов для отчетов");
+        } else {
+            log.info("Успешно обработано {}/{} файлов",
+                    summary.getSuccessfullySaved(),
+                    processedFiles.size());
+        }
+    }
+
+    /**
+     * Найти и обработать файлы партиями
+     */
+    private List<ReportFile> findAndProcessFiles(String folderPath, ProcessingSummary summary) {
+        List<ReportFile> foundFiles = findReports(folderPath);
+        summary.setTotalFilesFound(foundFiles.size());
+
+        log.info("Найдено {} файлов для обработки", foundFiles.size());
+
+        if (foundFiles.isEmpty()) {
+            return foundFiles;
+        }
+
+        List<ReportFile> failedFiles = new ArrayList<>();
+
+        // Обработка партиями
+        for (int batchIndex = 0; batchIndex < foundFiles.size(); batchIndex += AppConfig.BATCH_SIZE) {
+            List<ReportFile> batch = getBatch(foundFiles, batchIndex);
+            List<ReportFile> processedInBatch = processBatch(batch, summary, failedFiles);
+
+            log.debug("Партия {}-{} обработана: {} успешно",
+                    batchIndex,
+                    Math.min(batchIndex + AppConfig.BATCH_SIZE, foundFiles.size()),
+                    processedInBatch.size());
+        }
+
+        summary.setFailedFiles(failedFiles);
+        return foundFiles;
+    }
+
+    /**
+     * Обработка одной партии файлов
+     */
+    private List<ReportFile> processBatch(List<ReportFile> batch,
+                                          ProcessingSummary summary,
+                                          List<ReportFile> failedFiles) {
+        List<ParseResult> parseResults = parseReports(batch);
+
+        // Статистика парсинга
+        long successfullyParsed = parseResults.stream()
+                .filter(ParseResult::isSuccess)
+                .count();
+        summary.incrementSuccessfullyParsed((int) successfullyParsed);
+
+        // Сохранение в БД
+        List<ReportFile> savedFiles = saveResultsToDatabase(parseResults);
+        summary.incrementSuccessfullySaved(savedFiles.size());
+
+        // Перемещение файлов
+        List<ReportFile> movedFiles = moveProcessedFiles(savedFiles);
+        summary.incrementSuccessfullyMoved(movedFiles.size());
+
+        // Сбор информации о неудачных файлах
+        collectFailedFiles(parseResults, failedFiles);
+
+        return savedFiles;
+    }
+
+    /**
+     * Получить партию файлов
+     */
+    private List<ReportFile> getBatch(List<ReportFile> allFiles, int startIndex) {
+        int endIndex = Math.min(startIndex + AppConfig.BATCH_SIZE, allFiles.size());
+        return allFiles.subList(startIndex, endIndex);
+    }
+
+    /**
+     * Собрать информацию о неудачных файлах
+     */
+    private void collectFailedFiles(List<ParseResult> parseResults, List<ReportFile> failedFiles) {
+        parseResults.stream()
+                .filter(result -> !result.isSuccess() && result.getReportFile() != null)
+                .forEach(result -> failedFiles.add(result.getReportFile()));
+    }
+
+    /**
+     * Генерация всех отчетов
+     */
+    private void generateReports(ProcessingSummary summary) {
         try {
             log.info("Начинаем генерацию отчетов...");
 
-            // 1. Генерация сводного отчета по всем тестам
-            List<File> generatedReports = generateSummaryReports();
+            List<File> generatedReports = generateAllReports();
 
             summary.setGeneratedReportsCount(generatedReports.size());
             summary.setGeneratedReportFiles(generatedReports);
 
-            log.info("Сгенерировано {} отчетов", generatedReports.size());
+            log.info("Успешно сгенерировано {} отчетов", generatedReports.size());
 
         } catch (Exception e) {
-            log.error("Ошибка при генерации отчетов: {}", e.getMessage(), e);
-            // Не прерываем основной процесс из-за ошибок в отчетах
+            log.error("Ошибка при генерации отчетов", e);
             summary.setReportGenerationError(e.getMessage());
         }
     }
 
     /**
-     * Генерация сводного отчета и отчетов по учителям
+     * Генерация всех типов отчетов
      */
-    private List<File> generateSummaryReports() {
-        List<File> allGeneratedFiles = new ArrayList<>();
+    private List<File> generateAllReports() {
+        List<File> allReports = new ArrayList<>();
 
-        try {
-            // 1. Получаем список всех тестов
-            List<TestSummaryDto> allTests = analysisService.getAllTestsSummary();
+        // 1. Сводный отчет по всем тестам
+        generateSummaryReport(allReports);
 
-            if (allTests.isEmpty()) {
-                log.warn("Нет данных для генерации отчетов");
-                return allGeneratedFiles;
-            }
+        // 2. Детальные отчеты по тестам
+        generateTestDetailReports(allReports);
 
-            log.info("Найдено {} тестов для генерации отчетов", allTests.size());
+        // 3. Отчеты по учителям
+        generateTeacherReports(allReports);
 
-            // 2. Генерируем сводный отчет по всем тестам
-            File summaryReport = excelReportService.generateSummaryReport(allTests);
-            if (summaryReport != null && summaryReport.exists()) {
-                allGeneratedFiles.add(summaryReport);
-                log.info("Сводный отчет сгенерирован: {}", summaryReport.getName());
-            }
-
-            // 3. Генерируем детальные отчеты для каждого теста
-            generateDetailedTestReports(allTests, allGeneratedFiles);
-
-            // 4. Генерируем отчеты по учителям
-            generateTeacherReports(allGeneratedFiles);
-
-        } catch (Exception e) {
-            log.error("Ошибка при генерации сводных отчетов: {}", e.getMessage(), e);
-            throw e;
-        }
-
-        return allGeneratedFiles;
+        return allReports;
     }
 
     /**
-     * Генерация детальных отчетов для каждого теста
+     * Генерация сводного отчета
      */
-    private void generateDetailedTestReports(List<TestSummaryDto> allTests, List<File> allGeneratedFiles) {
+    private void generateSummaryReport(List<File> allReports) {
+        List<TestSummaryDto> allTests = analysisService.getAllTestsSummary();
+
+        if (allTests.isEmpty()) {
+            log.warn("Нет данных для сводного отчета");
+            return;
+        }
+
+        File summaryReport = excelReportService.generateSummaryReport(allTests);
+        addReportIfValid(summaryReport, allReports, "Сводный отчет");
+    }
+
+    /**
+     * Генерация детальных отчетов по тестам
+     */
+    private void generateTestDetailReports(List<File> allReports) {
+        List<TestSummaryDto> allTests = analysisService.getAllTestsSummary();
+
         for (TestSummaryDto test : allTests) {
-            try {
-                // Проверяем наличие ID
-                if (test.getReportFileId() == null || test.getReportFileId().trim().isEmpty()) {
-                    log.warn("Нет ID для файла: {}", test.getFileName());
-                    continue;
-                }
+            generateSingleTestDetailReport(test, allReports);
+        }
+    }
 
-                log.info("Генерация детального отчета для теста ID: {}, {}",
-                        test.getReportFileId(), test.getFileName());
+    /**
+     * Генерация детального отчета для одного теста
+     */
+    private void generateSingleTestDetailReport(TestSummaryDto test, List<File> allReports) {
+        if (test.getReportFileId() == null || test.getReportFileId().trim().isEmpty()) {
+            log.warn("Пропускаем тест без ID: {}", test.getFileName());
+            return;
+        }
 
-                // Получаем детальные данные напрямую по ID
-                List<StudentDetailedResultDto> studentResults =
-                        analysisService.getStudentDetailedResults(test.getReportFileId());
+        try {
+            String testId = test.getReportFileId();
 
-                Map<Integer, TaskStatisticsDto> taskStatistics =
-                        analysisService.getTaskStatistics(test.getReportFileId());
+            log.info("Генерация детального отчета с графиками для теста: {}", test.getFileName());
 
-                if (studentResults.isEmpty()) {
-                    log.warn("Нет данных студентов для теста: {}", test.getFileName());
-                    continue;
-                }
+            List<StudentDetailedResultDto> studentResults =
+                    analysisService.getStudentDetailedResults(testId);
 
-                // Генерируем отчет
-                File detailReport = excelReportService.generateTestDetailReport(
-                        test, studentResults, taskStatistics);
+            Map<Integer, TaskStatisticsDto> taskStatistics =
+                    analysisService.getTaskStatistics(testId);
 
-                if (detailReport != null && detailReport.exists()) {
-                    allGeneratedFiles.add(detailReport);
-                    log.info("✅ Детальный отчет для теста {} сгенерирован: {}",
-                            test.getFileName(), detailReport.getName());
-                }
-            } catch (Exception e) {
-                log.error("❌ Ошибка при генерации детального отчета для теста {}: {}",
-                        test.getFileName(), e.getMessage(), e);
+            if (studentResults.isEmpty()) {
+                log.warn("Нет данных студентов для теста: {}", test.getFileName());
+                return;
             }
+
+            if (taskStatistics == null || taskStatistics.isEmpty()) {
+                log.warn("Нет статистики по заданиям для теста: {}", test.getFileName());
+                return;
+            }
+
+            log.debug("Для теста {} получено: {} студентов, {} заданий",
+                    test.getFileName(), studentResults.size(), taskStatistics.size());
+
+            // Генерируем отчет с графиками на одном листе
+            File detailReport = excelReportService.generateTestDetailReport(
+                    test, studentResults, taskStatistics);
+
+            if (detailReport != null && detailReport.exists()) {
+                addReportIfValid(detailReport, allReports,
+                        String.format("Детальный отчет с графиками для '%s'", test.getFileName()));
+                log.info("✅ Отчет с графиками для теста '{}' успешно создан", test.getFileName());
+            } else {
+                log.warn("⚠️ Не удалось создать отчет с графиками для теста '{}'", test.getFileName());
+            }
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка генерации отчета с графиками для теста {}: {}",
+                    test.getFileName(), e.getMessage(), e);
         }
     }
 
     /**
      * Генерация отчетов по учителям
      */
-    private void generateTeacherReports(List<File> allGeneratedFiles) {
+    private void generateTeacherReports(List<File> allReports) {
         List<String> teachers = analysisService.getAllTeachers();
 
         for (String teacher : teachers) {
             try {
                 List<TestSummaryDto> teacherTests = analysisService.getTestsByTeacher(teacher);
 
-                File teacherReport = excelReportService.generateTeacherReport(teacher, teacherTests);
-                if (teacherReport != null && teacherReport.exists()) {
-                    allGeneratedFiles.add(teacherReport);
-                    log.info("Отчет для учителя {} сгенерирован", teacher);
-                }
+                // Для каждого теста учителя получаем детальные данные
+                List<TeacherTestDetailDto> teacherTestDetails = getTeacherTestDetails(teacherTests);
+
+                // Генерируем полный отчет учителя с детальными данными
+                File teacherReport = excelReportService.generateTeacherReportWithDetails(
+                        teacher, teacherTests, teacherTestDetails);
+
+                addReportIfValid(teacherReport, allReports,
+                        String.format("Отчет для учителя '%s' с детализацией", teacher));
+
             } catch (Exception e) {
-                log.error("Ошибка при генерации отчета для учителя {}: {}", teacher, e.getMessage());
+                log.error("Ошибка генерации отчета для учителя {}: {}",
+                        teacher, e.getMessage(), e);
             }
+        }
+    }
+
+    /**
+     * Получает детальные данные для тестов учителя
+     */
+    /**
+     * Получает детальные данные для тестов учителя
+     */
+    private List<TeacherTestDetailDto> getTeacherTestDetails(List<TestSummaryDto> teacherTests) {
+        List<TeacherTestDetailDto> details = new ArrayList<>();
+
+        for (TestSummaryDto test : teacherTests) {
+            if (test.getReportFileId() == null || test.getReportFileId().trim().isEmpty()) {
+                continue;
+            }
+
+            try {
+                String testId = test.getReportFileId();
+
+                List<StudentDetailedResultDto> studentResults =
+                        analysisService.getStudentDetailedResults(testId);
+
+                Map<Integer, TaskStatisticsDto> taskStatistics =
+                        analysisService.getTaskStatistics(testId);
+
+                TeacherTestDetailDto detailDto = TeacherTestDetailDto.builder()
+                        .testSummary(test)
+                        .studentResults(studentResults)
+                        .taskStatistics(taskStatistics)
+                        .build();
+
+                details.add(detailDto);
+
+            } catch (Exception e) {
+                log.error("Ошибка получения детальных данных для теста {}: {}",
+                        test.getFileName(), e.getMessage());
+            }
+        }
+
+        return details;
+    }
+
+    /**
+     * Добавить отчет в список, если он валиден
+     */
+    private void addReportIfValid(File report, List<File> allReports, String reportName) {
+        if (report != null && report.exists()) {
+            allReports.add(report);
+            log.info("✅ {} сгенерирован: {}", reportName, report.getName());
+        } else {
+            log.warn("⚠️ {} не был сгенерирован", reportName);
         }
     }
 
@@ -227,54 +366,11 @@ public class GeneralServiceImpl implements GeneralService {
             List<StudentResult> studentResults = parseResult.getStudentResults();
 
             try {
-                // Валидация данных перед сохранением
-                if (!validateReportFile(reportFile)) {
-                    reportFile.setStatus(ERROR_SAVING);
-                    reportFile.setErrorMessage("Некорректные данные");
-                    log.warn("⚠️ Файл {} содержит некорректные данные", reportFile.getFileName());
-                    continue;
-                }
-
-                // Устанавливаем taskCount
-                if (reportFile.getMaxScores() != null) {
-                    reportFile.setTaskCount(reportFile.getMaxScores().size());
-                }
-
-                // Вычисляем totalScore для каждого студента
-                for (StudentResult student : studentResults) {
-                    if (student.getTaskScores() != null) {
-                        int totalScore = JsonScoreUtils.calculateTotalScore(student.getTaskScores());
-                        student.setTotalScore(totalScore);
-
-                        if (reportFile.getMaxTotalScore() > 0) {
-                            double percentage = (totalScore * 100.0) / reportFile.getMaxTotalScore();
-                            student.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
-                        }
-                    }
-                }
-
-                int savedCount = savedService.saveAll(reportFile, studentResults);
-
-                if (savedCount > 0) {
-                    reportFile.setStatus(SAVED);
+                if (processAndSaveReport(reportFile, studentResults, totalStudentsSaved)) {
                     savedFiles.add(reportFile);
-                    totalStudentsSaved.addAndGet(savedCount);
-                    log.info("✅ Файл {} сохранен ({} студентов, {} заданий)",
-                            reportFile.getFileName(),
-                            savedCount,
-                            reportFile.getTaskCount());
-                } else {
-                    reportFile.setStatus(ERROR_SAVING);
-                    reportFile.setErrorMessage("Не удалось сохранить данные в БД");
-                    log.warn("⚠️ Файл {} не сохранен (0 студентов)",
-                            reportFile.getFileName());
                 }
-
             } catch (Exception e) {
-                reportFile.setStatus(ERROR_SAVING);
-                reportFile.setErrorMessage("Ошибка БД: " + e.getMessage());
-                log.error("❌ Ошибка сохранения файла {}: {}",
-                        reportFile.getFileName(), e.getMessage(), e);
+                handleSaveError(reportFile, e);
             }
         }
 
@@ -282,6 +378,95 @@ public class GeneralServiceImpl implements GeneralService {
         return savedFiles;
     }
 
+    /**
+     * Обработать и сохранить один отчет
+     */
+    private boolean processAndSaveReport(ReportFile reportFile,
+                                         List<StudentResult> studentResults,
+                                         AtomicInteger totalStudentsSaved) {
+        if (!validateReportFile(reportFile)) {
+            markFileAsInvalid(reportFile, "Некорректные данные");
+            return false;
+        }
+
+        enrichReportFileData(reportFile);
+        calculateStudentScores(studentResults, reportFile);
+
+        int savedCount = savedService.saveAll(reportFile, studentResults);
+
+        if (savedCount > 0) {
+            markFileAsSaved(reportFile, savedCount);
+            totalStudentsSaved.addAndGet(savedCount);
+            return true;
+        } else {
+            markFileAsSaveFailed(reportFile, "Не удалось сохранить данные");
+            return false;
+        }
+    }
+
+    /**
+     * Обогатить данные отчета
+     */
+    private void enrichReportFileData(ReportFile reportFile) {
+        if (reportFile.getMaxScores() != null) {
+            reportFile.setTaskCount(reportFile.getMaxScores().size());
+        }
+    }
+
+    /**
+     * Рассчитать баллы студентов
+     */
+    private void calculateStudentScores(List<StudentResult> studentResults,
+                                        ReportFile reportFile) {
+        studentResults.forEach(student -> {
+            if (student.getTaskScores() != null) {
+                int totalScore = JsonScoreUtils.calculateTotalScore(student.getTaskScores());
+                student.setTotalScore(totalScore);
+
+                if (reportFile.getMaxTotalScore() > 0) {
+                    double percentage = (totalScore * 100.0) / reportFile.getMaxTotalScore();
+                    student.setPercentageScore(Math.round(percentage * 100.0) / 100.0);
+                }
+            }
+        });
+    }
+
+    /**
+     * Отметить файл как сохраненный
+     */
+    private void markFileAsSaved(ReportFile reportFile, int savedCount) {
+        reportFile.setStatus(SAVED);
+        log.info("✅ Файл '{}' сохранен ({} студентов, {} заданий)",
+                reportFile.getFileName(), savedCount, reportFile.getTaskCount());
+    }
+
+    /**
+     * Отметить файл как невалидный
+     */
+    private void markFileAsInvalid(ReportFile reportFile, String errorMessage) {
+        reportFile.setStatus(ERROR_SAVING);
+        reportFile.setErrorMessage(errorMessage);
+        log.warn("⚠️ Файл '{}' содержит некорректные данные", reportFile.getFileName());
+    }
+
+    /**
+     * Отметить файл как неудачно сохраненный
+     */
+    private void markFileAsSaveFailed(ReportFile reportFile, String errorMessage) {
+        reportFile.setStatus(ERROR_SAVING);
+        reportFile.setErrorMessage(errorMessage);
+        log.warn("⚠️ Файл '{}' не сохранен (0 студентов)", reportFile.getFileName());
+    }
+
+    /**
+     * Обработать ошибку сохранения
+     */
+    private void handleSaveError(ReportFile reportFile, Exception e) {
+        reportFile.setStatus(ERROR_SAVING);
+        reportFile.setErrorMessage("Ошибка БД: " + e.getMessage());
+        log.error("❌ Ошибка сохранения файла '{}': {}",
+                reportFile.getFileName(), e.getMessage());
+    }
 
     @Override
     public List<ReportFile> findReports(String folderPath) {

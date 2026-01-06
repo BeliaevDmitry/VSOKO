@@ -2,6 +2,7 @@ package org.school.analysis.service;
 
 import org.school.analysis.model.dto.StudentDetailedResultDto;
 import org.school.analysis.model.dto.TaskStatisticsDto;
+import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 
 import java.io.File;
@@ -32,4 +33,11 @@ public interface ExcelReportService {
     File generateTeacherReport(
             String teacherName,
             List<TestSummaryDto> teacherTests);
+
+    /**
+     * Генерация отчета для учителя с детальными данными по тестам
+     */
+    File generateTeacherReportWithDetails(String teacherName,
+                                          List<TestSummaryDto> teacherTests,
+                                          List<TeacherTestDetailDto> teacherTestDetails);
 }
