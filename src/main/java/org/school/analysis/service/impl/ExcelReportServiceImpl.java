@@ -405,6 +405,131 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         return startRow;
     }
 
+    /**
+     * Создает нормированную гистограмму с накоплением - ОДИН столбец на задание
+     */
+    private void createSingleColumnNormalizedChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                                   List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            // Сначала создаем таблицу с нормированными данными для каждого задания
+            int normalizedDataStartRow = chartRow + 2; // Отступаем немного от заголовка
+
+            // Создаем заголовок таблицы с нормированными данными
+            Row normHeaderRow = sheet.createRow(normalizedDataStartRow++);
+            normHeaderRow.createCell(0).setCellValue("Задание");
+            normHeaderRow.createCell(1).setCellValue("Полностью (%)");
+            normHeaderRow.createCell(2).setCellValue("Частично (%)");
+            normHeaderRow.createCell(3).setCellValue("Не справилось (%)");
+
+            // Заполняем нормированные данные
+            for (int i = 0; i < tasks.size(); i++) {
+                TaskStatisticsDto task = tasks.get(i);
+                Row row = sheet.createRow(normalizedDataStartRow++);
+
+                row.createCell(0).setCellValue("№" + task.getTaskNumber());
+
+                // Вычисляем общее количество студентов для этого задания
+                int totalStudents = task.getFullyCompletedCount() +
+                        task.getPartiallyCompletedCount() +
+                        task.getNotCompletedCount();
+
+                if (totalStudents > 0) {
+                    // Нормируем данные в проценты
+                    Cell fullyCell = row.createCell(1);
+                    double fullyPercent = (double) task.getFullyCompletedCount() / totalStudents;
+                    fullyCell.setCellValue(fullyPercent);
+                    fullyCell.setCellStyle(createPercentStyle(workbook));
+
+                    Cell partiallyCell = row.createCell(2);
+                    double partiallyPercent = (double) task.getPartiallyCompletedCount() / totalStudents;
+                    partiallyCell.setCellValue(partiallyPercent);
+                    partiallyCell.setCellStyle(createPercentStyle(workbook));
+
+                    Cell notCompletedCell = row.createCell(3);
+                    double notCompletedPercent = (double) task.getNotCompletedCount() / totalStudents;
+                    notCompletedCell.setCellValue(notCompletedPercent);
+                    notCompletedCell.setCellStyle(createPercentStyle(workbook));
+                } else {
+                    row.createCell(1).setCellValue(0);
+                    row.createCell(2).setCellValue(0);
+                    row.createCell(3).setCellValue(0);
+                }
+            }
+
+            // Теперь создаем диаграмму
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Нормированное распределение результатов по заданиям (%)");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            // Увеличиваем отступ для диаграммы, чтобы она была после таблицы
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, normalizedDataStartRow + 2, CHART_COL_SPAN, normalizedDataStartRow + 2 + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Нормированное распределение результатов (%)");
+
+            // Получаем легенду
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("№ задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("Доля студентов");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+            leftAxis.setMinimum(0.0);
+            leftAxis.setMaximum(1.0); // 100%
+
+            // Ключевое изменение: используем STACKED (не PERCENT_STACKED)
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STACKED); // Изменено с PERCENT_STACKED на STACKED
+            barData.setVaryColors(true);
+
+            // Используем нормированные данные из созданной таблицы
+            CellRangeAddress labelRange = new CellRangeAddress(
+                    chartRow + 3, // Начинаем с первой строки данных (после заголовка)
+                    chartRow + 2 + tasks.size(), // Заканчиваем последней строкой данных
+                    0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            // Используем нормированные данные (проценты)
+            XDDFNumericalDataSource<Double> ys1 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 1, 1));
+            XDDFChartData.Series series1 = data.addSeries(xs, ys1);
+            series1.setTitle("Полностью", null);
+
+            XDDFNumericalDataSource<Double> ys2 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 2, 2));
+            XDDFChartData.Series series2 = data.addSeries(xs, ys2);
+            series2.setTitle("Частично", null);
+
+            XDDFNumericalDataSource<Double> ys3 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 3, 3));
+            XDDFChartData.Series series3 = data.addSeries(xs, ys3);
+            series3.setTitle("Не справилось", null);
+
+            chart.plot(data);
+
+            // Настраиваем цвета
+            setSeriesColor(chart, 0, new Color(46, 204, 113)); // Зеленый
+            setSeriesColor(chart, 1, new Color(241, 196, 15)); // Желтый
+            setSeriesColor(chart, 2, new Color(231, 76, 60));  // Красный
+
+            // Настраиваем ось
+            leftAxis.setCrossBetween(AxisCrossBetween.BETWEEN);
+
+            log.info("✅ Нормированная гистограмма с накоплением (один столбец) создана успешно");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при создании нормированной гистограммы: {}", e.getMessage(), e);
+        }
+    }
+
     private void createExcelChartsSection(XSSFWorkbook workbook, Sheet sheet,
                                           TestSummaryDto testSummary,
                                           Map<Integer, TaskStatisticsDto> taskStatistics,
@@ -427,12 +552,194 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             startRow = createChartDataTable(workbook, sheet, sortedTasks, startRow);
 
             // Создаем диаграммы
-            createExcelStackedBarChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow);
+            createSimpleStackedChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow);
             createExcelBarChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow + 25);
             createExcelLineChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow + 50);
 
         } catch (Exception e) {
             log.error("Ошибка при создании диаграмм Excel", e);
+        }
+    }
+
+    /**
+     * Простой вариант с использованием только high-level API
+     */
+    private void createSimpleStackedChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                          List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Распределение результатов (Stacked)");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Распределение результатов");
+
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("№ задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("Количество студентов");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+
+            // Просто используем STACKED группировку
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STACKED); // Просто STACKED
+            barData.setVaryColors(true);
+
+            // Используем абсолютные значения (не нормированные)
+            CellRangeAddress labelRange = new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            XDDFNumericalDataSource<Double> ys1 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 1, 1));
+            XDDFChartData.Series series1 = data.addSeries(xs, ys1);
+            series1.setTitle("Полностью", null);
+
+            XDDFNumericalDataSource<Double> ys2 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 2, 2));
+            XDDFChartData.Series series2 = data.addSeries(xs, ys2);
+            series2.setTitle("Частично", null);
+
+            XDDFNumericalDataSource<Double> ys3 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 3, 3));
+            XDDFChartData.Series series3 = data.addSeries(xs, ys3);
+            series3.setTitle("Не справилось", null);
+
+            chart.plot(data);
+
+            // Настраиваем цвета
+            setSeriesColor(chart, 0, new Color(46, 204, 113));
+            setSeriesColor(chart, 1, new Color(241, 196, 15));
+            setSeriesColor(chart, 2, new Color(231, 76, 60));
+
+            log.info("✅ Simple Stacked Chart создан");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Создает нормированную гистограмму с накоплением - ТОЧНО один столбец на задание
+     */
+    private void createTrueSingleColumnChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                             List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Нормированное распределение результатов по заданиям (%)");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Нормированное распределение результатов (%)");
+
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("№ задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("Доля студентов");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+            leftAxis.setMinimum(0.0);
+            leftAxis.setMaximum(1.0);
+
+            // Используем BAR, но с правильной конфигурацией
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STACKED);
+            barData.setVaryColors(true);
+
+            // Ключевая настройка: устанавливаем перекрытие столбцов на 100%
+            // Это заставит столбцы накладываться друг на друга, создавая один общий столбец
+            barData.setOverlap((byte) 100);
+
+            // Создаем временные нормированные данные прямо здесь
+            // Сначала создаем заголовок
+            int tempDataRow = chartRow + 2;
+            Row tempHeader = sheet.createRow(tempDataRow++);
+            tempHeader.createCell(0).setCellValue("Задание");
+            tempHeader.createCell(1).setCellValue("Полностью (%)");
+            tempHeader.createCell(2).setCellValue("Частично (%)");
+            tempHeader.createCell(3).setCellValue("Не справилось (%)");
+
+            // Заполняем нормированные данные
+            for (int i = 0; i < tasks.size(); i++) {
+                TaskStatisticsDto task = tasks.get(i);
+                Row row = sheet.createRow(tempDataRow++);
+
+                row.createCell(0).setCellValue("№" + task.getTaskNumber());
+
+                int total = task.getFullyCompletedCount() +
+                        task.getPartiallyCompletedCount() +
+                        task.getNotCompletedCount();
+
+                if (total > 0) {
+                    // Нормируем в проценты
+                    Cell fullyCell = row.createCell(1);
+                    double fullyPercent = (double) task.getFullyCompletedCount() / total;
+                    fullyCell.setCellValue(fullyPercent);
+
+                    Cell partiallyCell = row.createCell(2);
+                    double partiallyPercent = (double) task.getPartiallyCompletedCount() / total;
+                    partiallyCell.setCellValue(partiallyPercent);
+
+                    Cell notCompletedCell = row.createCell(3);
+                    double notCompletedPercent = (double) task.getNotCompletedCount() / total;
+                    notCompletedCell.setCellValue(notCompletedPercent);
+                } else {
+                    row.createCell(1).setCellValue(0);
+                    row.createCell(2).setCellValue(0);
+                    row.createCell(3).setCellValue(0);
+                }
+            }
+
+            // Теперь используем эти данные для диаграммы
+            CellRangeAddress labelRange = new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            XDDFNumericalDataSource<Double> ys1 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 1, 1));
+            XDDFChartData.Series series1 = data.addSeries(xs, ys1);
+            series1.setTitle("Полностью", null);
+
+            XDDFNumericalDataSource<Double> ys2 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 2, 2));
+            XDDFChartData.Series series2 = data.addSeries(xs, ys2);
+            series2.setTitle("Частично", null);
+
+            XDDFNumericalDataSource<Double> ys3 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 3, 3));
+            XDDFChartData.Series series3 = data.addSeries(xs, ys3);
+            series3.setTitle("Не справилось", null);
+
+            chart.plot(data);
+
+            // Настраиваем цвета
+            setSeriesColor(chart, 0, new Color(46, 204, 113)); // Зеленый
+            setSeriesColor(chart, 1, new Color(241, 196, 15)); // Желтый
+            setSeriesColor(chart, 2, new Color(231, 76, 60));  // Красный
+
+            log.info("✅ Истинная нормированная гистограмма с одним столбцом создана");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка: {}", e.getMessage(), e);
         }
     }
 
