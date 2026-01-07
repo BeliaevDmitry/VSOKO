@@ -1,35 +1,14 @@
 package org.school.analysis.service.impl;
 
-import org.jfree.chart.axis.CategoryAxis;
-import org.jfree.chart.axis.NumberAxis;
-import org.jfree.chart.axis.ValueAxis;
 import org.school.analysis.model.dto.TeacherTestDetailDto;
-import org.school.analysis.util.ModernGradientBarPainter;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.xssf.usermodel.*;
-import org.jfree.chart.ChartFactory;
-import org.jfree.chart.JFreeChart;
-import org.jfree.chart.block.BlockBorder;
-import org.jfree.chart.labels.CategoryItemLabelGenerator;
-import org.jfree.chart.labels.ItemLabelAnchor;
-import org.jfree.chart.labels.ItemLabelPosition;
-import org.jfree.chart.plot.*;
-import org.jfree.chart.renderer.category.BarRenderer;
-import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
-import org.jfree.chart.renderer.category.GradientBarPainter;
-import org.jfree.chart.renderer.category.StandardBarPainter;
-import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
-import org.jfree.chart.ui.TextAnchor;
-import org.jfree.data.category.CategoryDataset;
-import org.jfree.data.category.DefaultCategoryDataset;
-import org.jfree.data.general.DefaultPieDataset;
-import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
-import org.jfree.data.xy.XYSeries;
-import org.jfree.data.xy.XYSeriesCollection;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xddf.usermodel.*;
+import org.apache.poi.xddf.usermodel.chart.*;
 import org.school.analysis.config.AppConfig;
 import org.school.analysis.model.dto.StudentDetailedResultDto;
 import org.school.analysis.model.dto.TaskStatisticsDto;
@@ -38,9 +17,7 @@ import org.school.analysis.service.ExcelReportService;
 import org.school.analysis.util.DateTimeFormatters;
 import org.springframework.stereotype.Service;
 
-import java.awt.*;
 import java.awt.Color;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -59,10 +36,10 @@ import java.util.stream.Collectors;
 public class ExcelReportServiceImpl implements ExcelReportService {
 
     private static final String FINAL_REPORT_FOLDER = AppConfig.FINAL_REPORT_FOLDER;
-    private static final int CHART_WIDTH = 600;
-    private static final int CHART_HEIGHT = 400;
-    private static final int IMAGE_COL_WIDTH = 30;
-    private static final int IMAGE_ROW_HEIGHT = 20 * 20; // 20 строк по 20 пунктов
+    private static final int CHART_COL_SPAN = 8;
+    private static final int CHART_ROW_SPAN = 20;
+    private static final int MIN_COLUMN_WIDTH = 10 * 256;
+    private static final int MAX_COLUMN_WIDTH = 50 * 256;
 
     @Override
     public File generateSummaryReport(List<TestSummaryDto> tests) {
@@ -77,7 +54,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                 createSummarySheetHeader(sheet, workbook);
                 fillSummaryData(sheet, workbook, tests);
                 addSummaryStatisticsRow(sheet, tests);
-                autoSizeColumns(sheet, 14);
+                optimizeColumnWidths(sheet);
 
                 return saveWorkbook(workbook, reportsPath, "Свод всех работ.xlsx");
             }
@@ -106,7 +83,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                     testSummary.getTestDate().format(DateTimeFormatter.ofPattern("ddMMyyyy")));
 
             try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-                // Используем ту же логику, что и для отчета учителя
                 String sheetName = String.format("%s_%s",
                         testSummary.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9]", ""),
                         testSummary.getClassName());
@@ -139,7 +115,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             try (XSSFWorkbook workbook = new XSSFWorkbook()) {
                 createTeacherSummarySheet(workbook, teacherName, teacherTests);
 
-                // Создаем отдельные листы для каждого теста
                 for (int i = 0; i < teacherTests.size(); i++) {
                     createTeacherTestSheet(workbook, teacherTests.get(i), teacherName, i);
                 }
@@ -169,11 +144,8 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("ddMMyyyy_HHmm")));
 
             try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-
-                // 1. Сводный лист по всем тестам
                 createTeacherSummarySheet(workbook, teacherName, teacherTests);
 
-                // 2. Для каждого теста создаем ПОЛНЫЙ детальный отчет на отдельном листе
                 for (int i = 0; i < teacherTestDetails.size(); i++) {
                     TeacherTestDetailDto testDetail = teacherTestDetails.get(i);
                     createCompleteTestDetailSheetForTeacher(workbook, testDetail, teacherName, i);
@@ -188,9 +160,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         }
     }
 
-    /**
-     * Создает полный детальный отчет по тесту для отчета учителя
-     */
     private void createCompleteTestDetailSheetForTeacher(XSSFWorkbook workbook,
                                                          TeacherTestDetailDto testDetail,
                                                          String teacherName,
@@ -202,7 +171,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             return;
         }
 
-        // Генерируем имя листа
         String sheetName = String.format("%s_%s_%s",
                 testSummary.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9]", "").substring(0,
                         Math.min(12, testSummary.getSubject().length())),
@@ -213,7 +181,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             sheetName = sheetName.substring(0, 31);
         }
 
-        // Проверяем уникальность имени
         String finalSheetName = sheetName;
         int counter = 1;
         while (workbook.getSheet(finalSheetName) != null) {
@@ -224,7 +191,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         }
 
         try {
-            // Создаем полный детальный отчет на одном листе
             createSingleSheetDetailReport(workbook, testSummary,
                     testDetail.getStudentResults(),
                     testDetail.getTaskStatistics(),
@@ -236,9 +202,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         }
     }
 
-    /**
-     * Создает детальный отчет по тесту на одном листе (переименованная версия)
-     */
     private void createSingleSheetDetailReport(XSSFWorkbook workbook,
                                                TestSummaryDto testSummary,
                                                List<StudentDetailedResultDto> studentResults,
@@ -250,23 +213,17 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         int currentRow = 0;
 
         try {
-            // 1. ЗАГОЛОВОК И ОСНОВНАЯ ИНФОРМАЦИЯ
             currentRow = createReportHeader(sheet, workbook, testSummary, currentRow);
-
-            // 2. ОБЩАЯ СТАТИСТИКА ТЕСТА
             currentRow = createTestStatisticsSection(sheet, workbook, testSummary, currentRow);
-
-            // 3. РЕЗУЛЬТАТЫ СТУДЕНТОВ
             currentRow = createStudentResultsSection(sheet, workbook, studentResults, currentRow);
-
-            // 4. АНАЛИЗ ПО ЗАДАНИЯМ
             currentRow = createTaskAnalysisSection(sheet, workbook, taskStatistics, currentRow);
 
-            // 5. ГРАФИКИ АНАЛИЗА (если есть данные)
             if (taskStatistics != null && !taskStatistics.isEmpty() &&
                     studentResults != null && !studentResults.isEmpty()) {
-                createChartsSection(workbook, sheet, testSummary, taskStatistics, studentResults, currentRow);
+                createExcelChartsSection(workbook, sheet, testSummary, taskStatistics, studentResults, currentRow);
             }
+
+            optimizeColumnWidths(sheet);
 
         } catch (Exception e) {
             log.error("Ошибка при создании детального отчета на одном листе", e);
@@ -275,12 +232,8 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         }
     }
 
-    /**
-     * Создает заголовок отчета
-     */
     private int createReportHeader(Sheet sheet, Workbook workbook,
                                    TestSummaryDto testSummary, int startRow) {
-        // Основной заголовок
         Row titleRow = sheet.createRow(startRow++);
         Cell titleCell = titleRow.createCell(0);
         titleCell.setCellValue(
@@ -290,7 +243,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         CellStyle titleStyle = createTitleStyle(workbook);
         titleCell.setCellStyle(titleStyle);
 
-        // Подзаголовок с датой
         Row subtitleRow = sheet.createRow(startRow++);
         Cell subtitleCell = subtitleRow.createCell(0);
         subtitleCell.setCellValue(
@@ -301,30 +253,19 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         CellStyle subtitleStyle = createSubtitleStyle(workbook);
         subtitleCell.setCellStyle(subtitleStyle);
 
-        // Учитель
-        Row teacherRow = sheet.createRow(startRow++);
-        teacherRow.createCell(0).setCellValue("Учитель: " + testSummary.getTeacher());
+        sheet.createRow(startRow++).createCell(0).setCellValue("Учитель: " + testSummary.getTeacher());
+        sheet.createRow(startRow++).createCell(0).setCellValue("Файл отчета: " + testSummary.getFileName());
 
-        // Файл отчета
-        Row fileRow = sheet.createRow(startRow++);
-        fileRow.createCell(0).setCellValue("Файл отчета: " + testSummary.getFileName());
-
-        // Пустая строка
         startRow++;
-
         return startRow;
     }
-    /**
-     * Создает секцию с общей статистикой теста
-     */
+
     private int createTestStatisticsSection(Sheet sheet, Workbook workbook,
                                             TestSummaryDto testSummary, int startRow) {
-        // Заголовок секции
         Row sectionHeader = sheet.createRow(startRow++);
         sectionHeader.createCell(0).setCellValue("ОБЩАЯ СТАТИСТИКА ТЕСТА");
         sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
-        // Создаем таблицу с двумя колонками
         String[][] statsData = {
                 {"Всего учеников в классе", String.valueOf(testSummary.getClassSize())},
                 {"Присутствовало на тесте", String.valueOf(testSummary.getStudentsPresent())},
@@ -343,15 +284,10 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             row.createCell(1).setCellValue(rowData[1]);
         }
 
-        // Пустая строка
         startRow++;
-
         return startRow;
     }
 
-    /**
-     * Создает секцию с результатами студентов
-     */
     private int createStudentResultsSection(Sheet sheet, Workbook workbook,
                                             List<StudentDetailedResultDto> studentResults,
                                             int startRow) {
@@ -359,12 +295,10 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             return startRow;
         }
 
-        // Заголовок секции
         Row sectionHeader = sheet.createRow(startRow++);
         sectionHeader.createCell(0).setCellValue("РЕЗУЛЬТАТЫ СТУДЕНТОВ");
         sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
-        // Определяем максимальное количество заданий
         int maxTasks = studentResults.stream()
                 .map(StudentDetailedResultDto::getTaskScores)
                 .filter(Objects::nonNull)
@@ -372,13 +306,12 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                 .max()
                 .orElse(0);
 
-        // Заголовки таблицы
         List<String> headers = new ArrayList<>(Arrays.asList(
                 "№", "ФИО", "Присутствие", "Вариант", "Общий балл", "% выполнения"
         ));
 
         for (int i = 1; i <= maxTasks; i++) {
-            headers.add("З" + i);
+            headers.add("№" + i); // Изменено здесь с "З" + i на "№" + i
         }
 
         Row headerRow = sheet.createRow(startRow++);
@@ -388,7 +321,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             cell.setCellStyle(createTableHeaderStyle(workbook));
         }
 
-        // Данные студентов
         for (int i = 0; i < studentResults.size(); i++) {
             StudentDetailedResultDto student = studentResults.get(i);
             Row row = sheet.createRow(startRow++);
@@ -405,24 +337,23 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             percentCell.setCellValue(percentage);
             percentCell.setCellStyle(createPercentStyle(workbook));
 
-            // Баллы по заданиям
             Map<Integer, Integer> taskScores = student.getTaskScores();
             for (int taskNum = 1; taskNum <= maxTasks; taskNum++) {
                 Integer score = taskScores != null ? taskScores.get(taskNum) : null;
                 Cell scoreCell = row.createCell(5 + taskNum);
-                scoreCell.setCellValue(score != null ? score : 0);
+                if (score != null) {
+                    scoreCell.setCellValue(score);
+                } else {
+                    scoreCell.setCellValue(0);
+                }
                 scoreCell.setCellStyle(createCenteredStyle(workbook));
             }
         }
 
-        // Пустая строка
         startRow++;
-
         return startRow;
     }
-    /**
-     * Создает секцию с анализом заданий
-     */
+
     private int createTaskAnalysisSection(Sheet sheet, Workbook workbook,
                                           Map<Integer, TaskStatisticsDto> taskStatistics,
                                           int startRow) {
@@ -430,14 +361,12 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             return startRow;
         }
 
-        // Заголовок секции
         Row sectionHeader = sheet.createRow(startRow++);
         sectionHeader.createCell(0).setCellValue("АНАЛИЗ ПО ЗАДАНИЯМ");
         sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
-        // Заголовки таблицы
         String[] headers = {
-                "Задание", "Макс. балл", "Полностью", "Частично", "Не справилось",
+                "№ задания", "Макс. балл", "Полностью", "Частично", "Не справилось",
                 "% выполнения", "Распределение баллов"
         };
 
@@ -448,13 +377,12 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             cell.setCellStyle(createTableHeaderStyle(workbook));
         }
 
-        // Данные по заданиям
         for (TaskStatisticsDto stats : taskStatistics.values().stream()
                 .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
                 .collect(Collectors.toList())) {
             Row row = sheet.createRow(startRow++);
 
-            row.createCell(0).setCellValue(stats.getTaskNumber());
+            row.createCell(0).setCellValue("№" + stats.getTaskNumber()); // Изменено здесь
             row.createCell(1).setCellValue(stats.getMaxScore());
             row.createCell(2).setCellValue(stats.getFullyCompletedCount());
             row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
@@ -473,52 +401,646 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             }
         }
 
-        // Пустая строка
         startRow++;
-
         return startRow;
     }
 
     /**
-     * Создает секцию с графиками
+     * Создает нормированную гистограмму с накоплением - ОДИН столбец на задание
      */
-    private void createChartsSection(XSSFWorkbook workbook, Sheet sheet,
-                                     TestSummaryDto testSummary,
-                                     Map<Integer, TaskStatisticsDto> taskStatistics,
-                                     List<StudentDetailedResultDto> studentResults,
-                                     int startRow) {
+    private void createSingleColumnNormalizedChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                                   List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
         try {
-            // Заголовок секции
+            // Сначала создаем таблицу с нормированными данными для каждого задания
+            int normalizedDataStartRow = chartRow + 2; // Отступаем немного от заголовка
+
+            // Создаем заголовок таблицы с нормированными данными
+            Row normHeaderRow = sheet.createRow(normalizedDataStartRow++);
+            normHeaderRow.createCell(0).setCellValue("Задание");
+            normHeaderRow.createCell(1).setCellValue("Полностью (%)");
+            normHeaderRow.createCell(2).setCellValue("Частично (%)");
+            normHeaderRow.createCell(3).setCellValue("Не справилось (%)");
+
+            // Заполняем нормированные данные
+            for (int i = 0; i < tasks.size(); i++) {
+                TaskStatisticsDto task = tasks.get(i);
+                Row row = sheet.createRow(normalizedDataStartRow++);
+
+                row.createCell(0).setCellValue("№" + task.getTaskNumber());
+
+                // Вычисляем общее количество студентов для этого задания
+                int totalStudents = task.getFullyCompletedCount() +
+                        task.getPartiallyCompletedCount() +
+                        task.getNotCompletedCount();
+
+                if (totalStudents > 0) {
+                    // Нормируем данные в проценты
+                    Cell fullyCell = row.createCell(1);
+                    double fullyPercent = (double) task.getFullyCompletedCount() / totalStudents;
+                    fullyCell.setCellValue(fullyPercent);
+                    fullyCell.setCellStyle(createPercentStyle(workbook));
+
+                    Cell partiallyCell = row.createCell(2);
+                    double partiallyPercent = (double) task.getPartiallyCompletedCount() / totalStudents;
+                    partiallyCell.setCellValue(partiallyPercent);
+                    partiallyCell.setCellStyle(createPercentStyle(workbook));
+
+                    Cell notCompletedCell = row.createCell(3);
+                    double notCompletedPercent = (double) task.getNotCompletedCount() / totalStudents;
+                    notCompletedCell.setCellValue(notCompletedPercent);
+                    notCompletedCell.setCellStyle(createPercentStyle(workbook));
+                } else {
+                    row.createCell(1).setCellValue(0);
+                    row.createCell(2).setCellValue(0);
+                    row.createCell(3).setCellValue(0);
+                }
+            }
+
+            // Теперь создаем диаграмму
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Нормированное распределение результатов по заданиям (%)");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            // Увеличиваем отступ для диаграммы, чтобы она была после таблицы
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, normalizedDataStartRow + 2, CHART_COL_SPAN, normalizedDataStartRow + 2 + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Нормированное распределение результатов (%)");
+
+            // Получаем легенду
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("№ задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("Доля студентов");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+            leftAxis.setMinimum(0.0);
+            leftAxis.setMaximum(1.0); // 100%
+
+            // Ключевое изменение: используем STACKED (не PERCENT_STACKED)
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STACKED); // Изменено с PERCENT_STACKED на STACKED
+            barData.setVaryColors(true);
+
+            // Используем нормированные данные из созданной таблицы
+            CellRangeAddress labelRange = new CellRangeAddress(
+                    chartRow + 3, // Начинаем с первой строки данных (после заголовка)
+                    chartRow + 2 + tasks.size(), // Заканчиваем последней строкой данных
+                    0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            // Используем нормированные данные (проценты)
+            XDDFNumericalDataSource<Double> ys1 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 1, 1));
+            XDDFChartData.Series series1 = data.addSeries(xs, ys1);
+            series1.setTitle("Полностью", null);
+
+            XDDFNumericalDataSource<Double> ys2 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 2, 2));
+            XDDFChartData.Series series2 = data.addSeries(xs, ys2);
+            series2.setTitle("Частично", null);
+
+            XDDFNumericalDataSource<Double> ys3 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 3, 3));
+            XDDFChartData.Series series3 = data.addSeries(xs, ys3);
+            series3.setTitle("Не справилось", null);
+
+            chart.plot(data);
+
+            // Настраиваем цвета
+            setSeriesColor(chart, 0, new Color(46, 204, 113)); // Зеленый
+            setSeriesColor(chart, 1, new Color(241, 196, 15)); // Желтый
+            setSeriesColor(chart, 2, new Color(231, 76, 60));  // Красный
+
+            // Настраиваем ось
+            leftAxis.setCrossBetween(AxisCrossBetween.BETWEEN);
+
+            log.info("✅ Нормированная гистограмма с накоплением (один столбец) создана успешно");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при создании нормированной гистограммы: {}", e.getMessage(), e);
+        }
+    }
+
+    private void createExcelChartsSection(XSSFWorkbook workbook, Sheet sheet,
+                                          TestSummaryDto testSummary,
+                                          Map<Integer, TaskStatisticsDto> taskStatistics,
+                                          List<StudentDetailedResultDto> studentResults,
+                                          int startRow) {
+        try {
             Row sectionHeader = sheet.createRow(startRow++);
             sectionHeader.createCell(0).setCellValue("ГРАФИЧЕСКИЙ АНАЛИЗ");
             sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
-            // Создаем графики
-            JFreeChart chart1 = createEnhancedStackedBarChart(taskStatistics);
-            JFreeChart chart2 = createFixedHorizontalBarChart(taskStatistics);
-            JFreeChart chart3 = createTrendLineChart(taskStatistics);
+            if (taskStatistics == null || taskStatistics.isEmpty()) {
+                return;
+            }
 
-            // Вставляем графики как изображения
-            int chartRow = startRow;
-            chartRow = insertChartAsImage(workbook, sheet, chart1,
-                    "Распределение результатов по заданиям", chartRow);
+            List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
+                    .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
+                    .collect(Collectors.toList());
 
-            chartRow = insertChartAsImage(workbook, sheet, chart2,
-                    "Процент выполнения заданий", chartRow + 2);
+            int dataStartRow = startRow;
+            startRow = createChartDataTable(workbook, sheet, sortedTasks, startRow);
 
-            insertChartAsImage(workbook, sheet, chart3,
-                    "Динамика выполнения заданий с линией тренда", chartRow + 2);
+            // Создаем диаграммы
+            createSimpleStackedChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow);
+            createExcelBarChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow + 25);
+            createExcelLineChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow + 50);
 
         } catch (Exception e) {
-            log.error("Ошибка при создании графиков в детальном отчете", e);
+            log.error("Ошибка при создании диаграмм Excel", e);
         }
+    }
+
+    /**
+     * Простой вариант с использованием только high-level API
+     */
+    private void createSimpleStackedChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                          List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Распределение результатов (Stacked)");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Распределение результатов");
+
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("№ задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("Количество студентов");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+
+            // Просто используем STACKED группировку
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STACKED); // Просто STACKED
+            barData.setVaryColors(true);
+
+            // Используем абсолютные значения (не нормированные)
+            CellRangeAddress labelRange = new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            XDDFNumericalDataSource<Double> ys1 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 1, 1));
+            XDDFChartData.Series series1 = data.addSeries(xs, ys1);
+            series1.setTitle("Полностью", null);
+
+            XDDFNumericalDataSource<Double> ys2 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 2, 2));
+            XDDFChartData.Series series2 = data.addSeries(xs, ys2);
+            series2.setTitle("Частично", null);
+
+            XDDFNumericalDataSource<Double> ys3 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 3, 3));
+            XDDFChartData.Series series3 = data.addSeries(xs, ys3);
+            series3.setTitle("Не справилось", null);
+
+            chart.plot(data);
+
+            // Настраиваем цвета
+            setSeriesColor(chart, 0, new Color(46, 204, 113));
+            setSeriesColor(chart, 1, new Color(241, 196, 15));
+            setSeriesColor(chart, 2, new Color(231, 76, 60));
+
+            log.info("✅ Simple Stacked Chart создан");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Создает нормированную гистограмму с накоплением - ТОЧНО один столбец на задание
+     */
+    private void createTrueSingleColumnChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                             List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Нормированное распределение результатов по заданиям (%)");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Нормированное распределение результатов (%)");
+
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("№ задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("Доля студентов");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+            leftAxis.setMinimum(0.0);
+            leftAxis.setMaximum(1.0);
+
+            // Используем BAR, но с правильной конфигурацией
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STACKED);
+            barData.setVaryColors(true);
+
+            // Ключевая настройка: устанавливаем перекрытие столбцов на 100%
+            // Это заставит столбцы накладываться друг на друга, создавая один общий столбец
+            barData.setOverlap((byte) 100);
+
+            // Создаем временные нормированные данные прямо здесь
+            // Сначала создаем заголовок
+            int tempDataRow = chartRow + 2;
+            Row tempHeader = sheet.createRow(tempDataRow++);
+            tempHeader.createCell(0).setCellValue("Задание");
+            tempHeader.createCell(1).setCellValue("Полностью (%)");
+            tempHeader.createCell(2).setCellValue("Частично (%)");
+            tempHeader.createCell(3).setCellValue("Не справилось (%)");
+
+            // Заполняем нормированные данные
+            for (int i = 0; i < tasks.size(); i++) {
+                TaskStatisticsDto task = tasks.get(i);
+                Row row = sheet.createRow(tempDataRow++);
+
+                row.createCell(0).setCellValue("№" + task.getTaskNumber());
+
+                int total = task.getFullyCompletedCount() +
+                        task.getPartiallyCompletedCount() +
+                        task.getNotCompletedCount();
+
+                if (total > 0) {
+                    // Нормируем в проценты
+                    Cell fullyCell = row.createCell(1);
+                    double fullyPercent = (double) task.getFullyCompletedCount() / total;
+                    fullyCell.setCellValue(fullyPercent);
+
+                    Cell partiallyCell = row.createCell(2);
+                    double partiallyPercent = (double) task.getPartiallyCompletedCount() / total;
+                    partiallyCell.setCellValue(partiallyPercent);
+
+                    Cell notCompletedCell = row.createCell(3);
+                    double notCompletedPercent = (double) task.getNotCompletedCount() / total;
+                    notCompletedCell.setCellValue(notCompletedPercent);
+                } else {
+                    row.createCell(1).setCellValue(0);
+                    row.createCell(2).setCellValue(0);
+                    row.createCell(3).setCellValue(0);
+                }
+            }
+
+            // Теперь используем эти данные для диаграммы
+            CellRangeAddress labelRange = new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            XDDFNumericalDataSource<Double> ys1 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 1, 1));
+            XDDFChartData.Series series1 = data.addSeries(xs, ys1);
+            series1.setTitle("Полностью", null);
+
+            XDDFNumericalDataSource<Double> ys2 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 2, 2));
+            XDDFChartData.Series series2 = data.addSeries(xs, ys2);
+            series2.setTitle("Частично", null);
+
+            XDDFNumericalDataSource<Double> ys3 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(chartRow + 3, chartRow + 2 + tasks.size(), 3, 3));
+            XDDFChartData.Series series3 = data.addSeries(xs, ys3);
+            series3.setTitle("Не справилось", null);
+
+            chart.plot(data);
+
+            // Настраиваем цвета
+            setSeriesColor(chart, 0, new Color(46, 204, 113)); // Зеленый
+            setSeriesColor(chart, 1, new Color(241, 196, 15)); // Желтый
+            setSeriesColor(chart, 2, new Color(231, 76, 60));  // Красный
+
+            log.info("✅ Истинная нормированная гистограмма с одним столбцом создана");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка: {}", e.getMessage(), e);
+        }
+    }
+
+    private int createChartDataTable(Workbook workbook, Sheet sheet,
+                                     List<TaskStatisticsDto> tasks, int startRow) {
+
+        Row headerRow = sheet.createRow(startRow++);
+        String[] headers = {
+                "Задание",
+                "Полностью",
+                "Частично",
+                "Не справилось",
+                "% выполнения"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(createTableHeaderStyle(workbook));
+        }
+
+        for (int i = 0; i < tasks.size(); i++) {
+            TaskStatisticsDto task = tasks.get(i);
+            Row row = sheet.createRow(startRow++);
+
+            row.createCell(0).setCellValue("№" + task.getTaskNumber()); // Изменено здесь
+            row.createCell(1).setCellValue(task.getFullyCompletedCount());
+            row.createCell(2).setCellValue(task.getPartiallyCompletedCount());
+            row.createCell(3).setCellValue(task.getNotCompletedCount());
+
+            Cell percentCell = row.createCell(4);
+            percentCell.setCellValue(task.getCompletionPercentage() / 100.0);
+            percentCell.setCellStyle(createPercentStyle(workbook));
+        }
+
+        return startRow + 1;
+    }
+
+    /**
+     * Создает Stacked Bar Chart в Excel
+     */
+    private void createExcelStackedBarChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                            List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Распределение результатов по заданиям");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Распределение результатов по заданиям");
+
+            // Получаем легенду (она создается автоматически при создании диаграммы)
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("Номер задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("Количество студентов");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+
+            // Используем правильный тип диаграммы
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STACKED);  // Устанавливаем группировку в STACKED
+            barData.setVaryColors(true);
+
+            CellRangeAddress labelRange = new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            // Серия 1: Полностью
+            XDDFNumericalDataSource<Double> ys1 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 1, 1));
+            XDDFChartData.Series series1 = data.addSeries(xs, ys1);
+            series1.setTitle("Полностью", null);
+
+            // Серия 2: Частично
+            XDDFNumericalDataSource<Double> ys2 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 2, 2));
+            XDDFChartData.Series series2 = data.addSeries(xs, ys2);
+            series2.setTitle("Частично", null);
+
+            // Серия 3: Не справилось
+            XDDFNumericalDataSource<Double> ys3 = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 3, 3));
+            XDDFChartData.Series series3 = data.addSeries(xs, ys3);
+            series3.setTitle("Не справилось", null);
+
+            chart.plot(data);
+
+            // Настраиваем цвета
+            setSeriesColor(chart, 0, new Color(46, 204, 113)); // Зеленый
+            setSeriesColor(chart, 1, new Color(241, 196, 15)); // Желтый
+            setSeriesColor(chart, 2, new Color(231, 76, 60));  // Красный
+
+            log.info("✅ Stacked Bar Chart создана успешно");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при создании Stacked Bar Chart: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Создает Bar Chart в Excel для процентов выполнения
+     */
+    private void createExcelBarChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                     List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Процент выполнения заданий");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Процент выполнения заданий");
+
+            // Получаем легенду
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.RIGHT);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("Задание");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("% выполнения");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+            leftAxis.setMinimum(0.0);
+            leftAxis.setMaximum(1.0);
+
+            XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+            XDDFBarChartData barData = (XDDFBarChartData) data;
+            barData.setBarDirection(BarDirection.COL);
+            barData.setBarGrouping(BarGrouping.STANDARD);
+            barData.setVaryColors(true);
+
+            CellRangeAddress labelRange = new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            XDDFNumericalDataSource<Double> ys = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 4, 4));
+
+            XDDFChartData.Series series = data.addSeries(xs, ys);
+            series.setTitle("% выполнения", null);
+
+            chart.plot(data);
+
+            // Устанавливаем цвета в зависимости от процента выполнения
+            // В этом случае все столбцы будут одного цвета (серия одна)
+            // Если нужно разноцветные столбцы, нужно создавать отдельную серию для каждого столбца
+            // или использовать другой подход
+            setSeriesColor(chart, 0, new Color(52, 152, 219)); // Синий для всей серии
+
+            log.info("✅ Bar Chart создана успешно");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при создании Bar Chart: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Создает Line Chart в Excel для динамики выполнения
+     */
+    private void createExcelLineChart(XSSFWorkbook workbook, XSSFSheet sheet,
+                                      List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
+
+        try {
+            Row chartTitleRow = sheet.createRow(chartRow);
+            chartTitleRow.createCell(0).setCellValue("Динамика выполнения заданий");
+            chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+
+            XSSFChart chart = drawing.createChart(anchor);
+            chart.setTitleText("Динамика выполнения заданий");
+
+            // Получаем легенду
+            XDDFChartLegend legend = chart.getOrAddLegend();
+            legend.setPosition(LegendPosition.BOTTOM);
+
+            XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+            bottomAxis.setTitle("Номер задания");
+
+            XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+            leftAxis.setTitle("% выполнения");
+            leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+            leftAxis.setMinimum(0.0);
+            leftAxis.setMaximum(1.0);
+
+            XDDFChartData data = chart.createData(ChartTypes.LINE, bottomAxis, leftAxis);
+            XDDFLineChartData lineData = (XDDFLineChartData) data;
+
+            CellRangeAddress labelRange = new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 0, 0);
+            XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
+
+            XDDFNumericalDataSource<Double> ys = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 4, 4));
+
+            XDDFChartData.Series series = data.addSeries(xs, ys);
+            series.setTitle("% выполнения", null);
+
+            // Настраиваем линию
+            XDDFLineProperties lineProps = new XDDFLineProperties();
+            lineProps.setWidth(2.0);
+
+            // Создаем цвет через RGB
+            byte[] rgbColor = new byte[3];
+            rgbColor[0] = (byte) 52;   // R
+            rgbColor[1] = (byte) 152;  // G
+            rgbColor[2] = (byte) 219;  // B
+            XDDFSolidFillProperties fill = new XDDFSolidFillProperties(new XDDFColorRgbBinary(rgbColor));
+            lineProps.setFillProperties(fill);
+
+            XDDFShapeProperties shapeProps = new XDDFShapeProperties();
+            shapeProps.setLineProperties(lineProps);
+
+            // Настройка маркеров (альтернативный способ)
+            try {
+                // Попытка создать маркеры через рефлексию (если класс доступен)
+                Class<?> markerClass = Class.forName("org.apache.poi.xddf.usermodel.chart.XDDFMarker");
+                Object marker = markerClass.getDeclaredConstructor().newInstance();
+                markerClass.getMethod("setStyle", MarkerStyle.class).invoke(marker, MarkerStyle.CIRCLE);
+                markerClass.getMethod("setSize", short.class).invoke(marker, (short) 6);
+                lineData.getClass().getMethod("setMarker", markerClass).invoke(lineData, marker);
+            } catch (Exception e) {
+                log.warn("⚠️ Не удалось установить маркеры для линии: {}", e.getMessage());
+                // Без маркеров тоже нормально
+            }
+
+            series.setShapeProperties(shapeProps);
+            chart.plot(data);
+
+            log.info("✅ Line Chart создана успешно");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при создании Line Chart: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Устанавливает цвет для серии диаграммы
+     */
+    private void setSeriesColor(XSSFChart chart, int seriesIndex, Color color) {
+        try {
+            if (chart.getChartSeries() == null || chart.getChartSeries().isEmpty()) {
+                return;
+            }
+
+            XDDFChartData data = chart.getChartSeries().get(0);
+            if (seriesIndex >= data.getSeriesCount()) {
+                return;
+            }
+
+            XDDFChartData.Series series = data.getSeries(seriesIndex);
+
+            // Создаем цвет через RGB
+            byte[] rgbColor = new byte[3];
+            rgbColor[0] = (byte) color.getRed();
+            rgbColor[1] = (byte) color.getGreen();
+            rgbColor[2] = (byte) color.getBlue();
+            XDDFSolidFillProperties fill = new XDDFSolidFillProperties(new XDDFColorRgbBinary(rgbColor));
+
+            XDDFShapeProperties shapeProps = series.getShapeProperties();
+            if (shapeProps == null) {
+                shapeProps = new XDDFShapeProperties();
+            }
+            shapeProps.setFillProperties(fill);
+            series.setShapeProperties(shapeProps);
+
+        } catch (Exception e) {
+            log.warn("⚠️ Не удалось установить цвет для серии {}: {}", seriesIndex, e.getMessage());
+        }
+    }
+
+    /**
+     * Возвращает цвет для процента выполнения
+     */
+    private Color getColorForPercentage(double percentage) {
+        if (percentage >= 90) return new Color(39, 174, 96);    // Зеленый
+        if (percentage >= 70) return new Color(46, 204, 113);   // Светло-зеленый
+        if (percentage >= 50) return new Color(241, 196, 15);   // Желтый
+        if (percentage >= 30) return new Color(230, 126, 34);   // Оранжевый
+        return new Color(231, 76, 60);                         // Красный
     }
 
     private void createTeacherSummarySheet(XSSFWorkbook workbook, String teacherName,
                                            List<TestSummaryDto> teacherTests) {
         XSSFSheet sheet = workbook.createSheet("Сводка по тестам");
 
-        // Заголовок отчета
         XSSFRow titleRow = sheet.createRow(0);
         Cell titleCell = titleRow.createCell(0);
         titleCell.setCellValue("Отчет по тестам учителя: " + teacherName);
@@ -529,7 +1051,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         titleStyle.setFont(titleFont);
         titleCell.setCellStyle(titleStyle);
 
-        // Дата генерации отчета
         XSSFRow dateRow = sheet.createRow(1);
         dateRow.createCell(0).setCellValue(
                 "Отчет сгенерирован: " +
@@ -544,7 +1065,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
 
         createHeaderRow(sheet, workbook, headers, 3);
 
-        // Данные
         int rowNum = 4;
         for (TestSummaryDto test : teacherTests) {
             XSSFRow row = sheet.createRow(rowNum++);
@@ -577,15 +1097,10 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             successCell.setCellStyle(createPercentStyle(workbook));
         }
 
-        // Добавляем строку с итогами
         addTeacherSummaryRow(sheet, rowNum, teacherTests, workbook);
-
-        autoSizeColumns(sheet, headers.length);
+        optimizeColumnWidths(sheet);
     }
 
-    /**
-     * Добавляет строку с итогами в отчет учителя
-     */
     private void addTeacherSummaryRow(Sheet sheet, int rowNum,
                                       List<TestSummaryDto> tests, Workbook workbook) {
         if (tests.isEmpty()) return;
@@ -596,7 +1111,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         summaryRow.createCell(0).setCellValue("Средние показатели:");
         summaryRow.getCell(0).setCellStyle(summaryStyle);
 
-        // Рассчитываем средние значения
         double avgPresent = tests.stream()
                 .filter(t -> t.getStudentsPresent() != null)
                 .mapToInt(TestSummaryDto::getStudentsPresent)
@@ -627,7 +1141,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                 .mapToDouble(t -> t.getSuccessPercentage() / 100.0)
                 .average().orElse(0);
 
-        // Заполняем средние значения
         Cell avgPresentCell = summaryRow.createCell(4);
         avgPresentCell.setCellValue(avgPresent);
         avgPresentCell.setCellStyle(summaryStyle);
@@ -653,92 +1166,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         avgSuccessCell.setCellStyle(createPercentStyle(workbook));
     }
 
-    /**
-     * Вставляет диаграмму как изображение в лист
-     */
-    private int insertChartAsImage(XSSFWorkbook workbook, Sheet sheet,
-                                   JFreeChart chart, String chartTitle, int startRow) throws IOException {
-        // Заголовок диаграммы
-        Row titleRow = sheet.createRow(startRow);
-        titleRow.createCell(0).setCellValue(chartTitle);
-        titleRow.setHeight((short) 400);
-
-        // Создаем изображение диаграммы
-        ByteArrayOutputStream chartImage = new ByteArrayOutputStream();
-        org.jfree.chart.ChartUtils.writeChartAsPNG(chartImage, chart, CHART_WIDTH, CHART_HEIGHT);
-
-        // Добавляем изображение в книгу
-        int pictureIdx = workbook.addPicture(chartImage.toByteArray(), Workbook.PICTURE_TYPE_PNG);
-
-        // Вставляем изображение в лист
-        Drawing<?> drawing = sheet.createDrawingPatriarch();
-        ClientAnchor anchor = workbook.getCreationHelper().createClientAnchor();
-        anchor.setCol1(0);
-        anchor.setRow1(startRow + 1);
-        anchor.setCol2(8); // Ширина изображения в колонках
-        anchor.setRow2(startRow + 25); // Высота изображения в строках
-
-        drawing.createPicture(anchor, pictureIdx);
-
-        return startRow + 26; // Возвращаем следующую свободную строку
-    }
-
-    // Вспомогательные методы для создания листов
-
-    private void createStudentResultsSheet(XSSFWorkbook workbook, TestSummaryDto test,
-                                           List<StudentDetailedResultDto> students) {
-        XSSFSheet sheet = workbook.createSheet("Результаты студентов");
-
-        // Определяем максимальное количество заданий
-        int maxTasks = students.stream()
-                .map(StudentDetailedResultDto::getTaskScores)
-                .filter(Objects::nonNull)
-                .mapToInt(Map::size)
-                .max()
-                .orElse(0);
-
-        // Создаем заголовки
-        List<String> headers = new ArrayList<>(Arrays.asList(
-                "№", "ФИО", "Присутствие", "Вариант", "Общий балл", "% выполнения"
-        ));
-
-        for (int i = 1; i <= maxTasks; i++) {
-            headers.add("Зад. " + i);
-        }
-
-        createHeaderRow(sheet, workbook, headers.toArray(new String[0]));
-
-        // Заполняем данные
-        int rowNum = 1;
-        for (int i = 0; i < students.size(); i++) {
-            StudentDetailedResultDto student = students.get(i);
-            XSSFRow row = sheet.createRow(rowNum++);
-
-            row.createCell(0).setCellValue(i + 1);
-            setCellValue(row, 1, student.getFio());
-            setCellValue(row, 2, student.getPresence());
-            setCellValue(row, 3, student.getVariant());
-            setCellValue(row, 4, student.getTotalScore());
-
-            Cell percentCell = row.createCell(5);
-            percentCell.setCellValue(student.getPercentageScore() != null ?
-                    student.getPercentageScore() / 100.0 : 0.0);
-            percentCell.setCellStyle(createPercentStyle(workbook));
-
-            // Баллы по заданиям
-            Map<Integer, Integer> taskScores = student.getTaskScores();
-            for (int taskNum = 1; taskNum <= maxTasks; taskNum++) {
-                Integer score = taskScores != null ? taskScores.get(taskNum) : null;
-                row.createCell(5 + taskNum).setCellValue(score != null ? score : 0);
-            }
-        }
-
-        autoSizeColumns(sheet, headers.size());
-    }
-
-    /**
-     * Универсальный метод установки значения в ячейку
-     */
     private void setCellValue(Row row, int cellIndex, Object value) {
         Cell cell = row.createCell(cellIndex);
 
@@ -750,383 +1177,14 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             cell.setCellValue((Integer) value);
         } else if (value instanceof Double) {
             cell.setCellValue((Double) value);
+        } else if (value instanceof Float) {
+            cell.setCellValue((Float) value);
+        } else if (value instanceof Long) {
+            cell.setCellValue((Long) value);
         } else if (value instanceof Boolean) {
             cell.setCellValue((Boolean) value);
-        } else if (value instanceof LocalDateTime) {
-            cell.setCellValue((LocalDateTime) value);
-        } else if (value instanceof Date) {
-            cell.setCellValue((Date) value);
         } else {
             cell.setCellValue(value.toString());
-        }
-    }
-
-    private void createTaskAnalysisSheet(XSSFWorkbook workbook, TestSummaryDto test,
-                                         Map<Integer, TaskStatisticsDto> statistics) {
-        XSSFSheet sheet = workbook.createSheet("Анализ по заданиям");
-
-        String[] headers = {
-                "Задание", "Макс. балл", "Полностью", "Частично", "Не справилось",
-                "% выполнения", "Распределение баллов"
-        };
-
-        createHeaderRow(sheet, workbook, headers);
-
-        // Заполняем данные
-        int rowNum = 1;
-        for (TaskStatisticsDto stats : statistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList())) {
-            XSSFRow row = sheet.createRow(rowNum++);
-
-            row.createCell(0).setCellValue(stats.getTaskNumber());
-            row.createCell(1).setCellValue(stats.getMaxScore());
-            row.createCell(2).setCellValue(stats.getFullyCompletedCount());
-            row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
-            row.createCell(4).setCellValue(stats.getNotCompletedCount());
-
-            Cell percentCell = row.createCell(5);
-            percentCell.setCellValue(stats.getCompletionPercentage() / 100.0);
-            percentCell.setCellStyle(createPercentStyle(workbook));
-
-            if (stats.getScoreDistribution() != null) {
-                String distribution = stats.getScoreDistribution().entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey())
-                        .map(e -> String.format("%d баллов: %d", e.getKey(), e.getValue()))
-                        .collect(Collectors.joining("; "));
-                row.createCell(6).setCellValue(distribution);
-            }
-        }
-
-        autoSizeColumns(sheet, headers.length);
-    }
-
-    private void createStatisticsSheet(XSSFWorkbook workbook, TestSummaryDto test,
-                                       List<StudentDetailedResultDto> students,
-                                       Map<Integer, TaskStatisticsDto> taskStatistics) {
-        XSSFSheet sheet = workbook.createSheet("Общая статистика");
-
-        XSSFRow titleRow = sheet.createRow(0);
-        titleRow.createCell(0).setCellValue(
-                String.format("Статистика теста: %s - %s (%s)",
-                        test.getSubject(),
-                        test.getClassName(),
-                        test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE))
-        );
-
-        String[][] statsData = {
-                {"Предмет", test.getSubject()},
-                {"Класс", test.getClassName()},
-                {"Дата", test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE)},
-                {"Учитель", test.getTeacher()},
-                {"Всего студентов", String.valueOf(test.getClassSize())},
-                {"Присутствовало", String.valueOf(test.getStudentsPresent())},
-                {"Отсутствовало", String.valueOf(test.getStudentsAbsent())},
-                {"% присутствия", String.format("%.1f%%", test.getAttendancePercentage())},
-                {"Средний балл", String.format("%.2f", test.getAverageScore())},
-                {"% выполнения", String.format("%.1f%%", test.getSuccessPercentage())},
-                {"Кол-во заданий", String.valueOf(taskStatistics.size())}
-        };
-
-        int rowNum = 2;
-        for (String[] rowData : statsData) {
-            XSSFRow row = sheet.createRow(rowNum++);
-            row.createCell(0).setCellValue(rowData[0]);
-            row.createCell(1).setCellValue(rowData[1]);
-        }
-
-        autoSizeColumns(sheet, 2);
-    }
-
-    private void createTeacherTestSheet(XSSFWorkbook workbook, TestSummaryDto test,
-                                        String teacherName, int sheetIndex) {
-        // Генерируем имя листа
-        String sheetName = String.format("%s_%s",
-                test.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9]", "").substring(0,
-                        Math.min(15, test.getSubject().length())),
-                test.getClassName());
-
-        if (sheetName.length() > 31) {
-            sheetName = sheetName.substring(0, 31);
-        }
-
-        // Проверяем уникальность имени
-        String finalSheetName = sheetName;
-        int counter = 1;
-        while (workbook.getSheet(finalSheetName) != null) {
-            finalSheetName = String.format("%s_%d", sheetName, counter++);
-            if (finalSheetName.length() > 31) {
-                finalSheetName = finalSheetName.substring(0, 31);
-            }
-        }
-
-        // Создаем пустой лист - детальный отчет будет создан отдельно
-        workbook.createSheet(finalSheetName);
-    }
-
-    /**
-     * Находит последнюю заполненную строку
-     */
-    private int findLastRow(Sheet sheet) {
-        int lastRow = sheet.getLastRowNum();
-        while (lastRow >= 0 && sheet.getRow(lastRow) == null) {
-            lastRow--;
-        }
-        return lastRow;
-    }
-
-    /**
-     * Создает секцию с результатами студентов
-     */
-    private void createStudentResultsSection(Sheet sheet,
-                                             List<StudentDetailedResultDto> students,
-                                             int startRow) {
-        // Заголовок секции
-        Row sectionHeader = sheet.createRow(startRow);
-        sectionHeader.createCell(0).setCellValue("Результаты студентов:");
-        CellStyle headerStyle = createHeaderStyle(sheet.getWorkbook());
-        sectionHeader.getCell(0).setCellStyle(headerStyle);
-
-        // Определяем максимальное количество заданий
-        int maxTasks = students.stream()
-                .map(StudentDetailedResultDto::getTaskScores)
-                .filter(Objects::nonNull)
-                .mapToInt(Map::size)
-                .max()
-                .orElse(0);
-
-        // Создаем заголовки таблицы
-        int headerRowNum = startRow + 1;
-        Row headerRow = sheet.createRow(headerRowNum);
-
-        List<String> headers = new ArrayList<>(Arrays.asList(
-                "№", "ФИО", "Присутствие", "Вариант", "Общий балл", "% выполнения"
-        ));
-
-        for (int i = 1; i <= maxTasks; i++) {
-            headers.add("Зад. " + i);
-        }
-
-        for (int i = 0; i < headers.size(); i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers.get(i));
-            cell.setCellStyle(createHeaderStyle(sheet.getWorkbook()));
-        }
-
-        // Заполняем данные
-        int rowNum = headerRowNum + 1;
-        for (int i = 0; i < students.size(); i++) {
-            StudentDetailedResultDto student = students.get(i);
-            Row row = sheet.createRow(rowNum++);
-
-            row.createCell(0).setCellValue(i + 1);
-            setCellValue(row, 1, student.getFio());
-            setCellValue(row, 2, student.getPresence());
-            setCellValue(row, 3, student.getVariant());
-            setCellValue(row, 4, student.getTotalScore());
-
-            Cell percentCell = row.createCell(5);
-            double percentage = student.getPercentageScore() != null ?
-                    student.getPercentageScore() / 100.0 : 0.0;
-            percentCell.setCellValue(percentage);
-            percentCell.setCellStyle(createPercentStyle(sheet.getWorkbook()));
-
-            // Баллы по заданиям
-            Map<Integer, Integer> taskScores = student.getTaskScores();
-            for (int taskNum = 1; taskNum <= maxTasks; taskNum++) {
-                Integer score = taskScores != null ? taskScores.get(taskNum) : null;
-                row.createCell(5 + taskNum).setCellValue(score != null ? score : 0);
-            }
-        }
-    }
-
-    /**
-     * Создает секцию с анализом заданий
-     */
-    private void createTaskAnalysisSection(Sheet sheet,
-                                           Map<Integer, TaskStatisticsDto> statistics,
-                                           int startRow) {
-        // Заголовок секции
-        Row sectionHeader = sheet.createRow(startRow);
-        sectionHeader.createCell(0).setCellValue("Анализ по заданиям:");
-        CellStyle headerStyle = createHeaderStyle(sheet.getWorkbook());
-        sectionHeader.getCell(0).setCellStyle(headerStyle);
-
-        // Заголовки таблицы
-        int headerRowNum = startRow + 1;
-        Row headerRow = sheet.createRow(headerRowNum);
-
-        String[] headers = {
-                "Задание", "Макс. балл", "Полностью", "Частично", "Не справилось",
-                "% выполнения", "Распределение баллов"
-        };
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(createHeaderStyle(sheet.getWorkbook()));
-        }
-
-        // Заполняем данные
-        int rowNum = headerRowNum + 1;
-        for (TaskStatisticsDto stats : statistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList())) {
-            Row row = sheet.createRow(rowNum++);
-
-            row.createCell(0).setCellValue(stats.getTaskNumber());
-            row.createCell(1).setCellValue(stats.getMaxScore());
-            row.createCell(2).setCellValue(stats.getFullyCompletedCount());
-            row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
-            row.createCell(4).setCellValue(stats.getNotCompletedCount());
-
-            Cell percentCell = row.createCell(5);
-            percentCell.setCellValue(stats.getCompletionPercentage() / 100.0);
-            percentCell.setCellStyle(createPercentStyle(sheet.getWorkbook()));
-
-            if (stats.getScoreDistribution() != null) {
-                String distribution = stats.getScoreDistribution().entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey())
-                        .map(e -> String.format("%d баллов: %d", e.getKey(), e.getValue()))
-                        .collect(Collectors.joining("; "));
-                row.createCell(6).setCellValue(distribution);
-            }
-        }
-    }
-
-    // Вспомогательные методы
-
-    private void createSummarySheetHeader(XSSFSheet sheet, XSSFWorkbook workbook) {
-        String[] headers = {
-                "Школа", "Предмет", "Класс", "Дата теста", "Тип теста", "Учитель",
-                "Присутствовало", "Отсутствовало", "Всего в классе", "% присутствия",
-                "Кол-во заданий теста", "Макс. балл", "Средний балл теста", "Файл"
-        };
-
-        XSSFRow headerRow = sheet.createRow(0);
-        CellStyle headerStyle = createHeaderStyle(workbook);
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
-    }
-
-    private void fillSummaryData(XSSFSheet sheet, XSSFWorkbook workbook, List<TestSummaryDto> tests) {
-        int rowNum = 1;
-        for (TestSummaryDto test : tests) {
-            XSSFRow row = sheet.createRow(rowNum++);
-
-            // Школа
-            setCellValue(row, 0, test.getSchool() != null ? test.getSchool() : "ГБОУ №7");
-
-            // Предмет
-            setCellValue(row, 1, test.getSubject());
-
-            // Класс
-            setCellValue(row, 2, test.getClassName());
-
-            // Дата теста
-            Cell dateCell = row.createCell(3);
-            if (test.getTestDate() != null) {
-                dateCell.setCellValue(test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE));
-            }
-            dateCell.setCellStyle(createCenteredStyle(workbook));
-
-            // Тип теста
-            setCellValue(row, 4, test.getTestType());
-
-            // Учитель
-            setCellValue(row, 5, test.getTeacher());
-
-            // Числовые данные
-            setNumericCellValue(row, 6, test.getStudentsPresent());
-            setNumericCellValue(row, 7, test.getStudentsAbsent());
-            setNumericCellValue(row, 8, test.getClassSize());
-
-            // Процент присутствия
-            Cell percentCell = row.createCell(9);
-            percentCell.setCellValue(test.getAttendancePercentage() != null ?
-                    test.getAttendancePercentage() / 100.0 : 0.0);
-            percentCell.setCellStyle(createPercentStyle(workbook));
-
-            // Остальные числовые данные
-            setNumericCellValue(row, 10, test.getTaskCount());
-            setNumericCellValue(row, 11, test.getMaxTotalScore());
-
-            // Средний балл
-            Cell avgScoreCell = row.createCell(12);
-            avgScoreCell.setCellValue(test.getAverageScore() != null ? test.getAverageScore() : 0.0);
-            avgScoreCell.setCellStyle(createDecimalStyle(workbook));
-
-            // Файл
-            setCellValue(row, 13, test.getFileName());
-        }
-    }
-
-    private void addSummaryStatisticsRow(XSSFSheet sheet, List<TestSummaryDto> tests) {
-        if (tests.isEmpty()) return;
-
-        int lastRow = sheet.getLastRowNum() + 1;
-        XSSFRow summaryRow = sheet.createRow(lastRow);
-        CellStyle summaryStyle = createSummaryStyle((XSSFWorkbook) sheet.getWorkbook());
-
-        summaryRow.createCell(0).setCellValue("Средние показатели:");
-        summaryRow.getCell(0).setCellStyle(summaryStyle);
-
-        // Рассчитываем средние значения
-        double[] averages = calculateAverages(tests);
-
-        for (int i = 1; i < 14; i++) {
-            Cell cell = summaryRow.createCell(i);
-            cell.setCellStyle(summaryStyle);
-
-            if (i >= 6 && i <= 12) {
-                cell.setCellValue(averages[i - 6]);
-            }
-        }
-    }
-
-    private double[] calculateAverages(List<TestSummaryDto> tests) {
-        return new double[]{
-                tests.stream().filter(t -> t.getStudentsPresent() != null)
-                        .mapToInt(TestSummaryDto::getStudentsPresent).average().orElse(0),
-                tests.stream().filter(t -> t.getStudentsAbsent() != null)
-                        .mapToInt(TestSummaryDto::getStudentsAbsent).average().orElse(0),
-                tests.stream().filter(t -> t.getClassSize() != null)
-                        .mapToInt(TestSummaryDto::getClassSize).average().orElse(0),
-                tests.stream().filter(t -> t.getAttendancePercentage() != null)
-                        .mapToDouble(t -> t.getAttendancePercentage() / 100.0).average().orElse(0),
-                tests.stream().filter(t -> t.getTaskCount() != null)
-                        .mapToInt(TestSummaryDto::getTaskCount).average().orElse(0),
-                tests.stream().filter(t -> t.getMaxTotalScore() != null)
-                        .mapToInt(TestSummaryDto::getMaxTotalScore).average().orElse(0),
-                tests.stream().filter(t -> t.getAverageScore() != null)
-                        .mapToDouble(TestSummaryDto::getAverageScore).average().orElse(0)
-        };
-    }
-
-    private void createHeaderRow(Sheet sheet, XSSFWorkbook workbook, String[] headers) {
-        createHeaderRow(sheet, workbook, headers, 0);
-    }
-
-    private void createHeaderRow(Sheet sheet, XSSFWorkbook workbook, String[] headers, int startRow) {
-        Row headerRow = sheet.createRow(startRow);
-        CellStyle headerStyle = createHeaderStyle(workbook);
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
-    }
-
-    private void setCellValue(Row row, int cellIndex, String value) {
-        if (value != null) {
-            row.createCell(cellIndex).setCellValue(value);
-        } else {
-            row.createCell(cellIndex).setCellValue("");
         }
     }
 
@@ -1137,48 +1195,221 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         } else {
             cell.setCellValue(0);
         }
-        cell.setCellStyle(createNumberStyle(row.getSheet().getWorkbook()));
     }
 
-    private double calculateAverageScore(TaskStatisticsDto task) {
-        if (task.getScoreDistribution() == null || task.getScoreDistribution().isEmpty()) {
-            return 0.0;
+    private void setNumericCellValue(Row row, int cellIndex, Double value) {
+        Cell cell = row.createCell(cellIndex);
+        if (value != null) {
+            cell.setCellValue(value);
+        } else {
+            cell.setCellValue(0);
         }
-
-        double totalScore = 0;
-        int totalStudents = 0;
-
-        for (Map.Entry<Integer, Integer> entry : task.getScoreDistribution().entrySet()) {
-            totalScore += entry.getKey() * entry.getValue();
-            totalStudents += entry.getValue();
-        }
-
-        return totalStudents > 0 ? totalScore / totalStudents : 0.0;
     }
 
-    private int calculateDifficultyLevel(double completionPercentage) {
-        if (completionPercentage >= 90) return 1;
-        else if (completionPercentage >= 70) return 2;
-        else if (completionPercentage >= 50) return 3;
-        else if (completionPercentage >= 30) return 4;
-        else return 5;
+    private void createTeacherTestSheet(XSSFWorkbook workbook, TestSummaryDto test,
+                                        String teacherName, int sheetIndex) {
+        String sheetName = String.format("%s_%s_%s",
+                test.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9]", "").substring(0,
+                        Math.min(12, test.getSubject().length())),
+                test.getClassName(),
+                test.getTestDate().format(DateTimeFormatter.ofPattern("ddMM")));
+
+        if (sheetName.length() > 31) {
+            sheetName = sheetName.substring(0, 31);
+        }
+
+        String finalSheetName = sheetName;
+        int counter = 1;
+        while (workbook.getSheet(finalSheetName) != null) {
+            finalSheetName = String.format("%s_%d", sheetName, counter++);
+            if (finalSheetName.length() > 31) {
+                finalSheetName = finalSheetName.substring(0, 31);
+            }
+        }
+
+        XSSFSheet sheet = workbook.createSheet(finalSheetName);
+
+        int rowNum = 0;
+        XSSFRow titleRow = sheet.createRow(rowNum++);
+        titleRow.createCell(0).setCellValue(
+                String.format("Краткая статистика: %s - %s",
+                        test.getSubject(), test.getClassName())
+        );
+        titleRow.getCell(0).setCellStyle(createTitleStyle(workbook));
+
+        rowNum++;
+        createTestStatisticsTable(sheet, workbook, test, rowNum);
+        optimizeColumnWidths(sheet);
     }
 
-    private String getDifficultyName(int level) {
-        switch (level) {
-            case 1:
-                return "Очень легко";
-            case 2:
-                return "Легко";
-            case 3:
-                return "Средне";
-            case 4:
-                return "Сложно";
-            case 5:
-                return "Очень сложно";
-            default:
-                return "Не определено";
+    private void createTestStatisticsTable(Sheet sheet, Workbook workbook,
+                                           TestSummaryDto test, int startRow) {
+        Row headerRow = sheet.createRow(startRow++);
+        headerRow.createCell(0).setCellValue("Показатель");
+        headerRow.createCell(1).setCellValue("Значение");
+        headerRow.getCell(0).setCellStyle(createTableHeaderStyle(workbook));
+        headerRow.getCell(1).setCellStyle(createTableHeaderStyle(workbook));
+
+        String[][] stats = {
+                {"Предмет", test.getSubject()},
+                {"Класс", test.getClassName()},
+                {"Учитель", test.getTeacher()},
+                {"Дата теста", test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE)},
+                {"Тип работы", test.getTestType()},
+                {"Всего учеников", String.valueOf(test.getClassSize())},
+                {"Присутствовало", String.valueOf(test.getStudentsPresent())},
+                {"Отсутствовало", String.valueOf(test.getStudentsAbsent())},
+                {"% присутствия", String.format("%.1f%%", test.getAttendancePercentage())},
+                {"Количество заданий", String.valueOf(test.getTaskCount())},
+                {"Макс. балл", String.valueOf(test.getMaxTotalScore())},
+                {"Средний балл", String.format("%.2f", test.getAverageScore())},
+                {"% выполнения", String.format("%.1f%%", test.getSuccessPercentage())},
+                {"Файл отчета", test.getFileName()}
+        };
+
+        for (String[] rowData : stats) {
+            Row row = sheet.createRow(startRow++);
+            row.createCell(0).setCellValue(rowData[0]);
+            row.createCell(1).setCellValue(rowData[1]);
         }
+    }
+
+    private void createSummarySheetHeader(Sheet sheet, Workbook workbook) {
+        Row titleRow = sheet.createRow(0);
+        Cell titleCell = titleRow.createCell(0);
+        titleCell.setCellValue("СВОДНЫЙ ОТЧЕТ ПО ВСЕМ ТЕСТАМ");
+        CellStyle titleStyle = createTitleStyle(workbook);
+        titleCell.setCellStyle(titleStyle);
+
+        Row dateRow = sheet.createRow(1);
+        dateRow.createCell(0).setCellValue(
+                "Дата формирования: " +
+                        LocalDateTime.now().format(DateTimeFormatters.DISPLAY_DATE)
+        );
+
+        String[] headers = {
+                "ID", "Предмет", "Класс", "Учитель", "Дата теста", "Тип",
+                "Присутствовало", "Отсутствовало", "Всего", "% присутствия",
+                "Средний балл", "% выполнения", "Кол-во заданий", "Макс. балл"
+        };
+
+        createHeaderRow(sheet, workbook, headers, 3);
+    }
+
+    private void createHeaderRow(Sheet sheet, Workbook workbook, String[] headers, int rowNum) {
+        Row headerRow = sheet.createRow(rowNum);
+        CellStyle headerStyle = createTableHeaderStyle(workbook);
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+    }
+
+    private void fillSummaryData(Sheet sheet, Workbook workbook, List<TestSummaryDto> tests) {
+        int rowNum = 4;
+        int testId = 1;
+
+        for (TestSummaryDto test : tests) {
+            Row row = sheet.createRow(rowNum++);
+
+            row.createCell(0).setCellValue(testId++);
+            row.createCell(1).setCellValue(test.getSubject());
+            row.createCell(2).setCellValue(test.getClassName());
+            row.createCell(3).setCellValue(test.getTeacher());
+            row.createCell(4).setCellValue(
+                    test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE));
+            row.createCell(5).setCellValue(test.getTestType());
+
+            setNumericCellValue(row, 6, test.getStudentsPresent());
+            setNumericCellValue(row, 7, test.getStudentsAbsent());
+            setNumericCellValue(row, 8, test.getClassSize());
+
+            Cell attendanceCell = row.createCell(9);
+            double attendance = test.getAttendancePercentage() != null ?
+                    test.getAttendancePercentage() / 100.0 : 0.0;
+            attendanceCell.setCellValue(attendance);
+            attendanceCell.setCellStyle(createPercentStyle(workbook));
+
+            Cell avgScoreCell = row.createCell(10);
+            avgScoreCell.setCellValue(test.getAverageScore() != null ?
+                    test.getAverageScore() : 0.0);
+            avgScoreCell.setCellStyle(createDecimalStyle(workbook));
+
+            Cell successCell = row.createCell(11);
+            double success = test.getSuccessPercentage() != null ?
+                    test.getSuccessPercentage() / 100.0 : 0.0;
+            successCell.setCellValue(success);
+            successCell.setCellStyle(createPercentStyle(workbook));
+
+            setNumericCellValue(row, 12, test.getTaskCount());
+            setNumericCellValue(row, 13, test.getMaxTotalScore());
+        }
+    }
+
+    private void addSummaryStatisticsRow(Sheet sheet, List<TestSummaryDto> tests) {
+        if (tests.isEmpty()) return;
+
+        int lastRow = sheet.getLastRowNum() + 2;
+        Row summaryRow = sheet.createRow(lastRow);
+
+        summaryRow.createCell(0).setCellValue("ИТОГО:");
+        CellStyle summaryStyle = createSummaryStyle((XSSFWorkbook) sheet.getWorkbook());
+        summaryRow.getCell(0).setCellStyle(summaryStyle);
+
+        int totalTests = tests.size();
+        summaryRow.createCell(1).setCellValue("Тестов: " + totalTests);
+
+        double avgPresent = tests.stream()
+                .filter(t -> t.getStudentsPresent() != null)
+                .mapToInt(TestSummaryDto::getStudentsPresent)
+                .average().orElse(0);
+
+        double avgAbsent = tests.stream()
+                .filter(t -> t.getStudentsAbsent() != null)
+                .mapToInt(TestSummaryDto::getStudentsAbsent)
+                .average().orElse(0);
+
+        double avgClassSize = tests.stream()
+                .filter(t -> t.getClassSize() != null)
+                .mapToInt(TestSummaryDto::getClassSize)
+                .average().orElse(0);
+
+        double avgAttendance = tests.stream()
+                .filter(t -> t.getAttendancePercentage() != null)
+                .mapToDouble(t -> t.getAttendancePercentage() / 100.0)
+                .average().orElse(0);
+
+        double avgScore = tests.stream()
+                .filter(t -> t.getAverageScore() != null)
+                .mapToDouble(TestSummaryDto::getAverageScore)
+                .average().orElse(0);
+
+        double avgSuccess = tests.stream()
+                .filter(t -> t.getSuccessPercentage() != null)
+                .mapToDouble(t -> t.getSuccessPercentage() / 100.0)
+                .average().orElse(0);
+
+        Cell avgPresentCell = summaryRow.createCell(6);
+        avgPresentCell.setCellValue(String.format("%.1f", avgPresent));
+
+        Cell avgAbsentCell = summaryRow.createCell(7);
+        avgAbsentCell.setCellValue(String.format("%.1f", avgAbsent));
+
+        Cell avgClassSizeCell = summaryRow.createCell(8);
+        avgClassSizeCell.setCellValue(String.format("%.1f", avgClassSize));
+
+        Cell avgAttendanceCell = summaryRow.createCell(9);
+        avgAttendanceCell.setCellValue(avgAttendance);
+        avgAttendanceCell.setCellStyle(createPercentStyle(sheet.getWorkbook()));
+
+        Cell avgScoreCell = summaryRow.createCell(10);
+        avgScoreCell.setCellValue(String.format("%.2f", avgScore));
+
+        Cell avgSuccessCell = summaryRow.createCell(11);
+        avgSuccessCell.setCellValue(avgSuccess);
+        avgSuccessCell.setCellStyle(createPercentStyle(sheet.getWorkbook()));
     }
 
     private Path createReportsFolder() throws IOException {
@@ -1189,634 +1420,108 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         return reportsPath;
     }
 
-    private File saveWorkbook(XSSFWorkbook workbook, Path reportsPath, String fileName) throws IOException {
-        Path filePath = reportsPath.resolve(fileName);
-
-        try (FileOutputStream outputStream = new FileOutputStream(filePath.toFile())) {
-            workbook.write(outputStream);
+    private File saveWorkbook(Workbook workbook, Path folderPath, String fileName) throws IOException {
+        Path filePath = folderPath.resolve(fileName);
+        try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
+            workbook.write(fos);
         }
-
-        workbook.close();
-        log.info("Файл сохранен: {}", filePath);
+        log.info("Отчет сохранен: {}", filePath);
         return filePath.toFile();
     }
 
-    private void autoSizeColumns(Sheet sheet, int columnCount) {
-        for (int i = 0; i < columnCount; i++) {
+    private void optimizeColumnWidths(Sheet sheet) {
+        for (int i = 0; i < sheet.getRow(0).getLastCellNum(); i++) {
             sheet.autoSizeColumn(i);
+            int currentWidth = sheet.getColumnWidth(i);
+            if (currentWidth < MIN_COLUMN_WIDTH) {
+                sheet.setColumnWidth(i, MIN_COLUMN_WIDTH);
+            } else if (currentWidth > MAX_COLUMN_WIDTH) {
+                sheet.setColumnWidth(i, MAX_COLUMN_WIDTH);
+            }
         }
     }
 
-    /**
-     * Создает лист с графиками с использованием JFreeChart
-     */
-    private void createChartsSheet(XSSFWorkbook workbook, TestSummaryDto testSummary,
-                                   Map<Integer, TaskStatisticsDto> taskStatistics) {
-        XSSFSheet sheet = workbook.createSheet("Графики анализа");
-
-        // Заголовок листа с датой генерации
-        XSSFRow titleRow = sheet.createRow(0);
-        titleRow.createCell(0).setCellValue(
-                String.format("Графический анализ теста: %s - %s (%s)",
-                        testSummary.getSubject(),
-                        testSummary.getClassName(),
-                        testSummary.getTestDate().format(DateTimeFormatters.DISPLAY_DATE))
-        );
-
-        XSSFRow subtitleRow = sheet.createRow(1);
-        subtitleRow.createCell(0).setCellValue(
-                String.format("Отчет сгенерирован: %s",
-                        LocalDateTime.now().format(DateTimeFormatters.DISPLAY_DATE))
-        );
-
-        int currentRow = 3; // Начинаем с четвертой строки
-
-        try {
-            // 1. Исправленная гистограмма с накоплением
-            currentRow = insertChartAsImage(workbook, sheet,
-                    createEnhancedStackedBarChart(taskStatistics),
-                    "Распределение результатов по заданиям",
-                    currentRow);
-
-            // 2. Исправленная горизонтальная гистограмма
-            currentRow = insertChartAsImage(workbook, sheet,
-                    createFixedHorizontalBarChart(taskStatistics),
-                    "Процент выполнения заданий",
-                    currentRow + 2);
-
-            // 3. Линейный график с тенденцией
-            currentRow = insertChartAsImage(workbook, sheet,
-                    createTrendLineChart(taskStatistics),
-                    "Динамика выполнения заданий с линией тренда",
-                    currentRow + 2);
-
-        } catch (Exception e) {
-            log.error("Ошибка при создании графиков", e);
-            XSSFRow errorRow = sheet.createRow(currentRow);
-            errorRow.createCell(0).setCellValue("Ошибка при создании графиков: " + e.getMessage());
-        }
-
-        // Настройка ширины колонок
-        sheet.setColumnWidth(0, IMAGE_COL_WIDTH * 256);
+    private CellStyle createTitleStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 16);
+        style.setFont(font);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        return style;
     }
 
-    /**
-     * Добавляет пояснения к графикам
-     */
-    private void addChartExplanations(XSSFSheet sheet, int startRow) {
-        Row explanationsTitle = sheet.createRow(startRow++);
-        explanationsTitle.createCell(0).setCellValue("Пояснения к графикам:");
-
-        String[][] explanations = {
-                {"📊 Распределение результатов по заданиям",
-                        "Показывает сколько студентов полностью/частично/не справились с каждым заданием"},
-                {"📈 Процент выполнения заданий",
-                        "Наглядное сравнение процента выполнения всех заданий"},
-                {"📉 Динамика выполнения",
-                        "Показывает изменение сложности заданий по тесту. Красная линия - тренд"},
-                {"🎨 Тепловая карта",
-                        "Интенсивность цвета показывает сложность задания (чем темнее - тем сложнее)"},
-                {"📦 Распределение баллов",
-                        "Показывает разброс баллов: медиана (линия), 25-75% (ящик), min-max (усы)"}
-        };
-
-        for (String[] exp : explanations) {
-            Row row = sheet.createRow(startRow++);
-            row.createCell(0).setCellValue(exp[0]);
-            row.createCell(1).setCellValue(exp[1]);
-        }
-    }
-
-    /**
-     * Создает улучшенную гистограмму с накоплением
-     */
-    private JFreeChart createEnhancedStackedBarChart(Map<Integer, TaskStatisticsDto> taskStatistics) {
-        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-
-        List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList());
-
-        for (TaskStatisticsDto task : sortedTasks) {
-            // Используем просто номер задания как метку
-            String taskLabel = String.valueOf(task.getTaskNumber());
-
-            // Добавляем абсолютные значения
-            dataset.addValue(task.getFullyCompletedCount(), "✓ Полностью", taskLabel);
-            dataset.addValue(task.getPartiallyCompletedCount(), "~ Частично", taskLabel);
-            dataset.addValue(task.getNotCompletedCount(), "✗ Не справилось", taskLabel);
-        }
-
-        JFreeChart chart = ChartFactory.createStackedBarChart(
-                "",
-                "Номер задания",
-                "Количество студентов",
-                dataset,
-                PlotOrientation.VERTICAL,
-                true,
-                true,
-                false
-        );
-
-        // Современный дизайн
-        chart.setBackgroundPaint(new java.awt.Color(245, 245, 245));
-
-        CategoryPlot plot = chart.getCategoryPlot();
-        plot.setBackgroundPaint(java.awt.Color.WHITE);
-        plot.setRangeGridlinePaint(new java.awt.Color(200, 200, 200));
-        plot.setDomainGridlinePaint(new java.awt.Color(200, 200, 200));
-        plot.setOutlineVisible(false);
-
-        // Настраиваем ось X для правильного отображения номеров заданий
-        CategoryAxis domainAxis = plot.getDomainAxis();
-        domainAxis.setTickLabelFont(new java.awt.Font("Arial", java.awt.Font.PLAIN, 10));
-        domainAxis.setCategoryMargin(0.1);
-
-        // Настраиваем ось Y
-        ValueAxis rangeAxis = plot.getRangeAxis();
-        rangeAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
-
-        // Современная цветовая палитра
-        BarRenderer renderer = (BarRenderer) plot.getRenderer();
-        renderer.setSeriesPaint(0, new java.awt.Color(46, 204, 113));   // Ярко-зеленый
-        renderer.setSeriesPaint(1, new java.awt.Color(241, 196, 15));   // Ярко-желтый
-        renderer.setSeriesPaint(2, new java.awt.Color(231, 76, 60));    // Ярко-красный
-
-        // Используем наш ModernGradientBarPainter
-        renderer.setBarPainter(new ModernGradientBarPainter());
-        renderer.setShadowVisible(false);
-
-        // Добавляем значения на столбцы
-        renderer.setDefaultItemLabelGenerator(new CategoryItemLabelGenerator() {
-            @Override
-            public String generateRowLabel(org.jfree.data.category.CategoryDataset dataset, int row) {
-                return "";
-            }
-
-            @Override
-            public String generateColumnLabel(org.jfree.data.category.CategoryDataset dataset, int column) {
-                return "";
-            }
-
-            @Override
-            public String generateLabel(org.jfree.data.category.CategoryDataset dataset, int row, int column) {
-                Number value = dataset.getValue(row, column);
-                return value.intValue() > 0 ? String.valueOf(value.intValue()) : "";
-            }
-        });
-
-        renderer.setDefaultItemLabelsVisible(true);
-
-        // Шрифт для подписей значений
-        java.awt.Font labelFont = new java.awt.Font("Arial", java.awt.Font.PLAIN, 9);
-        renderer.setDefaultItemLabelFont(labelFont);
-
-        // Позиционируем подписи внутри столбцов
-        renderer.setDefaultPositiveItemLabelPosition(new ItemLabelPosition(
-                ItemLabelAnchor.CENTER, TextAnchor.CENTER, TextAnchor.CENTER, 0.0));
-
-        // Легенда
-        org.jfree.chart.title.LegendTitle legend = chart.getLegend();
-        legend.setBackgroundPaint(java.awt.Color.WHITE);
-        legend.setFrame(new org.jfree.chart.block.BlockBorder(java.awt.Color.LIGHT_GRAY));
-
-        // Шрифт для легенды
-        java.awt.Font legendFont = new java.awt.Font("Arial", java.awt.Font.PLAIN, 10);
-        legend.setItemFont(legendFont);
-
-        return chart;
-    }
-    /**
-     * Создает горизонтальную гистограмму с правильным позиционированием процентов
-     */
-    private JFreeChart createFixedHorizontalBarChart(Map<Integer, TaskStatisticsDto> taskStatistics) {
-        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-
-        List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList());
-
-        for (TaskStatisticsDto task : sortedTasks) {
-            String taskLabel = "Задание " + task.getTaskNumber();
-            dataset.addValue(task.getCompletionPercentage(), "% выполнения", taskLabel);
-        }
-
-        JFreeChart chart = ChartFactory.createBarChart(
-                "",
-                "Процент выполнения, %",
-                "Задание",
-                dataset,
-                PlotOrientation.HORIZONTAL,
-                false, // без легенды
-                true,
-                false
-        );
-
-        CategoryPlot plot = chart.getCategoryPlot();
-        plot.setBackgroundPaint(java.awt.Color.WHITE);
-        plot.setRangeGridlinePaint(new java.awt.Color(200, 200, 200));
-        plot.setDomainGridlinePaint(new java.awt.Color(200, 200, 200));
-
-        // Настраиваем оси
-        CategoryAxis domainAxis = plot.getDomainAxis();
-        domainAxis.setTickLabelFont(new java.awt.Font("Arial", java.awt.Font.PLAIN, 10));
-
-        NumberAxis rangeAxis = (NumberAxis) plot.getRangeAxis();
-        rangeAxis.setRange(0, 100); // Проценты от 0 до 100
-        rangeAxis.setStandardTickUnits(NumberAxis.createStandardTickUnits());
-        rangeAxis.setNumberFormatOverride(java.text.NumberFormat.getPercentInstance());
-
-        // Градиентная заливка
-        BarRenderer renderer = (BarRenderer) plot.getRenderer();
-        renderer.setBarPainter(new ModernGradientBarPainter());
-        renderer.setShadowVisible(false);
-
-        // Цветовая шкала от красного к зеленому в зависимости от процента
-        for (int i = 0; i < sortedTasks.size(); i++) {
-            double percentage = sortedTasks.get(i).getCompletionPercentage();
-            java.awt.Color color = getColorForPercentage(percentage);
-            renderer.setSeriesPaint(i, color);
-        }
-
-        // Добавляем значения ПРАВИЛЬНО позиционированные
-        renderer.setDefaultItemLabelGenerator(new CategoryItemLabelGenerator() {
-            @Override
-            public String generateRowLabel(org.jfree.data.category.CategoryDataset dataset, int row) {
-                return "";
-            }
-
-            @Override
-            public String generateColumnLabel(org.jfree.data.category.CategoryDataset dataset, int column) {
-                return "";
-            }
-
-            @Override
-            public String generateLabel(org.jfree.data.category.CategoryDataset dataset, int row, int column) {
-                Number value = dataset.getValue(row, column);
-                return String.format("%.1f%%", value.doubleValue());
-            }
-        });
-
-        renderer.setDefaultItemLabelsVisible(true);
-
-        // Шрифт для процентов - УВЕЛИЧИВАЕМ и делаем ПОЛУЖИРНЫМ
-        java.awt.Font percentFont = new java.awt.Font("Arial", java.awt.Font.BOLD, 10);
-        renderer.setDefaultItemLabelFont(percentFont);
-
-        // Ключевое исправление: Позиционируем проценты ВНУТРИ столбцов, справа от начала
-        renderer.setDefaultPositiveItemLabelPosition(new ItemLabelPosition(
-                ItemLabelAnchor.OUTSIDE3, // Внутри столбца, слева от значения
-                TextAnchor.CENTER_LEFT,
-                TextAnchor.CENTER_LEFT,
-                Math.PI / 2.0 // Поворачиваем на 0 градусов (горизонтально)
-        ));
-
-        // Устанавливаем отступ для подписей, чтобы они были внутри столбцов
-        renderer.setItemLabelAnchorOffset(10.0);
-
-        return chart;
-    }
-
-    /**
-     * Создает горизонтальную гистограмму с процентами
-     */
-    private JFreeChart createHorizontalBarChart(Map<Integer, TaskStatisticsDto> taskStatistics) {
-        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-
-        List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList());
-
-        for (TaskStatisticsDto task : sortedTasks) {
-            String taskLabel = "Задание " + task.getTaskNumber();
-            dataset.addValue(task.getCompletionPercentage(), "% выполнения", taskLabel);
-        }
-
-        JFreeChart chart = ChartFactory.createBarChart(
-                "",
-                "Процент выполнения, %",
-                "Задание",
-                dataset,
-                PlotOrientation.HORIZONTAL,
-                false, // без легенды
-                true,
-                false
-        );
-
-        CategoryPlot plot = chart.getCategoryPlot();
-        plot.setBackgroundPaint(Color.WHITE);
-        plot.setRangeGridlinePaint(new Color(200, 200, 200));
-
-        // Градиентная заливка в зависимости от процента
-        BarRenderer renderer = (BarRenderer) plot.getRenderer();
-        renderer.setBarPainter(new GradientBarPainter(0.0, 0.0, 0.0));
-        renderer.setShadowVisible(false);
-
-        // Цветовая шкала от красного к зеленому
-        for (int i = 0; i < sortedTasks.size(); i++) {
-            double percentage = sortedTasks.get(i).getCompletionPercentage();
-            Color color = getColorForPercentage(percentage);
-            renderer.setSeriesPaint(i, color);
-        }
-
-        // Добавляем значения в концы столбцов
-        renderer.setDefaultItemLabelGenerator(new CategoryItemLabelGenerator() {
-            @Override
-            public String generateRowLabel(CategoryDataset dataset, int row) {
-                return "";
-            }
-
-            @Override
-            public String generateColumnLabel(CategoryDataset dataset, int column) {
-                return "";
-            }
-
-            @Override
-            public String generateLabel(CategoryDataset dataset, int row, int column) {
-                Number value = dataset.getValue(row, column);
-                return String.format("%.1f%%", value.doubleValue());
-            }
-        });
-        renderer.setDefaultItemLabelsVisible(true);
-        java.awt.Font labelFont = new java.awt.Font("Arial", java.awt.Font.BOLD, 10);
-        renderer.setDefaultItemLabelFont(labelFont);
-        renderer.setDefaultPositiveItemLabelPosition(new ItemLabelPosition(
-                ItemLabelAnchor.OUTSIDE12, TextAnchor.CENTER_LEFT, TextAnchor.CENTER_LEFT, 0.0));
-
-        return chart;
-    }
-
-    /**
-     * Создает тепловую карту выполнения заданий
-     */
-    private JFreeChart createHeatMapChart(Map<Integer, TaskStatisticsDto> taskStatistics) {
-        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-
-        List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList());
-
-        for (TaskStatisticsDto task : sortedTasks) {
-            dataset.addValue(task.getCompletionPercentage(), "Выполнение",
-                    String.valueOf(task.getTaskNumber()));
-        }
-
-        JFreeChart chart = ChartFactory.createBarChart(
-                "",
-                "Номер задания",
-                "% выполнения",
-                dataset,
-                PlotOrientation.VERTICAL,
-                false,
-                true,
-                false
-        );
-
-        CategoryPlot plot = chart.getCategoryPlot();
-        plot.setBackgroundPaint(Color.WHITE);
-
-        // Используем градиентные цвета
-        BarRenderer renderer = (BarRenderer) plot.getRenderer();
-        renderer.setBarPainter(new GradientBarPainter(0.0, 0.0, 0.0));
-
-        // Настраиваем цвета в зависимости от процента выполнения
-        for (int i = 0; i < sortedTasks.size(); i++) {
-            double percentage = sortedTasks.get(i).getCompletionPercentage();
-            renderer.setSeriesPaint(i, getHeatMapColor(percentage));
-        }
-
-        return chart;
-    }
-
-    /**
-     * Создает box plot для распределения баллов
-     */
-    private JFreeChart createBoxPlotChart(Map<Integer, TaskStatisticsDto> taskStatistics) {
-        DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
-
-        List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList());
-
-        for (TaskStatisticsDto task : sortedTasks) {
-            List<Double> scores = new ArrayList<>();
-
-            if (task.getScoreDistribution() != null) {
-                task.getScoreDistribution().forEach((score, count) -> {
-                    for (int i = 0; i < count; i++) {
-                        scores.add(score.doubleValue());
-                    }
-                });
-            }
-
-            if (!scores.isEmpty()) {
-                dataset.add(scores, "Задание", String.valueOf(task.getTaskNumber()));
-            }
-        }
-
-        JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(
-                "",
-                "Номер задания",
-                "Баллы",
-                dataset,
-                true
-        );
-
-        CategoryPlot plot = chart.getCategoryPlot();
-        plot.setBackgroundPaint(Color.WHITE);
-        plot.setDomainGridlinePaint(Color.LIGHT_GRAY);
-        plot.setRangeGridlinePaint(Color.LIGHT_GRAY);
-
-        BoxAndWhiskerRenderer renderer = (BoxAndWhiskerRenderer) plot.getRenderer();
-        renderer.setFillBox(true);
-        renderer.setSeriesPaint(0, new Color(52, 152, 219, 180));
-        renderer.setMeanVisible(true);
-        renderer.setMedianVisible(true);
-
-        return chart;
-    }
-
-    /**
-     * Возвращает цвет для процента выполнения (от красного к зеленому)
-     */
-    private Color getColorForPercentage(double percentage) {
-        if (percentage >= 90) return new Color(39, 174, 96);    // Зеленый
-        if (percentage >= 70) return new Color(46, 204, 113);   // Светло-зеленый
-        if (percentage >= 50) return new Color(241, 196, 15);   // Желтый
-        if (percentage >= 30) return new Color(230, 126, 34);   // Оранжевый
-        return new Color(231, 76, 60);                         // Красный
-    }
-
-    /**
-     * Создает линейный график с линией тренда
-     */
-    private JFreeChart createTrendLineChart(Map<Integer, TaskStatisticsDto> taskStatistics) {
-        XYSeries completionSeries = new XYSeries("% выполнения");
-        XYSeries avgScoreSeries = new XYSeries("Средний балл");
-        XYSeries trendSeries = new XYSeries("Тренд");
-
-        List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList());
-
-        List<Double> completionValues = new ArrayList<>();
-
-        for (int i = 0; i < sortedTasks.size(); i++) {
-            TaskStatisticsDto task = sortedTasks.get(i);
-            double completion = task.getCompletionPercentage();
-            completionSeries.add(i + 1, completion);
-            completionValues.add(completion);
-
-            double avgScore = calculateAverageScore(task);
-            double normalizedScore = (avgScore / task.getMaxScore()) * 100;
-            avgScoreSeries.add(i + 1, normalizedScore);
-        }
-
-        // Расчет линейного тренда
-        if (completionValues.size() > 1) {
-            double[] trend = calculateLinearTrend(completionValues);
-            for (int i = 0; i < sortedTasks.size(); i++) {
-                trendSeries.add(i + 1, trend[0] * (i + 1) + trend[1]);
-            }
-        }
-
-        XYSeriesCollection dataset = new XYSeriesCollection();
-        dataset.addSeries(completionSeries);
-        dataset.addSeries(avgScoreSeries);
-        dataset.addSeries(trendSeries);
-
-        JFreeChart chart = ChartFactory.createXYLineChart(
-                "",
-                "Номер задания",
-                "Показатель, %",
-                dataset,
-                PlotOrientation.VERTICAL,
-                true,
-                true,
-                false
-        );
-
-        XYPlot plot = chart.getXYPlot();
-        plot.setBackgroundPaint(Color.WHITE);
-        plot.setDomainGridlinePaint(new Color(220, 220, 220));
-        plot.setRangeGridlinePaint(new Color(220, 220, 220));
-
-        // Современные стили линий
-        XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer();
-
-        // Основная линия - % выполнения
-        renderer.setSeriesPaint(0, new Color(52, 152, 219));
-        renderer.setSeriesStroke(0, new BasicStroke(2.5f));
-        renderer.setSeriesShape(0,
-                new java.awt.geom.Ellipse2D.Double(-4, -4, 8, 8));
-
-        // Вторая линия - средний балл
-        renderer.setSeriesPaint(1, new Color(155, 89, 182));
-        renderer.setSeriesStroke(1, new BasicStroke(2.0f, BasicStroke.CAP_ROUND,
-                BasicStroke.JOIN_ROUND, 1.0f, new float[]{6.0f, 6.0f}, 0.0f));
-        renderer.setSeriesShape(1,
-                new java.awt.Rectangle(-3, -3, 6, 6));
-
-        // Линия тренда
-        renderer.setSeriesPaint(2, new Color(231, 76, 60));
-        renderer.setSeriesStroke(2, new BasicStroke(1.5f, BasicStroke.CAP_BUTT,
-                BasicStroke.JOIN_BEVEL, 0.0f, new float[]{10.0f, 6.0f}, 0.0f));
-        renderer.setSeriesShapesVisible(2, false);
-
-        plot.setRenderer(renderer);
-
-        // Настройка легенды
-        chart.getLegend().setBackgroundPaint(Color.WHITE);
-        chart.getLegend().setFrame(new BlockBorder(Color.LIGHT_GRAY));
-
-        return chart;
-    }
-
-    /**
-     * Расчет линейного тренда методом наименьших квадратов
-     */
-    private double[] calculateLinearTrend(List<Double> values) {
-        int n = values.size();
-        double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-
-        for (int i = 0; i < n; i++) {
-            double x = i + 1;
-            double y = values.get(i);
-            sumX += x;
-            sumY += y;
-            sumXY += x * y;
-            sumX2 += x * x;
-        }
-
-        double slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-        double intercept = (sumY - slope * sumX) / n;
-
-        return new double[]{slope, intercept};
-    }
-
-    /**
-     * Возвращает цвет для тепловой карты
-     */
-    private Color getHeatMapColor(double percentage) {
-        // От темно-синего (сложное) к светло-зеленому (легкое)
-        if (percentage >= 90) return new Color(162, 222, 150);  // Светло-зеленый
-        if (percentage >= 70) return new Color(117, 199, 111);  // Зеленый
-        if (percentage >= 50) return new Color(72, 176, 72);    // Темно-зеленый
-        if (percentage >= 30) return new Color(44, 127, 184);   // Синий
-        return new Color(37, 52, 148);                         // Темно-синий
-    }
-
-    // Стили
-
-    private CellStyle createHeaderStyle(Workbook workbook) {
+    private CellStyle createSubtitleStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         Font font = workbook.createFont();
         font.setBold(true);
         font.setFontHeightInPoints((short) 12);
         style.setFont(font);
         style.setAlignment(HorizontalAlignment.CENTER);
-        style.setVerticalAlignment(VerticalAlignment.CENTER);
-        style.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        setBorders(style);
         return style;
     }
 
-    private CellStyle createDataStyle(Workbook workbook) {
+    private CellStyle createSectionHeaderStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 12);
+        style.setFont(font);
+        style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
         style.setAlignment(HorizontalAlignment.LEFT);
-        style.setVerticalAlignment(VerticalAlignment.CENTER);
-        setBorders(style);
+        return style;
+    }
+
+    private CellStyle createTableHeaderStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 11);
+        style.setFont(font);
+        style.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.CENTER);
         return style;
     }
 
     private CellStyle createCenteredStyle(Workbook workbook) {
-        CellStyle style = createDataStyle(workbook);
-        style.setAlignment(HorizontalAlignment.CENTER);
-        return style;
-    }
-
-    private CellStyle createNumberStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         style.setAlignment(HorizontalAlignment.CENTER);
-        style.setDataFormat(workbook.createDataFormat().getFormat("0"));
-        setBorders(style);
-        return style;
-    }
-
-    private CellStyle createDecimalStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        style.setAlignment(HorizontalAlignment.CENTER);
-        style.setDataFormat(workbook.createDataFormat().getFormat("0.00"));
-        setBorders(style);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
         return style;
     }
 
     private CellStyle createPercentStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
-        style.setAlignment(HorizontalAlignment.CENTER);
         style.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
-        setBorders(style);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        return style;
+    }
+
+    private CellStyle createDecimalStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        style.setDataFormat(workbook.createDataFormat().getFormat("0.00"));
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.CENTER);
         return style;
     }
 
@@ -1824,79 +1529,15 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         CellStyle style = workbook.createCellStyle();
         Font font = workbook.createFont();
         font.setBold(true);
+        font.setColor(IndexedColors.WHITE.getIndex());
         style.setFont(font);
-        style.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        style.setAlignment(HorizontalAlignment.CENTER);
-        setBorders(style);
-        style.setDataFormat(workbook.createDataFormat().getFormat("0.00"));
-        return style;
-    }
-
-    private void setBorders(CellStyle style) {
-        style.setBorderTop(BorderStyle.THIN);
-        style.setBorderBottom(BorderStyle.THIN);
-        style.setBorderLeft(BorderStyle.THIN);
-        style.setBorderRight(BorderStyle.THIN);
-    }
-
-    /**
-     * Создает стиль для основного заголовка
-     */
-    private CellStyle createTitleStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont();
-        font.setBold(true);
-        font.setFontHeightInPoints((short) 16);
-        font.setColor(IndexedColors.DARK_BLUE.getIndex());
-        style.setFont(font);
-        return style;
-    }
-
-    /**
-     * Создает стиль для подзаголовка
-     */
-    private CellStyle createSubtitleStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont();
-        font.setItalic(true);
-        font.setFontHeightInPoints((short) 12);
-        font.setColor(IndexedColors.DARK_GREEN.getIndex());
-        style.setFont(font);
-        return style;
-    }
-
-    /**
-     * Создает стиль для заголовков секций
-     */
-    private CellStyle createSectionHeaderStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont();
-        font.setBold(true);
-        font.setFontHeightInPoints((short) 14);
-        font.setColor(IndexedColors.ROYAL_BLUE.getIndex());
-        style.setFont(font);
-        style.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
+        style.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         style.setBorderBottom(BorderStyle.MEDIUM);
-        style.setBottomBorderColor(IndexedColors.DARK_BLUE.getIndex());
-        return style;
-    }
-
-    /**
-     * Создает стиль для заголовков таблиц
-     */
-    private CellStyle createTableHeaderStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont();
-        font.setBold(true);
-        font.setFontHeightInPoints((short) 11);
-        style.setFont(font);
+        style.setBorderTop(BorderStyle.MEDIUM);
+        style.setBorderLeft(BorderStyle.MEDIUM);
+        style.setBorderRight(BorderStyle.MEDIUM);
         style.setAlignment(HorizontalAlignment.CENTER);
-        style.setVerticalAlignment(VerticalAlignment.CENTER);
-        style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        setBorders(style);
         return style;
     }
 }

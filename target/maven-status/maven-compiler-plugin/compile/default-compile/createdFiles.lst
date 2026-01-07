@@ -1,7 +1,6 @@
 org\school\analysis\entity\ReportFileEntity.class
 org\school\analysis\model\ProcessingStatus.class
 org\school\analysis\parser\strategy\StudentDataParser.class
-org\school\analysis\service\impl\ExcelReportServiceImpl$3.class
 org\school\Blank\AnalysisResult.class
 org\school\analysis\model\StudentResult.class
 org\school\analysis\util\DateTimeFormatters.class
@@ -16,7 +15,6 @@ org\school\analysis\util\ExcelParser$1.class
 org\school\analysis\util\ChartStyleUtils.class
 org\school\analysis\model\TestMetadata.class
 org\school\analysis\service\impl\ParserServiceImpl$1.class
-org\school\analysis\service\impl\ExcelReportServiceImpl$2.class
 org\school\analysis\exception\ValidationException.class
 org\school\analysis\model\dto\TeacherTestDetailDto$TeacherTestDetailDtoBuilder.class
 org\school\analysis\config\AppConfig.class
@@ -24,7 +22,6 @@ org\school\analysis\service\GeneralService.class
 org\school\analysis\service\impl\SavedServiceImpl.class
 org\school\analysis\service\impl\ParserServiceImpl.class
 org\school\Blank\DataCollectionSheetGenerator$Student.class
-org\school\analysis\util\ModernGradientBarPainter.class
 org\school\analysis\config\ReportConfig.class
 org\school\Blank\AnalysisResult$StudentResult.class
 org\school\analysis\model\dto\TaskStatisticsDto.class
@@ -57,6 +54,5 @@ org\school\Blank\StudentDocumentsGenerator$1.class
 org\school\analysis\model\ProcessingSummary.class
 org\school\analysis\model\dto\TestSummaryDto$TestSummaryDtoBuilder.class
 org\school\analysis\repository\ReportFileRepository.class
-org\school\analysis\service\impl\ExcelReportServiceImpl$1.class
 org\school\analysis\parser\strategy\MetadataParser.class
 org\school\analysis\service\ParserService.class
