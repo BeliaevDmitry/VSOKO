@@ -1,14 +1,13 @@
 package org.school.analysis.mapper;
 
-import org.school.analysis.entity.ReportFileEntity;
-import org.school.analysis.entity.StudentResultEntity;
+import org.school.analysis.model.entity.ReportFileEntity;
+import org.school.analysis.model.entity.StudentResultEntity;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.util.JsonScoreUtils;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Component
 public class ReportMapper {

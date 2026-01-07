@@ -2,8 +2,8 @@ package org.school.analysis.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.school.analysis.entity.ReportFileEntity;
-import org.school.analysis.entity.StudentResultEntity;
+import org.school.analysis.model.entity.ReportFileEntity;
+import org.school.analysis.model.entity.StudentResultEntity;
 import org.school.analysis.model.dto.StudentDetailedResultDto;
 import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TestSummaryDto;
