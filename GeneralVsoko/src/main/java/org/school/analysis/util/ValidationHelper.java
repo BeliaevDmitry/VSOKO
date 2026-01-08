@@ -36,14 +36,58 @@ public class ValidationHelper {
     }
 
     /**
-     * Валидация названия класса
+     * Валидация названия класса с поддержкой адресов и специальных названий
      */
     public static boolean isValidClassName(String className) {
         if (className == null || className.trim().isEmpty()) {
             return false;
         }
 
-        return CLASS_NAME_PATTERN.matcher(className.trim()).matches();
+        String trimmed = className.trim();
+
+        // 1. Стандартный формат класса: "11-А", "10-Б" и т.д.
+        if (CLASS_NAME_PATTERN.matcher(trimmed).matches()) {
+            return true;
+        }
+
+        // 2. Проверка на адреса (начинается с "ул.", "корпус", "адрес" и т.д.)
+        String lowerTrimmed = trimmed.toLowerCase();
+        if (lowerTrimmed.startsWith("ул.") ||
+                lowerTrimmed.startsWith("улица") ||
+                lowerTrimmed.startsWith("корпус") ||
+                lowerTrimmed.startsWith("адрес") ||
+                lowerTrimmed.startsWith("здание") ||
+                lowerTrimmed.contains("марии") ||
+                lowerTrimmed.contains("кравченко")) {
+            return true;
+        }
+
+        // 3. Специальные значения
+        if (trimmed.equals("Без группы") ||
+                trimmed.equals("Без класса") ||
+                trimmed.equals("Без адреса") ||
+                trimmed.equals("Неизвестный класс")) {
+            return true;
+        }
+
+        // 4. Форматы типа "11А", "10Б" (без дефиса)
+        if (trimmed.matches("^(1[0-1]|[1-9])[А-Яа-я]$")) {
+            return true;
+        }
+
+        // 5. Просто число класса "11", "10"
+        if (trimmed.matches("^(1[0-1]|[1-9])$")) {
+            return true;
+        }
+
+        // 6. Если содержит буквы и цифры (минимальная проверка)
+        if (trimmed.matches(".*[0-9].*") && trimmed.matches(".*[А-Яа-яA-Za-z].*")) {
+            return true;
+        }
+
+        // 7. Допустим любую строку длиной 2-50 символов
+        // (последнее правило - максимально либеральное)
+        return trimmed.length() >= 2 && trimmed.length() <= 50;
     }
 
     /**

@@ -95,11 +95,10 @@ public class ParserServiceImpl implements ParserService {
             reportFile.setSchool(metadata.getSchool() != null ? metadata.getSchool() : "ГБОУ №7");
             reportFile.setTestType(metadata.getTestType());
             reportFile.setComment(metadata.getComment());
-
-            // Параметры теста - НОВАЯ СТРУКТУРА
+            reportFile.setACADEMIC_YEAR(metadata.getACADEMIC_YEAR() != null ? metadata.getACADEMIC_YEAR() : "2025-2026");
             reportFile.setTaskCount(maxScores.size());
             reportFile.setMaxScores(maxScores);
-            // УДАЛЕНО: reportFile.setMaxTotalScore(metadata.getMaxTotalScore());
+
             reportFile.setStudentCount(studentResults.size());
 
             log.debug("Информация о файле обновлена: заданий={}, учеников={}",
@@ -112,6 +111,8 @@ public class ParserServiceImpl implements ParserService {
                 student.setClassName(reportFile.getClassName());
                 student.setTestDate(reportFile.getTestDate());
                 student.setTestType(reportFile.getTestType());
+                student.setSchool(reportFile.getSchool());
+                student.setACADEMIC_YEAR(reportFile.getACADEMIC_YEAR());
 
                 // Вычисляем totalScore для каждого студента
                 if (student.getTaskScores() != null) {

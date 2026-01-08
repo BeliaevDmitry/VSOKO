@@ -31,6 +31,7 @@ public class MetadataParser {
         metadata.setMaxScores(parseMaxScoresFromText(ExcelParser.getCellValueAsString(infoSheet, 5, 1, "нет баллов")));
         metadata.setComment(ExcelParser.getCellValueAsString(infoSheet, 6, 1, ""));
         metadata.setSchool(ExcelParser.getCellValueAsString(infoSheet, 7, 1, "ГБОУ №7"));
+        metadata.setACADEMIC_YEAR(ExcelParser.getCellValueAsString(infoSheet, 8, 1, "2025-2026"));
         return metadata;
     }
 

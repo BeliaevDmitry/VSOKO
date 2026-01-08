@@ -62,6 +62,10 @@ public class ReportFileEntity {
 
     @Builder.Default
     @Column(length = 200)
+    private String ACADEMIC_YEAR = "2025-2026";
+
+    @Builder.Default
+    @Column(length = 200)
     private String school = "ГБОУ №7";
 
     @Column(name = "task_count")

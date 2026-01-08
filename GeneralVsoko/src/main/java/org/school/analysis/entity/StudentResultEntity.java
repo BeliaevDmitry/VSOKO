@@ -66,4 +66,12 @@ public class StudentResultEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Builder.Default
+    @Column(length = 200)
+    private String ACADEMIC_YEAR = "2025-2026";
+
+    @Builder.Default
+    @Column(length = 200)
+    private String school = "ГБОУ №7";
 }
