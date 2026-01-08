@@ -17,6 +17,8 @@ public class StudentResult {
     private LocalDate testDate;
     private Integer totalScore;
     private Double percentageScore;
+    private String school = "ГБОУ №7";
+    private String ACADEMIC_YEAR = "2025-2026";
 
     // Map в памяти для удобной работы
     private Map<Integer, Integer> taskScores;

@@ -3,7 +3,6 @@ package org.school.analysis.parser.strategy;
 import org.apache.poi.ss.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.school.analysis.exception.ValidationException;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.util.ExcelParser;
 import org.school.analysis.util.JsonScoreUtils;
@@ -79,7 +78,7 @@ public class StudentDataParser {
         // Вариант (колонка D, индекс 3)
         String variant = ExcelParser.getCellValueAsString(row.getCell(3));
 
-        // Парсинг баллов за задания (начиная с колонки E, индекс 4)
+        // Парсинг баллов за задания (начиная с колонки F, индекс 5)
         Map<Integer, Integer> taskScores = parseTaskScores(row, maxScores.keySet(), rowIndex);
 
         // Создание результата
@@ -106,8 +105,8 @@ public class StudentDataParser {
         Map<Integer, Integer> scores = new HashMap<>();
 
         for (Integer taskNum : taskNumbers) {
-            // Начинаем с колонки E (индекс 4)
-            int columnIndex = 4 + (taskNum - 1);
+            // Начинаем с колонки F (индекс 4)
+            int columnIndex = 5 + (taskNum - 1);
             Cell cell = row.getCell(columnIndex);
 
             Integer score = ExcelParser.getCellValueAsInteger(cell);

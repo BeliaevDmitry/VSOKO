@@ -16,6 +16,7 @@ public class TestMetadata {
     private Map<Integer, Integer> maxScores; // Map в памяти
     private String testType;
     private String comment;
+    private String ACADEMIC_YEAR = "2025-2026";
 
     /**
      * Вычислить максимальный общий балл

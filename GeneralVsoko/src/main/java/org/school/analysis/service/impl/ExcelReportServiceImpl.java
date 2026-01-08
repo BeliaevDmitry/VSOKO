@@ -36,10 +36,10 @@ import java.util.stream.Collectors;
 public class ExcelReportServiceImpl implements ExcelReportService {
 
     private static final String FINAL_REPORT_FOLDER = AppConfig.FINAL_REPORT_FOLDER;
-    private static final int CHART_COL_SPAN = 8;
-    private static final int CHART_ROW_SPAN = 20;
-    private static final int MIN_COLUMN_WIDTH = 10 * 256;
-    private static final int MAX_COLUMN_WIDTH = 50 * 256;
+    private static final int CHART_COL_SPAN = 10;
+    private static final int CHART_ROW_SPAN = 15;
+    private static final int MIN_COLUMN_WIDTH = 8 * 256;  // Уменьшил минимальную ширину
+    private static final int MAX_COLUMN_WIDTH = 40 * 256; // Уменьшил максимальную ширину
 
     @Override
     public File generateSummaryReport(List<TestSummaryDto> tests) {
@@ -54,7 +54,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                 createSummarySheetHeader(sheet, workbook);
                 fillSummaryData(sheet, workbook, tests);
                 addSummaryStatisticsRow(sheet, tests);
-                optimizeColumnWidths(sheet);
+                optimizeColumnWidths(sheet, 14); // Указываем количество колонок
 
                 return saveWorkbook(workbook, reportsPath, "Свод всех работ.xlsx");
             }
@@ -215,21 +215,63 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         try {
             currentRow = createReportHeader(sheet, workbook, testSummary, currentRow);
             currentRow = createTestStatisticsSection(sheet, workbook, testSummary, currentRow);
-            currentRow = createStudentResultsSection(sheet, workbook, studentResults, currentRow);
-            currentRow = createTaskAnalysisSection(sheet, workbook, taskStatistics, currentRow);
+
+            // Определяем количество заданий
+            int maxTasks = determineMaxTaskCount(studentResults, taskStatistics);
+
+            currentRow = createStudentResultsSection(sheet, workbook, studentResults, currentRow, maxTasks);
+            currentRow = createTaskAnalysisSection(sheet, workbook, taskStatistics, currentRow, maxTasks);
 
             if (taskStatistics != null && !taskStatistics.isEmpty() &&
                     studentResults != null && !studentResults.isEmpty()) {
                 createExcelChartsSection(workbook, sheet, testSummary, taskStatistics, studentResults, currentRow);
             }
 
-            optimizeColumnWidths(sheet);
+            // Оптимизируем ширину колонок с учетом количества заданий
+            optimizeAllColumns(sheet, maxTasks);
 
         } catch (Exception e) {
             log.error("Ошибка при создании детального отчета на одном листе", e);
             XSSFRow errorRow = sheet.createRow(currentRow);
             errorRow.createCell(0).setCellValue("Ошибка при создании отчета: " + e.getMessage());
         }
+    }
+
+    /**
+     * Определяет максимальное количество заданий
+     */
+    private int determineMaxTaskCount(List<StudentDetailedResultDto> studentResults,
+                                      Map<Integer, TaskStatisticsDto> taskStatistics) {
+        int maxTasks = 0;
+
+        // Сначала проверяем статистику
+        if (taskStatistics != null && !taskStatistics.isEmpty()) {
+            maxTasks = taskStatistics.keySet().stream()
+                    .mapToInt(Integer::intValue)
+                    .max()
+                    .orElse(0);
+        }
+
+        // Затем проверяем студентов
+        if (studentResults != null && !studentResults.isEmpty()) {
+            for (StudentDetailedResultDto student : studentResults) {
+                if (student.getTaskScores() != null) {
+                    int studentMaxTask = student.getTaskScores().keySet().stream()
+                            .mapToInt(Integer::intValue)
+                            .max()
+                            .orElse(0);
+                    maxTasks = Math.max(maxTasks, studentMaxTask);
+                }
+            }
+        }
+
+        // Если всё еще 0, используем значение по умолчанию
+        if (maxTasks == 0) {
+            maxTasks = 10;
+        }
+
+        // Гарантируем минимум 10 заданий для корректного отображения
+        return Math.max(maxTasks, 10);
     }
 
     private int createReportHeader(Sheet sheet, Workbook workbook,
@@ -242,6 +284,11 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         );
         CellStyle titleStyle = createTitleStyle(workbook);
         titleCell.setCellStyle(titleStyle);
+
+        // Объединяем ячейки для заголовка (A1:Y1 для 25 колонок)
+        sheet.addMergedRegion(new CellRangeAddress(
+                startRow - 1, startRow - 1, 0, 24
+        ));
 
         Row subtitleRow = sheet.createRow(startRow++);
         Cell subtitleCell = subtitleRow.createCell(0);
@@ -290,7 +337,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
 
     private int createStudentResultsSection(Sheet sheet, Workbook workbook,
                                             List<StudentDetailedResultDto> studentResults,
-                                            int startRow) {
+                                            int startRow, int maxTasks) {
         if (studentResults == null || studentResults.isEmpty()) {
             return startRow;
         }
@@ -299,19 +346,12 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         sectionHeader.createCell(0).setCellValue("РЕЗУЛЬТАТЫ СТУДЕНТОВ");
         sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
-        int maxTasks = studentResults.stream()
-                .map(StudentDetailedResultDto::getTaskScores)
-                .filter(Objects::nonNull)
-                .mapToInt(Map::size)
-                .max()
-                .orElse(0);
-
         List<String> headers = new ArrayList<>(Arrays.asList(
                 "№", "ФИО", "Присутствие", "Вариант", "Общий балл", "% выполнения"
         ));
 
         for (int i = 1; i <= maxTasks; i++) {
-            headers.add("№" + i); // Изменено здесь с "З" + i на "№" + i
+            headers.add("№" + i);
         }
 
         Row headerRow = sheet.createRow(startRow++);
@@ -356,7 +396,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
 
     private int createTaskAnalysisSection(Sheet sheet, Workbook workbook,
                                           Map<Integer, TaskStatisticsDto> taskStatistics,
-                                          int startRow) {
+                                          int startRow, int maxTasks) {
         if (taskStatistics == null || taskStatistics.isEmpty()) {
             return startRow;
         }
@@ -377,27 +417,44 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             cell.setCellStyle(createTableHeaderStyle(workbook));
         }
 
-        for (TaskStatisticsDto stats : taskStatistics.values().stream()
-                .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                .collect(Collectors.toList())) {
+        // Создаем гарантированный список заданий от 1 до maxTasks
+        for (int taskNum = 1; taskNum <= maxTasks; taskNum++) {
+            TaskStatisticsDto stats = taskStatistics.get(taskNum);
             Row row = sheet.createRow(startRow++);
 
-            row.createCell(0).setCellValue("№" + stats.getTaskNumber()); // Изменено здесь
-            row.createCell(1).setCellValue(stats.getMaxScore());
-            row.createCell(2).setCellValue(stats.getFullyCompletedCount());
-            row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
-            row.createCell(4).setCellValue(stats.getNotCompletedCount());
+            row.createCell(0).setCellValue("№" + taskNum);
 
-            Cell percentCell = row.createCell(5);
-            percentCell.setCellValue(stats.getCompletionPercentage() / 100.0);
-            percentCell.setCellStyle(createPercentStyle(workbook));
+            if (stats != null) {
+                row.createCell(1).setCellValue(stats.getMaxScore());
+                row.createCell(2).setCellValue(stats.getFullyCompletedCount());
+                row.createCell(3).setCellValue(stats.getPartiallyCompletedCount());
+                row.createCell(4).setCellValue(stats.getNotCompletedCount());
 
-            if (stats.getScoreDistribution() != null) {
-                String distribution = stats.getScoreDistribution().entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey())
-                        .map(e -> String.format("%d баллов: %d", e.getKey(), e.getValue()))
-                        .collect(Collectors.joining("; "));
-                row.createCell(6).setCellValue(distribution);
+                Cell percentCell = row.createCell(5);
+                percentCell.setCellValue(stats.getCompletionPercentage() / 100.0);
+                percentCell.setCellStyle(createPercentStyle(workbook));
+
+                if (stats.getScoreDistribution() != null) {
+                    String distribution = stats.getScoreDistribution().entrySet().stream()
+                            .sorted(Map.Entry.comparingByKey())
+                            .map(e -> String.format("%d баллов: %d", e.getKey(), e.getValue()))
+                            .collect(Collectors.joining("; "));
+                    row.createCell(6).setCellValue(distribution);
+                } else {
+                    row.createCell(6).setCellValue("-");
+                }
+            } else {
+                // Заполняем значения по умолчанию для отсутствующих заданий
+                row.createCell(1).setCellValue(1);
+                row.createCell(2).setCellValue(0);
+                row.createCell(3).setCellValue(0);
+                row.createCell(4).setCellValue(0);
+
+                Cell percentCell = row.createCell(5);
+                percentCell.setCellValue(0);
+                percentCell.setCellStyle(createPercentStyle(workbook));
+
+                row.createCell(6).setCellValue("-");
             }
         }
 
@@ -415,6 +472,8 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             sectionHeader.createCell(0).setCellValue("ГРАФИЧЕСКИЙ АНАЛИЗ");
             sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
+            startRow++; // Пустая строка после заголовка
+
             if (taskStatistics == null || taskStatistics.isEmpty()) {
                 return;
             }
@@ -426,10 +485,19 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             int dataStartRow = startRow;
             startRow = createChartDataTable(workbook, sheet, sortedTasks, startRow);
 
-            // Создаем диаграммы
-            createSimpleStackedChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow);
-            createExcelBarChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow + 25);
-            createExcelLineChart(workbook, (XSSFSheet) sheet, sortedTasks, dataStartRow, startRow + 50);
+            int chartStartRow = startRow + 2; // Отступ после таблицы данных
+
+            // Создаем диаграммы последовательно
+            createSimpleStackedChart(workbook, (XSSFSheet) sheet, sortedTasks,
+                    dataStartRow, chartStartRow);
+
+            // Вторая диаграмма смещена на CHART_ROW_SPAN + 2 строки
+            createExcelBarChart(workbook, (XSSFSheet) sheet, sortedTasks,
+                    dataStartRow, chartStartRow + CHART_ROW_SPAN + 2);
+
+            // Третья диаграмма смещена еще больше
+            createExcelLineChart(workbook, (XSSFSheet) sheet, sortedTasks,
+                    dataStartRow, chartStartRow + 2 * CHART_ROW_SPAN + 4);
 
         } catch (Exception e) {
             log.error("Ошибка при создании диаграмм Excel", e);
@@ -437,19 +505,71 @@ public class ExcelReportServiceImpl implements ExcelReportService {
     }
 
     /**
-     * Простой вариант с использованием только high-level API
+     * Улучшенный метод создания таблицы данных для графиков
+     */
+    /**
+     * Создает таблицу данных для графиков с проверкой позиции
+     */
+    private int createChartDataTable(Workbook workbook, Sheet sheet,
+                                     List<TaskStatisticsDto> tasks, int startRow) {
+
+        // Проверяем, не перекрывает ли таблица существующие данные
+        int lastRowWithData = sheet.getLastRowNum();
+        if (startRow <= lastRowWithData) {
+            startRow = lastRowWithData + 3; // Добавляем отступ
+        }
+
+        Row headerRow = sheet.createRow(startRow++);
+        String[] headers = {
+                "Задание",
+                "Полностью",
+                "Частично",
+                "Не справилось",
+                "% выполнения"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(createTableHeaderStyle(workbook));
+        }
+
+        for (int i = 0; i < tasks.size(); i++) {
+            TaskStatisticsDto task = tasks.get(i);
+            Row row = sheet.createRow(startRow++);
+
+            row.createCell(0).setCellValue("№" + task.getTaskNumber());
+            row.createCell(1).setCellValue(task.getFullyCompletedCount());
+            row.createCell(2).setCellValue(task.getPartiallyCompletedCount());
+            row.createCell(3).setCellValue(task.getNotCompletedCount());
+
+            Cell percentCell = row.createCell(4);
+            percentCell.setCellValue(task.getCompletionPercentage() / 100.0);
+            percentCell.setCellStyle(createPercentStyle(workbook));
+        }
+
+        return startRow + 2; // Добавляем дополнительный отступ
+    }
+
+    /**
+     * Исправленный метод создания Stacked диаграммы
      */
     private void createSimpleStackedChart(XSSFWorkbook workbook, XSSFSheet sheet,
                                           List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
 
         try {
-            Row chartTitleRow = sheet.createRow(chartRow);
+            // Добавляем пустую строку перед графиком
+            sheet.createRow(chartRow);
+
+            Row chartTitleRow = sheet.createRow(chartRow + 1);
             chartTitleRow.createCell(0).setCellValue("Распределение результатов (Stacked)");
             chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
             XSSFDrawing drawing = sheet.createDrawingPatriarch();
+
+            // Сдвигаем график вправо (col1 вместо col0) и увеличиваем ширину
             XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
-                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+                    1, chartRow + 2, CHART_COL_SPAN + 3, chartRow + CHART_ROW_SPAN + 2);
 
             XSSFChart chart = drawing.createChart(anchor);
             chart.setTitleText("Распределение результатов");
@@ -464,14 +584,12 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             leftAxis.setTitle("Количество студентов");
             leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
 
-            // Просто используем STACKED группировку
             XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
             XDDFBarChartData barData = (XDDFBarChartData) data;
             barData.setBarDirection(BarDirection.COL);
-            barData.setBarGrouping(BarGrouping.STACKED); // Просто STACKED
+            barData.setBarGrouping(BarGrouping.STACKED);
             barData.setVaryColors(true);
 
-            // Используем абсолютные значения (не нормированные)
             CellRangeAddress labelRange = new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 0, 0);
             XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
 
@@ -493,9 +611,9 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             chart.plot(data);
 
             // Настраиваем цвета
-            setSeriesColor(chart, 0, new Color(0, 20, 236));
-            setSeriesColor(chart, 1, new Color(241, 120, 0));
-            setSeriesColor(chart, 2, new Color(231, 50, 60));
+            setSeriesColor(chart, 0, new Color(0, 20, 236));   // Синий
+            setSeriesColor(chart, 1, new Color(241, 120, 0));  // Оранжевый
+            setSeriesColor(chart, 2, new Color(231, 50, 60));  // Красный
 
             log.info("✅ Simple Stacked Chart создан");
 
@@ -504,60 +622,29 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         }
     }
 
-    private int createChartDataTable(Workbook workbook, Sheet sheet,
-                                     List<TaskStatisticsDto> tasks, int startRow) {
-
-        Row headerRow = sheet.createRow(startRow++);
-        String[] headers = {
-                "Задание",
-                "Полностью",
-                "Частично",
-                "Не справилось",
-                "% выполнения"
-        };
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(createTableHeaderStyle(workbook));
-        }
-
-        for (int i = 0; i < tasks.size(); i++) {
-            TaskStatisticsDto task = tasks.get(i);
-            Row row = sheet.createRow(startRow++);
-
-            row.createCell(0).setCellValue("№" + task.getTaskNumber()); // Изменено здесь
-            row.createCell(1).setCellValue(task.getFullyCompletedCount());
-            row.createCell(2).setCellValue(task.getPartiallyCompletedCount());
-            row.createCell(3).setCellValue(task.getNotCompletedCount());
-
-            Cell percentCell = row.createCell(4);
-            percentCell.setCellValue(task.getCompletionPercentage() / 100.0);
-            percentCell.setCellStyle(createPercentStyle(workbook));
-        }
-
-        return startRow + 1;
-    }
-
     /**
-     * Создает Bar Chart в Excel для процентов выполнения
+     * Исправленный метод создания Bar диаграммы
      */
     private void createExcelBarChart(XSSFWorkbook workbook, XSSFSheet sheet,
                                      List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
 
         try {
-            Row chartTitleRow = sheet.createRow(chartRow);
+            // Добавляем пустую строку перед графиком
+            sheet.createRow(chartRow);
+
+            Row chartTitleRow = sheet.createRow(chartRow + 1);
             chartTitleRow.createCell(0).setCellValue("Процент выполнения заданий");
             chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
             XSSFDrawing drawing = sheet.createDrawingPatriarch();
+
+            // Сдвигаем график вправо
             XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
-                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+                    1, chartRow + 2, CHART_COL_SPAN + 3, chartRow + CHART_ROW_SPAN + 2);
 
             XSSFChart chart = drawing.createChart(anchor);
             chart.setTitleText("Процент выполнения заданий");
 
-            // Получаем легенду
             XDDFChartLegend legend = chart.getOrAddLegend();
             legend.setPosition(LegendPosition.RIGHT);
 
@@ -586,12 +673,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             series.setTitle("% выполнения", null);
 
             chart.plot(data);
-
-            // Устанавливаем цвета в зависимости от процента выполнения
-            // В этом случае все столбцы будут одного цвета (серия одна)
-            // Если нужно разноцветные столбцы, нужно создавать отдельную серию для каждого столбца
-            // или использовать другой подход
-            setSeriesColor(chart, 0, new Color(52, 152, 219)); // Синий для всей серии
+            setSeriesColor(chart, 0, new Color(52, 152, 219));
 
             log.info("✅ Bar Chart создана успешно");
 
@@ -601,24 +683,28 @@ public class ExcelReportServiceImpl implements ExcelReportService {
     }
 
     /**
-     * Создает Line Chart в Excel для динамики выполнения
+     * Исправленный метод создания Line диаграммы
      */
     private void createExcelLineChart(XSSFWorkbook workbook, XSSFSheet sheet,
                                       List<TaskStatisticsDto> tasks, int dataStartRow, int chartRow) {
 
         try {
-            Row chartTitleRow = sheet.createRow(chartRow);
+            // Добавляем пустую строку перед графиком
+            sheet.createRow(chartRow);
+
+            Row chartTitleRow = sheet.createRow(chartRow + 1);
             chartTitleRow.createCell(0).setCellValue("Динамика выполнения заданий");
             chartTitleRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
 
             XSSFDrawing drawing = sheet.createDrawingPatriarch();
+
+            // Сдвигаем график вправо
             XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
-                    0, chartRow + 1, CHART_COL_SPAN, chartRow + CHART_ROW_SPAN);
+                    1, chartRow + 2, CHART_COL_SPAN + 3, chartRow + CHART_ROW_SPAN + 2);
 
             XSSFChart chart = drawing.createChart(anchor);
             chart.setTitleText("Динамика выполнения заданий");
 
-            // Получаем легенду
             XDDFChartLegend legend = chart.getOrAddLegend();
             legend.setPosition(LegendPosition.BOTTOM);
 
@@ -643,11 +729,9 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             XDDFChartData.Series series = data.addSeries(xs, ys);
             series.setTitle("% выполнения", null);
 
-            // Настраиваем линию
             XDDFLineProperties lineProps = new XDDFLineProperties();
             lineProps.setWidth(2.0);
 
-            // Создаем цвет через RGB
             byte[] rgbColor = new byte[3];
             rgbColor[0] = (byte) 52;   // R
             rgbColor[1] = (byte) 152;  // G
@@ -658,9 +742,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
             XDDFShapeProperties shapeProps = new XDDFShapeProperties();
             shapeProps.setLineProperties(lineProps);
 
-            // Настройка маркеров (альтернативный способ)
             try {
-                // Попытка создать маркеры через рефлексию (если класс доступен)
                 Class<?> markerClass = Class.forName("org.apache.poi.xddf.usermodel.chart.XDDFMarker");
                 Object marker = markerClass.getDeclaredConstructor().newInstance();
                 markerClass.getMethod("setStyle", MarkerStyle.class).invoke(marker, MarkerStyle.CIRCLE);
@@ -668,7 +750,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
                 lineData.getClass().getMethod("setMarker", markerClass).invoke(lineData, marker);
             } catch (Exception e) {
                 log.warn("⚠️ Не удалось установить маркеры для линии: {}", e.getMessage());
-                // Без маркеров тоже нормально
             }
 
             series.setShapeProperties(shapeProps);
@@ -697,7 +778,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
 
             XDDFChartData.Series series = data.getSeries(seriesIndex);
 
-            // Создаем цвет через RGB
             byte[] rgbColor = new byte[3];
             rgbColor[0] = (byte) color.getRed();
             rgbColor[1] = (byte) color.getGreen();
@@ -723,11 +803,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         XSSFRow titleRow = sheet.createRow(0);
         Cell titleCell = titleRow.createCell(0);
         titleCell.setCellValue("Отчет по тестам учителя: " + teacherName);
-        CellStyle titleStyle = workbook.createCellStyle();
-        Font titleFont = workbook.createFont();
-        titleFont.setBold(true);
-        titleFont.setFontHeightInPoints((short) 14);
-        titleStyle.setFont(titleFont);
+        CellStyle titleStyle = createTitleStyle(workbook);
         titleCell.setCellStyle(titleStyle);
 
         XSSFRow dateRow = sheet.createRow(1);
@@ -777,7 +853,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         }
 
         addTeacherSummaryRow(sheet, rowNum, teacherTests, workbook);
-        optimizeColumnWidths(sheet);
+        optimizeColumnWidths(sheet, headers.length);
     }
 
     private void addTeacherSummaryRow(Sheet sheet, int rowNum,
@@ -909,7 +985,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
 
         rowNum++;
         createTestStatisticsTable(sheet, workbook, test, rowNum);
-        optimizeColumnWidths(sheet);
+        optimizeColumnWidths(sheet, 2);
     }
 
     private void createTestStatisticsTable(Sheet sheet, Workbook workbook,
@@ -958,7 +1034,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         );
 
         String[] headers = {
-                "ID", "Предмет", "Класс", "Учитель", "Дата теста", "Тип",
+                "Учебный год", "Предмет", "Класс", "Учитель", "Дата теста", "Тип",
                 "Присутствовало", "Отсутствовало", "Всего", "% присутствия",
                 "Средний балл", "% выполнения", "Кол-во заданий", "Макс. балл"
         };
@@ -984,7 +1060,7 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         for (TestSummaryDto test : tests) {
             Row row = sheet.createRow(rowNum++);
 
-            row.createCell(0).setCellValue(testId++);
+            row.createCell(0).setCellValue(test.getACADEMIC_YEAR());
             row.createCell(1).setCellValue(test.getSubject());
             row.createCell(2).setCellValue(test.getClassName());
             row.createCell(3).setCellValue(test.getTeacher());
@@ -1099,14 +1175,64 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         return filePath.toFile();
     }
 
-    private void optimizeColumnWidths(Sheet sheet) {
-        for (int i = 0; i < sheet.getRow(0).getLastCellNum(); i++) {
+    /**
+     * Улучшенная оптимизация ширины колонок
+     */
+    private void optimizeColumnWidths(Sheet sheet, int columnCount) {
+        for (int i = 0; i < columnCount; i++) {
             sheet.autoSizeColumn(i);
             int currentWidth = sheet.getColumnWidth(i);
+
+            // Устанавливаем разумные ограничения
             if (currentWidth < MIN_COLUMN_WIDTH) {
                 sheet.setColumnWidth(i, MIN_COLUMN_WIDTH);
             } else if (currentWidth > MAX_COLUMN_WIDTH) {
                 sheet.setColumnWidth(i, MAX_COLUMN_WIDTH);
+            }
+        }
+    }
+
+    /**
+     * Улучшенная оптимизация ширины для детальных отчетов
+     */
+    private void optimizeAllColumns(Sheet sheet, int maxTasks) {
+        // Базовые ширины для основных колонок
+        int[] baseWidths = {
+                1500,   // №
+                4500,   // ФИО (уменьшено)
+                2000,   // Присутствие
+                1500,   // Вариант
+                1500,   // Общий балл
+                1500,   // % выполнения
+        };
+
+        // Ширины для секции анализа заданий (G, H, I...)
+        for (int i = 0; i < baseWidths.length; i++) {
+            sheet.setColumnWidth(i, baseWidths[i]);
+        }
+
+        // Колонки с результатами заданий (начиная с 7-й колонки)
+        int taskResultWidth = 800; // Уменьшенная ширина для баллов заданий
+        for (int i = 0; i < maxTasks; i++) {
+            int colIndex = 6 + i; // Начинаем с колонки G (индекс 6)
+            sheet.setColumnWidth(colIndex, taskResultWidth);
+
+            // Устанавливаем стиль центрирования
+            CellStyle centeredStyle = createCenteredStyle(sheet.getWorkbook());
+            // Применяем стиль к заголовкам заданий
+            if (sheet.getRow(10) != null && sheet.getRow(10).getCell(colIndex) != null) {
+                sheet.getRow(10).getCell(colIndex).setCellStyle(centeredStyle);
+            }
+        }
+
+        // Колонки для анализа заданий (начиная с 6 + maxTasks)
+        int analysisStartCol = 6 + maxTasks;
+        int[] analysisWidths = {1500, 1500, 1500, 1500, 1500, 1500, 3000}; // 7 колонок
+
+        for (int i = 0; i < analysisWidths.length; i++) {
+            int colIndex = analysisStartCol + i;
+            if (colIndex < 256) { // Максимум 256 колонок в Excel
+                sheet.setColumnWidth(colIndex, analysisWidths[i]);
             }
         }
     }
