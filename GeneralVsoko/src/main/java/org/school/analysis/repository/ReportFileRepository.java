@@ -1,6 +1,6 @@
 package org.school.analysis.repository;
 
-import org.school.analysis.entity.ReportFileEntity;
+import org.school.analysis.model.entity.ReportFileEntity;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;

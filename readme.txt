@@ -1,41 +1,54 @@
 src/main/java/org/school/analysis/
-├── 📂 model/                          # Модели данных (DTO/Entity)
-│   ├── StudentResult.java            # Результат ученика
+├── 📂 model/                          # Модели данных
+│   ├── 📂 dto/                        # DTO для передачи данных между слоями
+│   │   ├── TestSummaryDto.java        # Сводные данные по тесту
+│   │   ├── StudentDetailedResultDto.java  # Детальные результаты студента
+│   │   ├── TaskStatisticsDto.java     # Статистика по заданию
+│   │   └── TeacherTestDetailDto.java  # Детальные данные теста для учителя
+│   │
+│   ├── 📂 entity/                     # JPA сущности (если используется)
+│   │   ├── ReportFileEntity.java      # Сущность файла отчета
+│   │   └── StudentResultEntity.java   # Сущность результата студента
+│   │
+│   ├── StudentResult.java             # Результат ученика
 │   ├── ReportFile.java               # Файл отчета + метаданные
 │   ├── ParseResult.java              # Результат парсинга
 │   ├── ProcessingStatus.java         # Enum статусов обработки
+│   ├── ProcessingSummary.java        # Итоги обработки
 │   └── TestMetadata.java             # Метаданные теста
 │
-├── 📂 service/                        # Сервисный слой (бизнес-логика)
+├── 📂 service/                        # Сервисный слой
 │   ├── 📂 impl/                       # Реализации сервисов
-│   │   ├── ReportProcessorServiceImpl.java     # Главный координатор
-│   │   ├── ReportParserServiceImpl.java        # Парсинг Excel (с заменой ExcelReportParser)
-│   │   └── FileOrganizerServiceImpl.java       # Организация файлов
+│   │   ├── GeneralServiceImpl.java           # Главный координатор (бывший ReportProcessorServiceImpl)
+│   │   ├── ParserServiceImpl.java           # Парсинг отчетов
+│   │   ├── FileOrganizerServiceImpl.java    # Организация файлов
+│   │   ├── SavedServiceImpl.java           # Сохранение в БД (бывший StudentResultRepositoryImpl)
+│   │   ├── ExcelReportServiceImpl.java     # Генерация Excel отчетов
+│   │   └── AnalysisServiceImpl.java        # Анализ и статистика
 │   │
-│   ├── ReportProcessorService.java             # Интерфейс главного сервиса
-│   ├── ReportParserService.java                # Интерфейс парсинга
-│   └── FileOrganizerService.java               # Интерфейс организации файлов
+│   ├── GeneralService.java           # Интерфейс главного сервиса
+│   ├── ParserService.java           # Интерфейс парсинга
+│   ├── FileOrganizerService.java    # Интерфейс организации файлов
+│   ├── SavedService.java           # Интерфейс сохранения в БД
+│   ├── ExcelReportService.java     # Интерфейс генерации отчетов Excel
+│   └── AnalysisService.java        # Интерфейс анализа данных
 │
-├── 📂 parser/                         # Парсеры разных форматов
-│   └── 📂 strategy/                   # Стратегии парсинга
-│       ├── StudentDataParser.java     # Парсинг данных учеников
-│       └── MetadataParser.java        # Парсинг метаданных
+├── 📂 repository/                    # JPA репозитории
+│   ├── ReportFileRepository.java    # Репозиторий для файлов отчетов
+│   └── StudentResultRepository.java # Репозиторий для результатов студентов
 │
-├── 📂 repository/                        # репозиторий
-│   ├── 📂 impl/                       # Реализация репозитория
-│   │   ├── StudentResultRepositoryImpl.java     # Главный репозиторий
-│   │
-│   ├── ReportFileRepository.java             # репозиторий JPA
-│   ├── StudentResultRepository.java          # репозиторий JPA
+├── 📂 util/                          # Утилиты и хелперы
+│   ├── JsonScoreUtils.java          # Работа с JSON баллами
+│   ├── ValidationHelper.java        # Валидация данных
+│   ├── DateTimeFormatters.java      # Форматтеры даты/времени
+│   ├── ModernGradientBarPainter.java # Кастомный painter для графиков
+│   ├── ChartStyleUtils.java         # Утилиты для стилей графиков
+│   └── ExcelParser.java             # Низкоуровневый парсинг Excel (если используется)
 │
-├── 📂 util/                           # Утилиты и хелперы
-│   ├── ExcelParser.java               # Низкоуровневый парсинг Excel
-│   └── ValidationHelper.java          # Валидация данных
+├── 📂 config/                        # Конфигурация
+│   └── AppConfig.java               # Настройки путей и параметров
 │
-├── 📂 config/                         # Конфигурация
-│   └── AppConfig.java                 # Настройки путей и параметров
+├── 📂 exception/                     # Кастомные исключения
+│   └── ValidationException.java     # Исключение для ошибок валидации
 │
-├── 📂 exception/                      # Кастомные исключения (НОВОЕ)
-│   └── ValidationException.java       # Исключение для ошибок валидации
-│
-└── Main.java                          # Точка входа
+└── Main.java                        # Точка входа

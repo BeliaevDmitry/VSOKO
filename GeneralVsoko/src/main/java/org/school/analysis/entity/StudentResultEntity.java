@@ -1,4 +1,4 @@
-package org.school.analysis.entity;
+package org.school.analysis.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
