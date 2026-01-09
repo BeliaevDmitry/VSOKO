@@ -52,10 +52,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
-     */
-    /**
+       /**
      * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
      */
     private TestSummaryDto convertToTestSummaryDto(ReportFileEntity reportFile) {
@@ -109,6 +106,8 @@ public class AnalysisServiceImpl implements AnalysisService {
                     .studentsTotal(classSize)                     // Всего учеников в классе
                     .studentsPresent(studentsCount)               // Присутствовало на тесте
                     .studentsAbsent((int) absentCount)            // Отсутствовало на тесте
+                    .ACADEMIC_YEAR(reportFile.getACADEMIC_YEAR())
+                    .school(reportFile.getSchool())
                     .build();
         } catch (Exception e) {
             log.error("Ошибка при конвертации ReportFileEntity в TestSummaryDto: {}", e.getMessage(), e);
@@ -346,6 +345,8 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .totalScore(entity.getTotalScore())
                 .percentageScore(entity.getPercentageScore())
                 .taskScores(scores)
+                .ACADEMIC_YEAR(entity.getACADEMIC_YEAR())
+                .school(entity.getSchool())
                 .build();
     }
 }

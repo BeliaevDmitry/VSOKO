@@ -20,6 +20,7 @@ public class ReportFile {
     private LocalDate testDate;
     private String teacher;
     private String school = "ГБОУ №7";
+    private String ACADEMIC_YEAR = "2025-2026";
 
     // Параметры теста
     private int taskCount;

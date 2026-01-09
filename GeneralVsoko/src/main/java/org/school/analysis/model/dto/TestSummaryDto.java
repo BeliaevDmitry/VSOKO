@@ -28,6 +28,7 @@ public class TestSummaryDto {
     private Integer studentsTotal;      // Всего учеников в классе
     private Integer studentsPresent;    // Присутствовало на тесте
     private Integer studentsAbsent;     // Отсутствовало на тесте
+    private String ACADEMIC_YEAR;       // Учебный год
 
     // Вычисляемое поле для процента присутствия
     public Double getAttendancePercentage() {

@@ -31,7 +31,7 @@
             <artifactId>poi-ooxml</artifactId>
         </dependency>
 
-        <!-- Commons IO (ОБЯЗАТЕЛЬНО!) -->
+        <!-- Commons IO -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
@@ -50,6 +50,8 @@
             <artifactId>itextpdf</artifactId>
             <version>5.5.13.3</version>
         </dependency>
+
+        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

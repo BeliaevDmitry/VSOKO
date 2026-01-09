@@ -51,6 +51,7 @@ public class ReportFileEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Builder.Default
     @Column(name = "student_count")
     private Integer studentCount = 0;
 
@@ -59,6 +60,10 @@ public class ReportFileEntity {
 
     @Column(length = 200)
     private String teacher;
+
+    @Builder.Default
+    @Column(length = 200)
+    private String ACADEMIC_YEAR = "2025-2026";
 
     @Builder.Default
     @Column(length = 200)
