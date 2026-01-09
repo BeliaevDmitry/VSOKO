@@ -21,6 +21,9 @@ import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+import static org.school.analysis.config.AppConfig.REPORTS_Analisis_BASE_FOLDER;
+import static org.school.analysis.config.AppConfig.REPORTS_BASE_FOLDER;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -555,8 +558,9 @@ public class DetailReportGenerator {
 
     private File saveWorkbookToFile(Workbook workbook, TestSummaryDto testSummary) throws IOException {
         // Создаем директорию для отчетов, если её нет
-        if (!Files.exists(REPORTS_DIR)) {
-            Files.createDirectories(REPORTS_DIR);
+        String folderPath = REPORTS_Analisis_BASE_FOLDER.replace("{предмет}", testSummary.getSubject());
+        if (!Files.exists(Path.of(folderPath))) {
+            Files.createDirectories(Path.of(folderPath));
         }
 
         // Формируем имя файла
@@ -564,8 +568,8 @@ public class DetailReportGenerator {
                 testSummary.getSubject(),
                 testSummary.getClassName(),
                 testSummary.getTestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd")));
-
-        File file = REPORTS_DIR.resolve(fileName).toFile();
+        log.info("✅ название детального отчёта такое: {}", fileName);
+        File file = Path.of(folderPath).resolve(fileName).toFile();
 
         try (FileOutputStream fos = new FileOutputStream(file)) {
             workbook.write(fos);

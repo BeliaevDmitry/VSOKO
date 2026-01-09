@@ -12,6 +12,9 @@ public class AppConfig {
     public static final String REPORTS_BASE_FOLDER =
             "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы\\{предмет}\\Отчёты";
 
+
+    public static final String REPORTS_Analisis_BASE_FOLDER =
+            "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы\\{предмет}\\Анализ";
     // Папка для итоговых отчетов (сводная статистика)
     public static final String FINAL_REPORT_FOLDER =
             "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы";
