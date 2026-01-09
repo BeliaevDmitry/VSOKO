@@ -753,7 +753,14 @@ public class EGKRReportGenerator {
         sheet.setColumnWidth(0, 4000);
         sheet.setColumnWidth(1, 8000);
 
-        String workDate = results.isEmpty() ? "2025.12.11" : results.get(0).getDate();
+        // Создаем стиль для ячейки с датой
+        XSSFCellStyle dateStyle = workbook.createCellStyle();
+        dateStyle.cloneStyleFrom(styles.get("teacher"));
+
+        // Настраиваем формат даты
+        CreationHelper createHelper = workbook.getCreationHelper();
+        dateStyle.setDataFormat(createHelper.createDataFormat().getFormat("yyyy.mm.dd"));
+
         int rowNum = 0;
 
         // Строка 1: Учитель
@@ -763,13 +770,51 @@ public class EGKRReportGenerator {
         row1.createCell(1).setCellValue(teacherName);
         row1.getCell(1).setCellStyle(styles.get("teacher"));
 
-        // Строка 2: Дата написания работы
+        // Строка 2: Дата написания работы - ИСПРАВЛЕННАЯ
         Row row2 = sheet.createRow(rowNum++);
         row2.createCell(0).setCellValue("Дата написания работы");
         row2.getCell(0).setCellStyle(styles.get("header"));
-        row2.createCell(1).setCellValue(workDate);
-        row2.getCell(1).setCellStyle(styles.get("teacher"));
 
+        Cell dateCell = row2.createCell(1);
+
+        // Получаем дату из результатов ЕГКР
+        String workDate = "";
+        if (!results.isEmpty() && results.get(0).getDate() != null && !results.get(0).getDate().trim().isEmpty()) {
+            workDate = results.get(0).getDate().trim();
+        } else {
+            // Если даты нет, используем текущую дату
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd");
+            workDate = sdf.format(new Date());
+        }
+
+        // Пытаемся преобразовать строку в дату Excel
+        try {
+            // Пробуем разные форматы дат
+            Date parsedDate = null;
+            SimpleDateFormat sdf1 = new SimpleDateFormat("yyyy.MM.dd");
+            SimpleDateFormat sdf2 = new SimpleDateFormat("dd.MM.yyyy");
+
+            try {
+                parsedDate = sdf1.parse(workDate);
+            } catch (Exception e1) {
+                try {
+                    parsedDate = sdf2.parse(workDate);
+                } catch (Exception e2) {
+                    // Если не удалось распарсить, используем текущую дату
+                    parsedDate = new Date();
+                }
+            }
+
+            dateCell.setCellValue(parsedDate);
+            dateCell.setCellStyle(dateStyle);
+
+        } catch (Exception e) {
+            // Если не удалось установить как дату, устанавливаем как строку
+            dateCell.setCellValue(workDate);
+            dateCell.setCellStyle(styles.get("teacher"));
+        }
+
+        // Остальные строки остаются без изменений
         // Строка 3: Предмет
         Row row3 = sheet.createRow(rowNum++);
         row3.createCell(0).setCellValue("Предмет");
@@ -2165,6 +2210,3 @@ public class EGKRReportGenerator {
 
 
 }
-
-// ВАЖНО: Вам нужно скопировать ВСЕ остальные методы из оригинального класса EGKRReportGenerator
-// и вставить их в этот новый класс EGKRReportGeneratorV2
