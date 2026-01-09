@@ -27,12 +27,6 @@ public interface ExcelReportService {
             List<StudentDetailedResultDto> studentResults,
             Map<Integer, TaskStatisticsDto> taskStatistics);
 
-    /**
-     * Генерирует отчет для учителя со всеми его тестами
-     */
-    File generateTeacherReport(
-            String teacherName,
-            List<TestSummaryDto> teacherTests);
 
     /**
      * Генерация отчета для учителя с детальными данными по тестам

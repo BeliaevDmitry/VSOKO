@@ -244,40 +244,4 @@ public class TeacherReportGenerator extends ExcelReportBase {
                     testSummary.getFileName(), e.getMessage(), e);
         }
     }
-
-    private void createTestStatisticsTable(Sheet sheet, Workbook workbook,
-                                           TestSummaryDto test, int startRow) {
-
-        // Заголовок таблицы
-        Row headerRow = sheet.createRow(startRow++);
-        headerRow.createCell(0).setCellValue("Показатель");
-        headerRow.createCell(1).setCellValue("Значение");
-        headerRow.getCell(0).setCellStyle(createTableHeaderStyle(workbook));
-        headerRow.getCell(1).setCellStyle(createTableHeaderStyle(workbook));
-
-        // Данные статистики
-        String[][] stats = {
-                {"Предмет", test.getSubject()},
-                {"Класс", test.getClassName()},
-                {"Учитель", test.getTeacher()},
-                {"Дата теста", test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE)},
-                {"Тип работы", test.getTestType()},
-                {"Всего учеников", String.valueOf(test.getClassSize())},
-                {"Присутствовало", String.valueOf(test.getStudentsPresent())},
-                {"Отсутствовало", String.valueOf(test.getStudentsAbsent())},
-                {"% присутствия", String.format("%.1f%%", test.getAttendancePercentage())},
-                {"Количество заданий", String.valueOf(test.getTaskCount())},
-                {"Макс. балл", String.valueOf(test.getMaxTotalScore())},
-                {"Средний балл", String.format("%.2f", test.getAverageScore())},
-                {"% выполнения", String.format("%.1f%%", test.getSuccessPercentage())},
-                {"Файл отчета", test.getFileName()}
-        };
-
-        // Заполняем таблицу
-        for (String[] rowData : stats) {
-            Row row = sheet.createRow(startRow++);
-            row.createCell(0).setCellValue(rowData[0]);
-            row.createCell(1).setCellValue(rowData[1]);
-        }
-    }
 }

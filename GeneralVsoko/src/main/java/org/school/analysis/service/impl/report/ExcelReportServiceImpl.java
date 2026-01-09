@@ -39,15 +39,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
     }
 
     @Override
-    public File generateTeacherReport(
-            String teacherName,
-            List<TestSummaryDto> teacherTests) {
-
-        log.info("Генерация отчета для учителя: {}", teacherName);
-        return teacherReportGenerator.generateTeacherReport(teacherName, teacherTests);
-    }
-
-    @Override
     public File generateTeacherReportWithDetails(
             String teacherName,
             List<TestSummaryDto> teacherTests,

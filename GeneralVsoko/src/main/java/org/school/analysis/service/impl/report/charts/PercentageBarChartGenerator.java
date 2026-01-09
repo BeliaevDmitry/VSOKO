@@ -21,21 +21,20 @@ public class PercentageBarChartGenerator extends ExcelChartBase {
     public PercentageBarChartGenerator(ChartStyleConfig styleConfig) {
         this.styleConfig = styleConfig;
     }
-
     /**
-     * Создает Bar Chart для процента выполнения
+     * Создает Percentage Bar Chart на основе таблицы данных
      */
-    public void createChart(XSSFWorkbook workbook, XSSFSheet sheet,
-                            List<TaskStatisticsDto> tasks,
-                            int dataStartRow, int chartRow,
-                            String chartTitle) {
+    public void createChartFromDataTable(XSSFWorkbook workbook, XSSFSheet sheet,
+                                         int dataStartRow, int taskCount,
+                                         int chartRow, String chartTitle) {
 
         try {
+            // Создаем объект для рисования
             XSSFDrawing drawing = sheet.createDrawingPatriarch();
 
-            // Позиция графика
+            // Определяем позицию графика
             XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
-                    styleConfig.getLeftOffset(), chartRow + 1,
+                    styleConfig.getLeftOffset(), chartRow,
                     styleConfig.getLeftOffset() + styleConfig.getColSpan(),
                     chartRow + styleConfig.getRowSpan());
 
@@ -48,38 +47,40 @@ public class PercentageBarChartGenerator extends ExcelChartBase {
 
             // Оси
             XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
-            bottomAxis.setTitle("Задание");
+            bottomAxis.setTitle("№ задания");
 
             XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
             leftAxis.setTitle("% выполнения");
             leftAxis.setCrosses(AxisCrosses.AUTO_ZERO);
-            leftAxis.setMinimum(0.0);
-            leftAxis.setMaximum(1.0);
 
-            // Данные
+            // Формат для отображения процентов
+            leftAxis.setNumberFormat("0%");
+
+            // Данные для графика
             XDDFChartData data = chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
             XDDFBarChartData barData = (XDDFBarChartData) data;
             barData.setBarDirection(BarDirection.COL);
-            barData.setBarGrouping(BarGrouping.STANDARD);
+            barData.setBarGrouping(BarGrouping.CLUSTERED);
             barData.setVaryColors(true);
 
             // Диапазоны данных
             CellRangeAddress labelRange = new CellRangeAddress(
-                    dataStartRow + 1, dataStartRow + tasks.size(), 0, 0);
+                    dataStartRow + 1, dataStartRow + taskCount, 0, 0);
             XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, labelRange);
 
+            // Серия: % выполнения
             XDDFNumericalDataSource<Double> ys = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
-                    new CellRangeAddress(dataStartRow + 1, dataStartRow + tasks.size(), 4, 4));
-
+                    new CellRangeAddress(dataStartRow + 1, dataStartRow + taskCount, 5, 5));
             XDDFChartData.Series series = data.addSeries(xs, ys);
             series.setTitle("% выполнения", null);
 
+            // Рисуем график
             chart.plot(data);
 
-            log.debug("✅ Percentage Bar Chart создан");
+            log.debug("✅ Percentage Bar Chart создан из таблицы данных");
 
         } catch (Exception e) {
-            log.error("❌ Ошибка создания Percentage Bar Chart: {}", e.getMessage(), e);
+            log.error("❌ Ошибка создания Percentage Bar Chart из таблицы данных: {}", e.getMessage(), e);
         }
     }
 }

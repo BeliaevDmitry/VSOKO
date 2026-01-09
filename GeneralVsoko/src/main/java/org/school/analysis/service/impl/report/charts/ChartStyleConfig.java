@@ -29,7 +29,7 @@ public class ChartStyleConfig {
     private int spacing = 5;
 
     /** Отступ графика от левого края в колонках */
-    private int leftOffset = 1;
+    private int leftOffset = 0;
 
     // ============ ЦВЕТА ГРАФИКОВ ============
 

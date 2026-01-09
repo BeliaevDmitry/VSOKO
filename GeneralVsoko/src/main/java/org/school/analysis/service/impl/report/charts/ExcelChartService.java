@@ -25,107 +25,60 @@ public class ExcelChartService {
     private final PercentageBarChartGenerator percentageBarChartGenerator;
 
     /**
-     * Создает все графики для детального отчета
+     * Создает графики на основе существующей таблицы "АНАЛИЗ ПО ЗАДАНИЯМ"
      */
-    public void createCharts(XSSFWorkbook workbook, XSSFSheet sheet,
-                             TestSummaryDto testSummary,
-                             Map<Integer, TaskStatisticsDto> taskStatistics,
-                             int startRow) {
+    public void createChartsFromAnalysisTable(XSSFWorkbook workbook, XSSFSheet sheet,
+                                              int analysisTableStartRow, int taskCount,
+                                              int chartStartRow) {
 
         try {
-            log.debug("Создание графиков для теста: {}", testSummary.getFileName());
+            log.debug("Создание графиков на основе таблицы анализа, задач: {}", taskCount);
 
-            // Создаем заголовок раздела с графиками
-            Row sectionHeader = sheet.createRow(startRow++);
-            Cell headerCell = sectionHeader.createCell(0);
-            headerCell.setCellValue("ГРАФИЧЕСКИЙ АНАЛИЗ");
-            headerCell.setCellStyle(createSectionHeaderStyle(workbook));
 
-            startRow++; // Пустая строка
+            // Вычисляем позицию для графиков (после таблицы данных)
+            int chartRow = chartStartRow + 2;
 
-            if (taskStatistics == null || taskStatistics.isEmpty()) {
-                log.warn("Нет данных для создания графиков");
-                sheet.createRow(startRow++).createCell(0).setCellValue("Нет данных для графиков");
-                return;
-            }
-
-            // Сортируем задания по номеру
-            List<TaskStatisticsDto> sortedTasks = taskStatistics.values().stream()
-                    .sorted(Comparator.comparingInt(TaskStatisticsDto::getTaskNumber))
-                    .collect(Collectors.toList());
-
-            // Создаем таблицу данных для графиков
-            int dataStartRow = createDataTable(workbook, sheet, sortedTasks, startRow);
-
-            // Вычисляем позицию для графиков (после таблицы)
-            int chartRow = dataStartRow + 2;
-
-            // 1. Stacked Bar Chart - распределение результатов
-            stackedBarChartGenerator.createChart(
-                    workbook, sheet, sortedTasks,
-                    dataStartRow, chartRow,
+            int dataTableStartRow = analysisTableStartRow -1;
+            // 1. Stacked Bar Chart
+            stackedBarChartGenerator.createChartFromDataTable(
+                    workbook, sheet,
+                    dataTableStartRow, // строка с данными
+                    taskCount,         // количество заданий
+                    chartRow,          // позиция для графика
                     "Распределение результатов по заданиям"
             );
 
             chartRow += styleConfig.getRowSpan() + styleConfig.getSpacing();
 
-            // 2. Line Chart - процент выполнения
-            lineChartGenerator.createChart(
-                    workbook, sheet, sortedTasks,
-                    dataStartRow, chartRow,
+// 2. Line Chart
+            lineChartGenerator.createChartFromDataTable(
+                    workbook, sheet,
+                    dataTableStartRow,
+                    taskCount,
+                    chartRow,
                     "Процент выполнения заданий"
             );
 
             chartRow += styleConfig.getRowSpan() + styleConfig.getSpacing();
 
-            // 3. Percentage Bar Chart - столбчатая диаграмма процентов
-            percentageBarChartGenerator.createChart(
-                    workbook, sheet, sortedTasks,
-                    dataStartRow, chartRow,
+// 3. Percentage Bar Chart
+            percentageBarChartGenerator.createChartFromDataTable(
+                    workbook, sheet,
+                    dataTableStartRow,
+                    taskCount,
+                    chartRow,
                     "Процент выполнения (столбчатая диаграмма)"
             );
 
-            log.info("✅ Все графики успешно созданы");
+            log.info("✅ Все графики успешно созданы на основе таблицы анализа");
 
         } catch (Exception e) {
-            log.error("❌ Ошибка при создании графиков: {}", e.getMessage(), e);
-            Row errorRow = sheet.createRow(startRow++);
+            log.error("❌ Ошибка при создании графиков из таблицы анализа: {}", e.getMessage(), e);
+            Row errorRow = sheet.createRow(chartStartRow);
             errorRow.createCell(0).setCellValue("Ошибка при создании графиков: " + e.getMessage());
         }
     }
 
-    /**
-     * Создает таблицу данных для графиков
-     */
-    private int createDataTable(Workbook workbook, Sheet sheet,
-                                List<TaskStatisticsDto> tasks, int startRow) {
-
-        // Заголовки таблицы
-        Row headerRow = sheet.createRow(startRow++);
-        String[] headers = {"Задание", "Полностью", "Частично", "Не справилось", "% выполнения"};
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(createTableHeaderStyle(workbook));
-        }
-
-        // Данные для каждого задания
-        for (TaskStatisticsDto task : tasks) {
-            Row row = sheet.createRow(startRow++);
-
-            row.createCell(0).setCellValue("№" + task.getTaskNumber());
-            row.createCell(1).setCellValue(task.getFullyCompletedCount());
-            row.createCell(2).setCellValue(task.getPartiallyCompletedCount());
-            row.createCell(3).setCellValue(task.getNotCompletedCount());
-
-            Cell percentCell = row.createCell(4);
-            percentCell.setCellValue(task.getCompletionPercentage() / 100.0);
-            percentCell.setCellStyle(createPercentStyle(workbook));
-        }
-
-        return startRow - tasks.size() - 1; // Возвращаем начальную строку данных
-    }
 
     /**
      * Создает стиль для заголовка секции

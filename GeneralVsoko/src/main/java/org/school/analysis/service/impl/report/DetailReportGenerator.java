@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +31,9 @@ public class DetailReportGenerator {
 
     private final ExcelChartService excelChartService;
 
+    /**
+     * Создает отчёты по каждому тесту
+     */
     public File generateDetailReportFile(TestSummaryDto testSummary,
                                          List<StudentDetailedResultDto> studentResults,
                                          Map<Integer, TaskStatisticsDto> taskStatistics) {
@@ -72,7 +74,7 @@ public class DetailReportGenerator {
     }
 
     /**
-     * Создает раздел с графиками (БЕЗ дублирования табличных данных)
+     * Создает раздел с графиками (использует данные из таблицы "АНАЛИЗ ПО ЗАДАНИЯМ")
      */
     private int createGraphicalAnalysis(XSSFWorkbook workbook, XSSFSheet sheet,
                                         TestSummaryDto testSummary,
@@ -81,14 +83,75 @@ public class DetailReportGenerator {
 
         log.debug("Создание графического анализа, стартовая строка: {}", startRow);
 
-        // Оставляем пустую строку перед графиками
+        // Пустая строка перед разделом
         startRow += 2;
 
-        // Используем ExcelChartService для создания графиков
-        excelChartService.createCharts(workbook, sheet, testSummary, taskStatistics, startRow);
+        // Заголовок раздела
+        Row sectionHeader = sheet.createRow(startRow++);
+        Cell headerCell = sectionHeader.createCell(0);
+        headerCell.setCellValue("ГРАФИЧЕСКИЙ АНАЛИЗ");
+        headerCell.setCellStyle(createSectionHeaderStyle(workbook));
+        // Объединяем ячейки для заголовка
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, 4));
 
-        // Возвращаем следующую свободную строку
-        return sheet.getLastRowNum() + 3;
+        // Описание - откуда берутся данные
+        Row descriptionRow = sheet.createRow(startRow++);
+        Cell descCell = descriptionRow.createCell(0);
+        descCell.setCellValue("*Данные для графиков взяты из раздела 'АНАЛИЗ ПО ЗАДАНИЯМ'");
+
+        // Стиль для описания
+        CellStyle descStyle = workbook.createCellStyle();
+        Font descFont = workbook.createFont();
+        descFont.setItalic(true);
+        descFont.setFontHeightInPoints((short) 10);
+        descFont.setColor(IndexedColors.GREY_50_PERCENT.getIndex());
+        descStyle.setFont(descFont);
+        descCell.setCellStyle(descStyle);
+
+        startRow++; // Пустая строка
+
+        // Если нет данных для графиков - выводим сообщение
+        if (taskStatistics == null || taskStatistics.isEmpty()) {
+            Row noDataRow = sheet.createRow(startRow++);
+            noDataRow.createCell(0).setCellValue("Нет данных для графиков");
+            return startRow;
+        }
+
+        // Определяем, где находится таблица "АНАЛИЗ ПО ЗАДАНИЯМ"
+        // Она была создана в createTaskAnalysis, нам нужно найти ее местоположение
+
+        // Проходим по всем строкам и ищем заголовок "АНАЛИЗ ПО ЗАДАНИЯМ"
+        int analysisTableStartRow = -1;
+        for (int rowNum = 0; rowNum < sheet.getLastRowNum(); rowNum++) {
+            Row row = sheet.getRow(rowNum);
+            if (row != null) {
+                Cell cell = row.getCell(0);
+                if (cell != null && cell.getCellType() == CellType.STRING) {
+                    String cellValue = cell.getStringCellValue();
+                    if ("АНАЛИЗ ПО ЗАДАНИЯМ".equals(cellValue)) {
+                        analysisTableStartRow = rowNum;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Если таблица найдена - создаем графики на ее основе
+        if (analysisTableStartRow != -1) {
+            // Определяем диапазон данных
+            int dataStartRow = analysisTableStartRow + 2; // Пропускаем заголовок и заголовки столбцов
+
+            // Создаем графики через ExcelChartService
+            excelChartService.createChartsFromAnalysisTable(workbook, sheet,
+                    dataStartRow, taskStatistics.size(), startRow);
+
+            // Возвращаем следующую свободную строку
+            return sheet.getLastRowNum() + 2;
+        } else {
+            // Если таблица не найдена, создаем графики из предоставленных данных
+            log.info("Таблица анализ данных не найдена");
+            return sheet.getLastRowNum() + 2;
+        }
     }
 
     /**
@@ -248,7 +311,7 @@ public class DetailReportGenerator {
         headers[5] = "% выполнения";
 
         for (int i = 1; i <= maxTaskNumber; i++) {
-            headers[5 + i] = "№" + i;
+            headers[5 + i] = Integer.toString(i);
         }
 
         for (int i = 0; i < headers.length; i++) {
@@ -400,7 +463,19 @@ public class DetailReportGenerator {
 
         List<String> parts = new ArrayList<>();
         for (Map.Entry<Integer, Integer> entry : distribution.entrySet()) {
-            parts.add(entry.getKey() + " баллов: " + entry.getValue());
+            int score = entry.getKey();  // количество баллов (0, 1, 2...)
+            int count = entry.getValue(); // количество студентов
+
+            String ballWord;
+            if (score == 1) {
+                ballWord = "балл";
+            } else if (score >= 2 && score <= 4) {
+                ballWord = "балла";
+            } else {
+                ballWord = "баллов";
+            }
+
+            parts.add(score + " " + ballWord + ": " + count);
         }
         return String.join("; ", parts);
     }
@@ -501,11 +576,6 @@ public class DetailReportGenerator {
     }
 
     /**
-     * Удаленные методы, которые вызывались с неправильными параметрами
-     * (их можно удалить, так как они дублируют функциональность)
-     */
-
-    /**
      * Создает уникальное имя листа для рабочей книги
      */
     public String createUniqueSheetName(XSSFWorkbook workbook, TestSummaryDto testSummary) {
@@ -531,20 +601,6 @@ public class DetailReportGenerator {
         return finalName;
     }
 
-    /**
-     * Создает безопасное имя листа
-     */
-    public String createSafeSheetName(TestSummaryDto testSummary) {
-        String sheetName = String.format("%s_%s",
-                testSummary.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9_]", ""),
-                testSummary.getClassName().replaceAll("[^a-zA-Zа-яА-Я0-9_]", ""));
-
-        if (sheetName.length() > 31) {
-            sheetName = sheetName.substring(0, 31);
-        }
-
-        return sheetName;
-    }
 
     /**
      * Создает детальный отчет на листе в существующей рабочей книге
@@ -557,7 +613,7 @@ public class DetailReportGenerator {
 
         XSSFSheet sheet = workbook.createSheet(sheetName);
         int currentRow = 0;
-
+        //int taskAnalysisRorStart = 0;
         try {
             // 1. Заголовок отчета
             currentRow = createReportHeader(workbook, sheet, testSummary, currentRow);
@@ -575,7 +631,8 @@ public class DetailReportGenerator {
             if (taskStatistics != null && !taskStatistics.isEmpty() &&
                     studentResults != null && !studentResults.isEmpty()) {
 
-                excelChartService.createCharts(workbook, sheet, testSummary, taskStatistics, currentRow);
+                createGraphicalAnalysis(workbook, sheet, testSummary, taskStatistics, currentRow);
+                //excelChartService.createCharts(workbook, sheet, testSummary, taskStatistics, currentRow);
             }
 
             // 6. Оптимизируем ширину колонок

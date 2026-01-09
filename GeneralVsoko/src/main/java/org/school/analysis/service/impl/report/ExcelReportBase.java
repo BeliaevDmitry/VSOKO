@@ -150,29 +150,6 @@ public abstract class ExcelReportBase {
         }
     }
 
-    /**
-     * Устанавливает фиксированные ширины для колонок детального отчета
-     * @param sheet лист Excel
-     * @param maxTasks максимальное количество заданий
-     */
-    protected void optimizeDetailReportColumns(Sheet sheet, int maxTasks) {
-        // Основные колонки (A-F)
-        sheet.setColumnWidth(0, COL_WIDTH_NUMBER);      // №
-        sheet.setColumnWidth(1, COL_WIDTH_FIO);         // ФИО
-        sheet.setColumnWidth(2, COL_WIDTH_PRESENCE);    // Присутствие
-        sheet.setColumnWidth(3, COL_WIDTH_VARIANT);     // Вариант
-        sheet.setColumnWidth(4, COL_WIDTH_TOTAL_SCORE); // Общий балл
-        sheet.setColumnWidth(5, COL_WIDTH_PERCENTAGE);  // % выполнения
-
-        // Колонки с баллами за задания (G и далее)
-        for (int i = 0; i < maxTasks; i++) {
-            int colIndex = 6 + i; // Начинаем с колонки G (индекс 6)
-            if (colIndex < 256) { // Максимум 256 колонок в Excel
-                sheet.setColumnWidth(colIndex, COL_WIDTH_TASK_SCORE);
-            }
-        }
-    }
-
     // ============ МЕТОДЫ ДЛЯ СОЗДАНИЯ СТИЛЕЙ ============
 
     /**

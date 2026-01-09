@@ -302,9 +302,6 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Получает детальные данные для тестов учителя
      */
-    /**
-     * Получает детальные данные для тестов учителя
-     */
     private List<TeacherTestDetailDto> getTeacherTestDetails(List<TestSummaryDto> teacherTests) {
         List<TeacherTestDetailDto> details = new ArrayList<>();
 
