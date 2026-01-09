@@ -49,7 +49,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- POI (версия управляется в родительском pom) -->
+        <!-- POI -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
@@ -74,7 +74,7 @@
             <version>1.26.0</version>
         </dependency>
 
-        <!-- Commons IO (ОБЯЗАТЕЛЬНО!) -->
+        <!-- Commons IO -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>

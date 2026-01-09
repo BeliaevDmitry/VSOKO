@@ -44,6 +44,4 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
-    <!-- УДАЛИТЕ ВЕСЬ БЛОК <dependencies> из корневого pom.xml -->
 </project>

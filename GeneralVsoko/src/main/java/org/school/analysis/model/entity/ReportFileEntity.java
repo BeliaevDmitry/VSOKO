@@ -51,6 +51,7 @@ public class ReportFileEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Builder.Default
     @Column(name = "student_count")
     private Integer studentCount = 0;
 

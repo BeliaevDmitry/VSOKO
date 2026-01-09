@@ -1,6 +1,7 @@
 package org.school.project;
 
 import lombok.Data;
+import lombok.Getter;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -2061,6 +2062,7 @@ public class EGKRReportGenerator {
     }
 
     @Data
+    @Getter
     static class EGKRData {
         private String subject;
         private String date;
@@ -2076,14 +2078,6 @@ public class EGKRReportGenerator {
         private String teacherName;
         private double oralScore; // НОВОЕ: балл за устную часть
         private double testScore; // НОВОЕ: тестовый балл
-
-        public EGKRData(String subject, String date, String className,
-                        String lastName, String firstName, String middleName,
-                        String shortAnswerTasks, String longAnswerTasks,
-                        double primaryScore, double percent) {
-            this(subject, date, className, lastName, firstName, middleName,
-                    shortAnswerTasks, longAnswerTasks, "", primaryScore, percent, 0, 0);
-        }
 
         public EGKRData(String subject, String date, String className,
                         String lastName, String firstName, String middleName,
