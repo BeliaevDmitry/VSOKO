@@ -19,14 +19,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ExcelChartService {
 
+    private final ChartStyleConfig styleConfig;
     private final StackedBarChartGenerator stackedBarChartGenerator;
-    private final PercentageBarChartGenerator percentageBarChartGenerator;
     private final LineChartGenerator lineChartGenerator;
+    private final PercentageBarChartGenerator percentageBarChartGenerator;
 
     /**
      * Создает все графики для детального отчета
      */
-    public void createCharts(XSSFWorkbook workbook, Sheet sheet,
+    public void createCharts(XSSFWorkbook workbook, XSSFSheet sheet,
                              TestSummaryDto testSummary,
                              Map<Integer, TaskStatisticsDto> taskStatistics,
                              int startRow) {
@@ -36,13 +37,15 @@ public class ExcelChartService {
 
             // Создаем заголовок раздела с графиками
             Row sectionHeader = sheet.createRow(startRow++);
-            sectionHeader.createCell(0).setCellValue("ГРАФИЧЕСКИЙ АНАЛИЗ");
-            sectionHeader.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
+            Cell headerCell = sectionHeader.createCell(0);
+            headerCell.setCellValue("ГРАФИЧЕСКИЙ АНАЛИЗ");
+            headerCell.setCellStyle(createSectionHeaderStyle(workbook));
 
             startRow++; // Пустая строка
 
             if (taskStatistics == null || taskStatistics.isEmpty()) {
                 log.warn("Нет данных для создания графиков");
+                sheet.createRow(startRow++).createCell(0).setCellValue("Нет данных для графиков");
                 return;
             }
 
@@ -52,62 +55,50 @@ public class ExcelChartService {
                     .collect(Collectors.toList());
 
             // Создаем таблицу данных для графиков
-            int dataStartRow = createChartDataTable(workbook, sheet, sortedTasks, startRow);
+            int dataStartRow = createDataTable(workbook, sheet, sortedTasks, startRow);
 
-            int chartStartRow = dataStartRow + 2; // Отступ после таблицы данных
+            // Вычисляем позицию для графиков (после таблицы)
+            int chartRow = dataStartRow + 2;
 
-            // Создаем графики последовательно
-            createChartSection(workbook, sheet, sortedTasks, dataStartRow, chartStartRow);
+            // 1. Stacked Bar Chart - распределение результатов
+            stackedBarChartGenerator.createChart(
+                    workbook, sheet, sortedTasks,
+                    dataStartRow, chartRow,
+                    "Распределение результатов по заданиям"
+            );
+
+            chartRow += styleConfig.getRowSpan() + styleConfig.getSpacing();
+
+            // 2. Line Chart - процент выполнения
+            lineChartGenerator.createChart(
+                    workbook, sheet, sortedTasks,
+                    dataStartRow, chartRow,
+                    "Процент выполнения заданий"
+            );
+
+            chartRow += styleConfig.getRowSpan() + styleConfig.getSpacing();
+
+            // 3. Percentage Bar Chart - столбчатая диаграмма процентов
+            percentageBarChartGenerator.createChart(
+                    workbook, sheet, sortedTasks,
+                    dataStartRow, chartRow,
+                    "Процент выполнения (столбчатая диаграмма)"
+            );
 
             log.info("✅ Все графики успешно созданы");
 
         } catch (Exception e) {
             log.error("❌ Ошибка при создании графиков: {}", e.getMessage(), e);
+            Row errorRow = sheet.createRow(startRow++);
+            errorRow.createCell(0).setCellValue("Ошибка при создании графиков: " + e.getMessage());
         }
-    }
-
-    /**
-     * Создает раздел со всеми графиками
-     */
-    private void createChartSection(XSSFWorkbook workbook, Sheet sheet,
-                                    List<TaskStatisticsDto> sortedTasks,
-                                    int dataStartRow, int chartStartRow) {
-
-        // 1. Stacked Bar Chart
-        stackedBarChartGenerator.createChart(
-                workbook, (XSSFSheet) sheet, sortedTasks,
-                dataStartRow, chartStartRow,
-                "Распределение результатов (Stacked)"
-        );
-
-        // 2. Percentage Bar Chart
-        chartStartRow += 20; // Отступ между графиками
-        percentageBarChartGenerator.createChart(
-                workbook, (XSSFSheet) sheet, sortedTasks,
-                dataStartRow, chartStartRow,
-                "Процент выполнения заданий"
-        );
-
-        // 3. Line Chart
-        chartStartRow += 20; // Отступ между графиками
-        lineChartGenerator.createChart(
-                workbook, (XSSFSheet) sheet, sortedTasks,
-                dataStartRow, chartStartRow,
-                "Динамика выполнения заданий"
-        );
     }
 
     /**
      * Создает таблицу данных для графиков
      */
-    private int createChartDataTable(Workbook workbook, Sheet sheet,
-                                     List<TaskStatisticsDto> tasks, int startRow) {
-
-        // Проверяем, не перекрывает ли таблица существующие данные
-        int lastRowWithData = sheet.getLastRowNum();
-        if (startRow <= lastRowWithData) {
-            startRow = lastRowWithData + 2;
-        }
+    private int createDataTable(Workbook workbook, Sheet sheet,
+                                List<TaskStatisticsDto> tasks, int startRow) {
 
         // Заголовки таблицы
         Row headerRow = sheet.createRow(startRow++);
@@ -133,7 +124,7 @@ public class ExcelChartService {
             percentCell.setCellStyle(createPercentStyle(workbook));
         }
 
-        return startRow; // Возвращаем следующую свободную строку
+        return startRow - tasks.size() - 1; // Возвращаем начальную строку данных
     }
 
     /**
@@ -143,15 +134,16 @@ public class ExcelChartService {
         CellStyle style = workbook.createCellStyle();
         Font font = workbook.createFont();
         font.setBold(true);
-        font.setFontHeightInPoints((short) 12);
+        font.setFontHeightInPoints((short) 14);
+        font.setColor(IndexedColors.DARK_BLUE.getIndex());
         style.setFont(font);
-        style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        style.setBorderBottom(BorderStyle.THIN);
-        style.setBorderTop(BorderStyle.THIN);
-        style.setBorderLeft(BorderStyle.THIN);
-        style.setBorderRight(BorderStyle.THIN);
-        style.setAlignment(HorizontalAlignment.LEFT);
+        style.setBorderBottom(BorderStyle.MEDIUM);
+        style.setBorderTop(BorderStyle.MEDIUM);
+        style.setBorderLeft(BorderStyle.MEDIUM);
+        style.setBorderRight(BorderStyle.MEDIUM);
+        style.setAlignment(HorizontalAlignment.CENTER);
         return style;
     }
 
