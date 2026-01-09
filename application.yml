@@ -25,3 +25,19 @@ logging:
   level:
     org.school.analysis: DEBUG
     org.springframework.transaction: INFO
+
+
+app:
+  excel:
+    charts:
+      col-span: 10
+      row-span: 15
+      spacing: 5
+      left-offset: 1
+      fully-completed-color: "0,20,236"
+      partially-completed-color: "241,120,0"
+      not-completed-color: "231,50,60"
+      percentage-color: "52,152,219"
+      line-color: "52,152,219"
+      line-width: 2.0
+      marker-size: 6
