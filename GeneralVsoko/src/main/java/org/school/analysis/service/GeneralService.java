@@ -15,7 +15,7 @@ public interface GeneralService {
     /**
      * Полный цикл обработки
      */
-    ProcessingSummary processAll(String folderPath);
+    ProcessingSummary processAll(String folderPath, String school, String currentAcademicYear);
 
     /**
      * 1. Найти файлы в папке

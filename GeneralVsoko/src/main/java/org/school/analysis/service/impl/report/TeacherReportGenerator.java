@@ -25,39 +25,17 @@ public class TeacherReportGenerator extends ExcelReportBase {
         this.detailReportGenerator = detailReportGenerator;
     }
 
-    public File generateTeacherReport(String teacherName, List<TestSummaryDto> teacherTests) {
-        log.info("Генерация отчета для учителя: {}", teacherName);
-
-        try {
-            Path reportsPath = createReportsFolder();
-
-            String fileName = String.format("Отчет_учителя_%s_%s.xlsx",
-                    teacherName.replace(" ", "_"),
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("ddMMyyyy_HHmm")));
-
-            try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-                createTeacherSummarySheet(workbook, teacherName, teacherTests);
-                optimizeColumnWidths(workbook.getSheet("Сводка по тестам"), 10);
-
-                return saveWorkbook(workbook, reportsPath, fileName);
-            }
-
-        } catch (Exception e) {
-            log.error("Ошибка при создании отчета учителя", e);
-            return null;
-        }
-    }
-
     public File generateTeacherReportWithDetails(
             String teacherName,
             List<TestSummaryDto> teacherTests,
-            List<TeacherTestDetailDto> teacherTestDetails) {
+            List<TeacherTestDetailDto> teacherTestDetails,
+            String school) {
 
         log.info("Генерация детального отчета для учителя: {} ({} тестов)",
                 teacherName, teacherTests.size());
 
         try {
-            Path reportsPath = createReportsFolder();
+            Path reportsPath = createReportsFolder(school);
 
             String fileName = String.format("Отчет_учителя_%s_%s.xlsx",
                     teacherName.replace(" ", "_"),

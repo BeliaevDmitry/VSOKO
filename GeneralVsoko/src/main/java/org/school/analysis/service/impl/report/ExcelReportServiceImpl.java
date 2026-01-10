@@ -20,16 +20,17 @@ public class ExcelReportServiceImpl implements ExcelReportService {
     private final TeacherReportGenerator teacherReportGenerator;
 
     @Override
-    public File generateSummaryReport(List<TestSummaryDto> tests) {
+    public File generateSummaryReport(List<TestSummaryDto> tests, String schoolName) {
         log.info("Генерация сводного отчета для {} тестов", tests.size());
-        return summaryReportGenerator.generateSummaryReport(tests);
+        return summaryReportGenerator.generateSummaryReport(tests, schoolName);
     }
 
     @Override
     public File generateTestDetailReport(
             TestSummaryDto testSummary,
             List<StudentDetailedResultDto> studentResults,
-            Map<Integer, TaskStatisticsDto> taskStatistics) {
+            Map<Integer, TaskStatisticsDto> taskStatistics,
+            String schoolName) {
 
         log.info("Генерация детального отчета для теста: {} - {}",
                 testSummary.getSubject(), testSummary.getClassName());
@@ -42,11 +43,13 @@ public class ExcelReportServiceImpl implements ExcelReportService {
     public File generateTeacherReportWithDetails(
             String teacherName,
             List<TestSummaryDto> teacherTests,
-            List<TeacherTestDetailDto> teacherTestDetails) {
+            List<TeacherTestDetailDto> teacherTestDetails,
+            String schoolName) {
 
         log.info("Генерация детального отчета для учителя: {} ({} тестов)",
                 teacherName, teacherTests.size());
 
-        return teacherReportGenerator.generateTeacherReportWithDetails(teacherName, teacherTests, teacherTestDetails);
+        return teacherReportGenerator.generateTeacherReportWithDetails(teacherName, teacherTests,
+                teacherTestDetails, schoolName);
     }
 }

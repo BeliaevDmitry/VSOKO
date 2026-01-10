@@ -21,8 +21,7 @@ import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import static org.school.analysis.config.AppConfig.REPORTS_Analisis_BASE_FOLDER;
-import static org.school.analysis.config.AppConfig.REPORTS_BASE_FOLDER;
+import static org.school.analysis.config.AppConfig.*;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +29,6 @@ import static org.school.analysis.config.AppConfig.REPORTS_BASE_FOLDER;
 public class DetailReportGenerator {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
-    private static final Path REPORTS_DIR = Paths.get("reports", "detailed");
 
     private final ExcelChartService excelChartService;
 
@@ -62,7 +60,7 @@ public class DetailReportGenerator {
             currentRow = createTaskAnalysis(workbook, sheet, taskStatistics, currentRow);
 
             // 5. ГРАФИЧЕСКИЙ АНАЛИЗ (ТОЛЬКО ГРАФИКИ, без дублирования данных)
-            currentRow = createGraphicalAnalysis(workbook, sheet, testSummary, taskStatistics, currentRow);
+            currentRow = createGraphicalAnalysis(workbook, sheet,taskStatistics, currentRow);
 
             // Автонастройка ширины столбцов
             autoSizeColumns(sheet, taskStatistics.size());
@@ -80,7 +78,6 @@ public class DetailReportGenerator {
      * Создает раздел с графиками (использует данные из таблицы "АНАЛИЗ ПО ЗАДАНИЯМ")
      */
     private int createGraphicalAnalysis(XSSFWorkbook workbook, XSSFSheet sheet,
-                                        TestSummaryDto testSummary,
                                         Map<Integer, TaskStatisticsDto> taskStatistics,
                                         int startRow) {
 
@@ -120,9 +117,6 @@ public class DetailReportGenerator {
             noDataRow.createCell(0).setCellValue("Нет данных для графиков");
             return startRow;
         }
-
-        // Определяем, где находится таблица "АНАЛИЗ ПО ЗАДАНИЯМ"
-        // Она была создана в createTaskAnalysis, нам нужно найти ее местоположение
 
         // Проходим по всем строкам и ищем заголовок "АНАЛИЗ ПО ЗАДАНИЯМ"
         int analysisTableStartRow = -1;
@@ -402,7 +396,7 @@ public class DetailReportGenerator {
         // Заголовки таблицы
         Row columnHeaderRow = sheet.createRow(startRow++);
         String[] headers = {
-                "№ задания", "Макс. балл", "Полностью", "Частично", "Не справилось",
+                "№", "Макс. балл", "Полностью", "Частично", "Не справилось",
                 "% выполнения", "Распределение баллов"
         };
 
@@ -449,11 +443,11 @@ public class DetailReportGenerator {
 
     private int addStatisticRow(Sheet sheet, int rowNum, String label, Object value) {
         Row row = sheet.createRow(rowNum);
-        row.createCell(0).setCellValue(label);
+        row.createCell(1).setCellValue(label);
         if (value != null) {
-            row.createCell(1).setCellValue(value.toString());
+            row.createCell(2).setCellValue(value.toString());
         } else {
-            row.createCell(1).setCellValue("");
+            row.createCell(2).setCellValue("");
         }
         return rowNum + 1;
     }
@@ -565,9 +559,19 @@ public class DetailReportGenerator {
 
     // ============ СОХРАНЕНИЕ ФАЙЛА ============
 
-    private File saveWorkbookToFile(Workbook workbook, TestSummaryDto testSummary) throws IOException {
+    private File saveWorkbookToFile(Workbook workbook,
+                                    TestSummaryDto testSummary) throws IOException {
         // Создаем директорию для отчетов, если её нет
-        String folderPath = REPORTS_Analisis_BASE_FOLDER.replace("{предмет}", testSummary.getSubject());
+
+        String safeSubject = testSummary.getSubject() != null ?
+                testSummary.getSubject().replaceAll("[\\\\/:*?\"<>|]", "_"): "";
+        String safeSchool = testSummary.getSchoolName() != null ?
+                testSummary.getSchoolName().replaceAll("[\\\\/:*?\"<>|]", "_") : "";
+
+        String folderPath = REPORTS_ANALISIS_BASE_FOLDER
+                .replace("{школа}", safeSchool)
+                .replace("{предмет}", safeSubject);
+
         if (!Files.exists(Path.of(folderPath))) {
             Files.createDirectories(Path.of(folderPath));
         }
@@ -644,7 +648,7 @@ public class DetailReportGenerator {
             if (taskStatistics != null && !taskStatistics.isEmpty() &&
                     studentResults != null && !studentResults.isEmpty()) {
 
-                createGraphicalAnalysis(workbook, sheet, testSummary, taskStatistics, currentRow);
+                createGraphicalAnalysis(workbook, sheet, taskStatistics, currentRow);
                 //excelChartService.createCharts(workbook, sheet, testSummary, taskStatistics, currentRow);
             }
 

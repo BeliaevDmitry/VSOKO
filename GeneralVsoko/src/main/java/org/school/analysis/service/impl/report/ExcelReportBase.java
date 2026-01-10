@@ -110,8 +110,8 @@ public abstract class ExcelReportBase {
     /**
      * Создает папку для отчетов, если она не существует
      */
-    protected Path createReportsFolder() throws IOException {
-        Path reportsPath = Paths.get(FINAL_REPORT_FOLDER);
+    protected Path createReportsFolder(String schoolName) throws IOException {
+        Path reportsPath = Paths.get(FINAL_REPORT_FOLDER.replace("{школа}", schoolName));
         if (!Files.exists(reportsPath)) {
             Files.createDirectories(reportsPath);
         }
@@ -121,7 +121,9 @@ public abstract class ExcelReportBase {
     /**
      * Сохраняет рабочую книгу в файл
      */
-    protected File saveWorkbook(Workbook workbook, Path folderPath, String fileName) throws IOException {
+    protected File saveWorkbook(Workbook workbook,
+                                Path folderPath,
+                                String fileName) throws IOException {
         Path filePath = folderPath.resolve(fileName);
         try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
             workbook.write(fos);

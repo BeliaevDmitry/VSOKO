@@ -2,6 +2,7 @@ package org.school.analysis;
 
 import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.service.*;
+import org.school.project.EGKRReportGenerator;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
@@ -20,23 +21,30 @@ public class Main {
 
         System.out.println("=== ЗАПУСК СИСТЕМЫ ОБРАБОТКИ ОТЧЁТОВ ВСОКО ===");
         System.out.println("Конфигурация:");
-        System.out.println("  Папка с исходными файлами: " + INPUT_FOLDER);
+        System.out.println("  Шаблон с исходными файлами: " + INPUT_FOLDER);
         System.out.println("  Шаблон для отчетов: " + REPORTS_BASE_FOLDER);
         System.out.println("  Папка для итогов: " + FINAL_REPORT_FOLDER);
+        String currentAcademicYear = ALL_ACADEMIC_YEAR.get(0);
+        System.out.println("  Учебный год: " + currentAcademicYear);
         System.out.println();
 
         try {
-            // 3. Запуск обработки
-            var summary = processor.processAll(INPUT_FOLDER);
+            for (String school : SCHOOLS) { // Перебираем школы
+                System.out.println("  Обработка школы " + school);
 
-            // 4. Вывод результатов
-            printSummary(summary);
+                // 3. Запуск обработки
+                String INPUT_FOLDER_Path = INPUT_FOLDER.replace("{школа}", school);
+                var summary = processor.processAll(INPUT_FOLDER_Path, school, currentAcademicYear);
 
+                // 4. Вывод результатов
+                printSummary(summary);
+            }
         } catch (Exception e) {
             System.err.println("❌ Критическая ошибка: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
 
     private static void printSummary(ProcessingSummary summary) {
         System.out.println("\n" + "=".repeat(50));

@@ -24,4 +24,38 @@ public interface ReportFileRepository extends
     Optional<ReportFileEntity> findByFileName(String fileName);
 
     List<ReportFileEntity> findByTeacher(String teacher, Sort sort);
+
+    List<ReportFileEntity> findBySchoolNameAndAcademicYear(
+            String schoolName,
+            String academicYear,
+            Sort sort
+    );
+
+
+    /**
+     * Найти тесты по учителю, школе и учебному году
+     */
+    List<ReportFileEntity> findByTeacherAndAcademicYear(
+            String schoolName,
+            String academicYear
+    );
+
+    /**
+     * Найти тесты по учителю, школе и учебному году
+     */
+    List<ReportFileEntity> findByTeacherAndSchoolNameAndAcademicYear(
+            String teacher,
+            String schoolName,
+            String academicYear,
+            Sort sort
+    );
+
+    /**
+     * Найти тесты по учителю и школе
+     */
+    List<ReportFileEntity> findByTeacherAndSchoolName(
+            String teacher,
+            String schoolName,
+            Sort sort
+    );
 }

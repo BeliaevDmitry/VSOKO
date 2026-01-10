@@ -92,10 +92,10 @@ public class ParserServiceImpl implements ParserService {
             reportFile.setClassName(metadata.getClassName());
             reportFile.setTestDate(metadata.getTestDate());
             reportFile.setTeacher(metadata.getTeacher());
-            reportFile.setSchool(metadata.getSchool() != null ? metadata.getSchool() : "ГБОУ №7");
+            reportFile.setSchoolName(metadata.getSchoolName() != null ? metadata.getSchoolName() : "ГБОУ №7");
             reportFile.setTestType(metadata.getTestType());
             reportFile.setComment(metadata.getComment());
-            reportFile.setACADEMIC_YEAR(metadata.getACADEMIC_YEAR() != null ? metadata.getACADEMIC_YEAR() : "2025-2026");
+            reportFile.setAcademicYear(metadata.getAcademicYear() != null ? metadata.getAcademicYear() : "2025-2026");
             reportFile.setTaskCount(maxScores.size());
             reportFile.setMaxScores(maxScores);
 
@@ -111,8 +111,8 @@ public class ParserServiceImpl implements ParserService {
                 student.setClassName(reportFile.getClassName());
                 student.setTestDate(reportFile.getTestDate());
                 student.setTestType(reportFile.getTestType());
-                student.setSchool(reportFile.getSchool());
-                student.setACADEMIC_YEAR(reportFile.getACADEMIC_YEAR());
+                student.setSchoolName(reportFile.getSchoolName());
+                student.setAcademicYear(reportFile.getAcademicYear());
 
                 // Вычисляем totalScore для каждого студента
                 if (student.getTaskScores() != null) {

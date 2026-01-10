@@ -38,7 +38,7 @@ public class GeneralServiceImpl implements GeneralService {
 
     @Override
     @Transactional
-    public ProcessingSummary processAll(String folderPath) {
+    public ProcessingSummary processAll(String folderPath, String school, String currentAcademicYear) {
         ProcessingSummary summary = new ProcessingSummary();
 
         try {
@@ -49,14 +49,13 @@ public class GeneralServiceImpl implements GeneralService {
             if (foundFiles.isEmpty()) {
                 log.warn("В папке {} не найдено файлов для обработки", folderPath);
                 summary.setReportGenerationError("Файлы не найдены");
-                return summary;
             }
 
             // Дополнительная проверка результатов
             validateProcessingResults(foundFiles, summary);
 
             // 2. Генерация отчетов
-            generateReports(summary);
+            generateReports(summary, school, currentAcademicYear);
 
         } catch (Exception e) {
             log.error("Критическая ошибка при обработке отчетов", e);
@@ -160,11 +159,11 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Генерация всех отчетов
      */
-    private void generateReports(ProcessingSummary summary) {
+    private void generateReports(ProcessingSummary summary, String school, String currentAcademicYear) {
         try {
             log.info("Начинаем генерацию отчетов...");
 
-            List<File> generatedReports = generateAllReports();
+            List<File> generatedReports = generateAllReports(school, currentAcademicYear);
 
             summary.setGeneratedReportsCount(generatedReports.size());
             summary.setGeneratedReportFiles(generatedReports);
@@ -180,17 +179,17 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Генерация всех типов отчетов
      */
-    private List<File> generateAllReports() {
+    private List<File> generateAllReports(String school, String currentAcademicYear) {
         List<File> allReports = new ArrayList<>();
 
         // 1. Сводный отчет по всем тестам
-        generateSummaryReport(allReports);
+        generateSummaryReport(allReports, school, currentAcademicYear);
 
         // 2. Детальные отчеты по тестам
-        generateTestDetailReports(allReports);
+        generateTestDetailReports(allReports, school, currentAcademicYear);
 
         // 3. Отчеты по учителям
-        generateTeacherReports(allReports);
+        generateTeacherReports(allReports, school, currentAcademicYear);
 
         return allReports;
     }
@@ -198,33 +197,37 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Генерация сводного отчета
      */
-    private void generateSummaryReport(List<File> allReports) {
-        List<TestSummaryDto> allTests = analysisService.getAllTestsSummary();
+    private void generateSummaryReport(List<File> allReports,
+                                       String schoolName,
+                                       String currentAcademicYear) {
+        List<TestSummaryDto> allTests = analysisService.getAllTestsSummary(schoolName, currentAcademicYear);
 
         if (allTests.isEmpty()) {
             log.warn("Нет данных для сводного отчета");
             return;
         }
 
-        File summaryReport = excelReportService.generateSummaryReport(allTests);
+        File summaryReport = excelReportService.generateSummaryReport(allTests, schoolName);
         addReportIfValid(summaryReport, allReports, "Сводный отчет");
     }
 
     /**
      * Генерация детальных отчетов по тестам
      */
-    private void generateTestDetailReports(List<File> allReports) {
-        List<TestSummaryDto> allTests = analysisService.getAllTestsSummary();
+    private void generateTestDetailReports(List<File> allReports, String schoolName,
+                                           String currentAcademicYear) {
+        List<TestSummaryDto> allTests = analysisService.getAllTestsSummary(schoolName, currentAcademicYear);
 
         for (TestSummaryDto test : allTests) {
-            generateSingleTestDetailReport(test, allReports);
+            generateSingleTestDetailReport(test, allReports, schoolName);
         }
     }
 
     /**
      * Генерация детального отчета для одного теста
      */
-    private void generateSingleTestDetailReport(TestSummaryDto test, List<File> allReports) {
+    private void generateSingleTestDetailReport(TestSummaryDto test, List<File> allReports,
+                                                String schoolName) {
         if (test.getReportFileId() == null || test.getReportFileId().trim().isEmpty()) {
             log.warn("Пропускаем тест без ID: {}", test.getFileName());
             return;
@@ -256,7 +259,7 @@ public class GeneralServiceImpl implements GeneralService {
 
             // Генерируем отчет с графиками на одном листе
             File detailReport = excelReportService.generateTestDetailReport(
-                    test, studentResults, taskStatistics);
+                    test, studentResults, taskStatistics, schoolName);
 
             if (detailReport != null && detailReport.exists()) {
                 addReportIfValid(detailReport, allReports,
@@ -275,19 +278,22 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Генерация отчетов по учителям
      */
-    private void generateTeacherReports(List<File> allReports) {
-        List<String> teachers = analysisService.getAllTeachers();
-
+    private void generateTeacherReports(List<File> allReports, String schoolName,
+                                        String currentAcademicYear) {
+        List<String> teachers = analysisService.getAllTeachers(schoolName, currentAcademicYear);
+        log.info("✅ размер teachers '{}' ", teachers.size());
         for (String teacher : teachers) {
             try {
-                List<TestSummaryDto> teacherTests = analysisService.getTestsByTeacher(teacher);
-
+                log.info("✅ зашли в  generateTeacherReports и анализируем '{}' ", teacher);
+                List<TestSummaryDto> teacherTests = analysisService.getTestsByTeacher(teacher,
+                        schoolName, currentAcademicYear);
+                log.info("✅ размер teacherTests '{}' ", teacherTests.size());
                 // Для каждого теста учителя получаем детальные данные
                 List<TeacherTestDetailDto> teacherTestDetails = getTeacherTestDetails(teacherTests);
-
+                log.info("✅ размер teacherTestDetails '{}' ", teacherTestDetails.size());
                 // Генерируем полный отчет учителя с детальными данными
                 File teacherReport = excelReportService.generateTeacherReportWithDetails(
-                        teacher, teacherTests, teacherTestDetails);
+                        teacher, teacherTests, teacherTestDetails, schoolName);
 
                 addReportIfValid(teacherReport, allReports,
                         String.format("Отчет для учителя '%s' с детализацией", teacher));

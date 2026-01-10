@@ -29,8 +29,8 @@ public class ReportMapper {
                 .studentCount(model.getStudentCount())
                 .testDate(model.getTestDate())
                 .teacher(model.getTeacher())
-                .school(model.getSchool() != null ? model.getSchool() : "ГБОУ №7")
-                .ACADEMIC_YEAR(model.getACADEMIC_YEAR() != null ? model.getACADEMIC_YEAR() : "2025-2026")
+                .schoolName(model.getSchoolName() != null ? model.getSchoolName() : "ГБОУ №7")
+                .academicYear(model.getAcademicYear() != null ? model.getAcademicYear() : "2025-2026")
                 .taskCount(model.getMaxScores() != null ? model.getMaxScores().size() : 0)
                 .testType(model.getTestType())
                 .comment(model.getComment())
@@ -54,12 +54,12 @@ public class ReportMapper {
         model.setStudentCount(entity.getStudentCount());
         model.setTestDate(entity.getTestDate());
         model.setTeacher(entity.getTeacher());
-        model.setSchool(entity.getSchool());
+        model.setSchoolName(entity.getSchoolName());
         model.setTaskCount(entity.getTaskCount());
         model.setMaxScores(JsonScoreUtils.jsonToMap(entity.getMaxScoresJson()));
         model.setTestType(entity.getTestType());
         model.setComment(entity.getComment());
-        model.setACADEMIC_YEAR(entity.getACADEMIC_YEAR());
+        model.setAcademicYear(entity.getAcademicYear());
         return model;
     }
 
@@ -82,8 +82,8 @@ public class ReportMapper {
                 .taskScoresJson(JsonScoreUtils.mapToJson(model.getTaskScores()))
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
-                .school(model.getSchool())
-                .ACADEMIC_YEAR(model.getACADEMIC_YEAR())
+                .schoolName(model.getSchoolName())
+                .academicYear(model.getAcademicYear())
                 .build();
     }
 
@@ -103,8 +103,8 @@ public class ReportMapper {
         model.setTotalScore(entity.getTotalScore());
         model.setPercentageScore(entity.getPercentageScore()); // Добавьте это поле
         model.setTaskScores(JsonScoreUtils.jsonToMap(entity.getTaskScoresJson()));
-        model.setSchool(entity.getSchool());
-        model.setACADEMIC_YEAR(entity.getACADEMIC_YEAR());
+        model.setSchoolName(entity.getSchoolName());
+        model.setAcademicYear(entity.getAcademicYear());
         return model;
     }
 
@@ -123,12 +123,12 @@ public class ReportMapper {
         entity.setStudentCount(model.getStudentCount());
         entity.setTestDate(model.getTestDate());
         entity.setTeacher(model.getTeacher());
-        entity.setSchool(model.getSchool() != null ? model.getSchool() : entity.getSchool());
+        entity.setSchoolName(model.getSchoolName() != null ? model.getSchoolName() : entity.getSchoolName());
         entity.setTaskCount(model.getMaxScores() != null ? model.getMaxScores().size() : entity.getTaskCount());
         entity.setTestType(model.getTestType());
         entity.setComment(model.getComment());
         entity.setMaxScoresJson(JsonScoreUtils.mapToJson(model.getMaxScores()));
         entity.setUpdatedAt(LocalDateTime.now());
-        entity.setACADEMIC_YEAR(model.getACADEMIC_YEAR());
+        entity.setAcademicYear(model.getAcademicYear());
     }
 }

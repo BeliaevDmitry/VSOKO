@@ -18,11 +18,11 @@ import java.util.List;
 @Slf4j
 public class SummaryReportGenerator extends ExcelReportBase {
 
-    public File generateSummaryReport(List<TestSummaryDto> tests) {
+    public File generateSummaryReport(List<TestSummaryDto> tests, String schoolName) {
         log.info("Генерация сводного отчета для {} тестов", tests.size());
 
         try {
-            Path reportsPath = createReportsFolder();
+            Path reportsPath = createReportsFolder(schoolName);
 
             try (XSSFWorkbook workbook = new XSSFWorkbook()) {
                 Sheet sheet = workbook.createSheet("Сводка по тестам");
@@ -30,7 +30,7 @@ public class SummaryReportGenerator extends ExcelReportBase {
                 createHeader(sheet, workbook);
                 fillData(sheet, workbook, tests);
                 addStatisticsRow(sheet, workbook, tests);
-                optimizeColumnWidths(sheet, 14);
+                optimizeColumnWidths(sheet, 18);
 
                 return saveWorkbook(workbook, reportsPath, "Свод всех работ.xlsx");
             }
@@ -77,7 +77,7 @@ public class SummaryReportGenerator extends ExcelReportBase {
             Row row = sheet.createRow(rowNum++);
 
             // Базовые данные
-            row.createCell(0).setCellValue(test.getACADEMIC_YEAR());
+            row.createCell(0).setCellValue(test.getAcademicYear());
             row.createCell(1).setCellValue(test.getSubject());
             row.createCell(2).setCellValue(test.getClassName());
             row.createCell(3).setCellValue(test.getTeacher());

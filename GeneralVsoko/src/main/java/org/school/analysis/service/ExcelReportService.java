@@ -17,7 +17,7 @@ public interface ExcelReportService {
     /**
      * Генерирует сводный отчет по всем тестам в Excel
      */
-    File generateSummaryReport(List<TestSummaryDto> tests);
+    File generateSummaryReport(List<TestSummaryDto> tests, String school);
 
     /**
      * Генерирует детальный отчет по тесту
@@ -25,7 +25,8 @@ public interface ExcelReportService {
     File generateTestDetailReport(
             TestSummaryDto testSummary,
             List<StudentDetailedResultDto> studentResults,
-            Map<Integer, TaskStatisticsDto> taskStatistics);
+            Map<Integer, TaskStatisticsDto> taskStatistics,
+            String school);
 
 
     /**
@@ -33,5 +34,6 @@ public interface ExcelReportService {
      */
     File generateTeacherReportWithDetails(String teacherName,
                                           List<TestSummaryDto> teacherTests,
-                                          List<TeacherTestDetailDto> teacherTestDetails);
+                                          List<TeacherTestDetailDto> teacherTestDetails,
+                                          String school);
 }
