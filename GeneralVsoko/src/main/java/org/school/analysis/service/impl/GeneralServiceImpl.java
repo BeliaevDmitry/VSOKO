@@ -13,15 +13,24 @@ import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 import org.school.analysis.service.*;
 import org.school.analysis.util.JsonScoreUtils;
+import org.school.analysis.util.PerformanceTracker;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.school.analysis.config.AppConfig.*;
 import static org.school.analysis.model.ProcessingStatus.*;
 import static org.school.analysis.util.ValidationHelper.validateReportFile;
 
@@ -38,31 +47,102 @@ public class GeneralServiceImpl implements GeneralService {
 
     @Override
     @Transactional
-    public ProcessingSummary processAll(String folderPath, String school, String currentAcademicYear) {
-        ProcessingSummary summary = new ProcessingSummary();
+    public void processAll() {
+        // Старт отсчета времени программы
+        PerformanceTracker.startProgram();
+
+        ProcessingSummary totalSummary = new ProcessingSummary();
 
         try {
-            // 1. Найти и обработать файлы
-            List<ReportFile> foundFiles = findAndProcessFiles(folderPath, summary);
+            for (String school : SCHOOLS) {
+                // Начинаем отсчет времени для школы
+                PerformanceTracker.SchoolProcessingMetrics schoolMetrics =
+                        PerformanceTracker.startSchoolProcessing(school);
 
-            // Проверка результата
-            if (foundFiles.isEmpty()) {
-                log.warn("В папке {} не найдено файлов для обработки", folderPath);
-                summary.setReportGenerationError("Файлы не найдены");
+                String currentAcademicYear = ALL_ACADEMIC_YEAR.get(0);
+                System.out.println("  Учебный год: " + currentAcademicYear);
+                System.out.println("  Обработка школы " + school);
+
+                String folderPath = INPUT_FOLDER.replace("{школа}", school);
+                ProcessingSummary schoolSummary = new ProcessingSummary();
+
+                try {
+                    // Фаза 1: Поиск файлов
+                    long phase1Start = System.currentTimeMillis();
+                    List<ReportFile> foundFiles = findAndProcessFiles(folderPath, schoolSummary);
+                    long phase1Time = System.currentTimeMillis() - phase1Start;
+                    PerformanceTracker.recordPhaseTime(school, "fileFinding",
+                            Duration.ofMillis(phase1Time));
+
+                    // Фаза 2: Генерация отчетов
+                    long phase2Start = System.currentTimeMillis();
+                    if (!foundFiles.isEmpty()) {
+                        validateProcessingResults(foundFiles, schoolSummary);
+                        generateReports(schoolSummary, school, currentAcademicYear);
+                    }
+                    long phase2Time = System.currentTimeMillis() - phase2Start;
+                    PerformanceTracker.recordPhaseTime(school, "reportGeneration",
+                            Duration.ofMillis(phase2Time));
+
+                    // Общее время обработки файлов (фаза 1 + фаза 2)
+                    PerformanceTracker.recordPhaseTime(school, "fileProcessing",
+                            Duration.ofMillis(phase1Time + phase2Time));
+
+                    // Завершаем сбор статистики для школы
+                    PerformanceTracker.finishSchoolProcessing(
+                            schoolMetrics,
+                            schoolSummary.getTotalFilesFound(),
+                            schoolSummary.getSuccessfullySaved(),
+                            schoolSummary.getGeneratedReportsCount()
+                    );
+
+                    // Вывод промежуточных результатов
+                    printSchoolSummary(schoolSummary, school);
+
+                    // Суммируем общую статистику
+                    totalSummary.incrementTotalFilesFound(schoolSummary.getTotalFilesFound());
+                    totalSummary.incrementSuccessfullyParsed(schoolSummary.getSuccessfullyParsed());
+                    totalSummary.incrementSuccessfullySaved(schoolSummary.getSuccessfullySaved());
+                    totalSummary.incrementSuccessfullyMoved(schoolSummary.getSuccessfullyMoved());
+
+                } catch (Exception e) {
+                    log.error("❌ Критическая ошибка при обработке школы {}: {}", school, e.getMessage(), e);
+                    // Даже при ошибке завершаем сбор статистики
+                    PerformanceTracker.finishSchoolProcessing(
+                            schoolMetrics,
+                            schoolSummary.getTotalFilesFound(),
+                            schoolSummary.getSuccessfullySaved(),
+                            schoolSummary.getGeneratedReportsCount()
+                    );
+                }
             }
 
-            // Дополнительная проверка результатов
-            validateProcessingResults(foundFiles, summary);
+            // Выводим итоговую статистику
+            printSummary(totalSummary);
 
-            // 2. Генерация отчетов
-            generateReports(summary, school, currentAcademicYear);
+            // ДОБАВЛЕН ВЫВОД СТАТИСТИКИ НА ЭКРАН И В ФАЙЛ
+            System.out.println("\n" + "=".repeat(80));
+            System.out.println("СТАТИСТИКА ОБРАБОТКИ");
+            System.out.println("=".repeat(80));
 
-        } catch (Exception e) {
-            log.error("Критическая ошибка при обработке отчетов", e);
-            throw new RuntimeException("Ошибка обработки: " + e.getMessage(), e);
+            // Выводим статистику по школам на экран
+            String schoolsStats = PerformanceTracker.getSchoolsStatistics();
+            System.out.println(schoolsStats);
+
+            // Выводим итоговую сводку на экран
+            String finalSummary = PerformanceTracker.getFinalSummary();
+            System.out.println(finalSummary);
+
+            // Сохраняем статистику в файл
+            PerformanceTracker.saveStatisticsToFile();
+
+            System.out.println("=".repeat(80));
+            System.out.println("ОБРАБОТКА ЗАВЕРШЕНА!");
+
+        } finally {
+            // Очищаем статистику после завершения (опционально)
+            PerformanceTracker.clear();
         }
-
-        return summary;
     }
 
     /**
@@ -484,5 +564,73 @@ public class GeneralServiceImpl implements GeneralService {
     @Override
     public List<ReportFile> moveProcessedFiles(List<ReportFile> successfullyProcessedFiles) {
         return fileOrganizerService.moveFilesToSubjectFolders(successfullyProcessedFiles);
+    }
+
+    /**
+     * Вывод промежуточных результатов по школе
+     */
+    private void printSchoolSummary(ProcessingSummary summary, String schoolName) {
+        log.info("\n" + "-".repeat(60));
+        log.info("✅ ИТОГИ ОБРАБОТКИ ШКОЛЫ: {}", schoolName);
+        log.info("-".repeat(60));
+        log.info("📁 Всего найдено файлов: {}", summary.getTotalFilesFound());
+        log.info("✅ Успешно распарсено: {}", summary.getSuccessfullyParsed());
+        log.info("💾 Сохранено в БД: {}", summary.getSuccessfullySaved());
+        log.info("📂 Перемещено файлов: {}", summary.getSuccessfullyMoved());
+        log.info("📊 Сгенерировано отчетов: {}", summary.getGeneratedReportsCount());
+
+        if (summary.getTotalFilesFound() > 0) {
+            double successRate = (summary.getSuccessfullySaved() * 100.0) / summary.getTotalFilesFound();
+            log.info("📈 Эффективность обработки: {:.1f}%", String.format("%.1f", successRate));
+
+            if (successRate < 80) {
+                log.warn("⚠️ Низкий процент обработки файлов!");
+            }
+        }
+        log.info("=".repeat(60));
+    }
+
+    /**
+     * Сохранить статистику в файл
+     */
+    private void saveStatisticsToFile(ProcessingSummary totalSummary) {
+        try {
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"));
+            Path statsFile = Paths.get("vsoko_statistics_" + timestamp + ".txt");
+
+            List<String> lines = new ArrayList<>();
+            lines.add("=".repeat(80));
+            lines.add("СТАТИСТИКА ОБРАБОТКИ ОТЧЕТОВ ВСОКО");
+            lines.add("Время генерации: " + LocalDateTime.now());
+            lines.add("=".repeat(80));
+            lines.add("");
+
+            lines.add(PerformanceTracker.getSchoolsStatistics());
+            lines.add(PerformanceTracker.getFinalSummary());
+
+            lines.add("\nОБЩАЯ СТАТИСТИКА:");
+            lines.add("-".repeat(80));
+            lines.add(String.format("Всего школ: %d", SCHOOLS.size()));
+            lines.add(String.format("Всего файлов: %d", totalSummary.getTotalFilesFound()));
+            lines.add(String.format("Обработано файлов: %d", totalSummary.getSuccessfullySaved()));
+            lines.add(String.format("Сгенерировано отчетов: %d", totalSummary.getGeneratedReportsCount()));
+
+            Files.write(statsFile, lines);
+            log.info("📄 Статистика сохранена в файл: {}", statsFile.toAbsolutePath());
+
+        } catch (IOException e) {
+            log.error("⚠️ Не удалось сохранить статистику в файл", e);
+        }
+    }
+
+    private static void printSummary(ProcessingSummary summary) {
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("ИТОГИ ОБРАБОТКИ:");
+        System.out.println("=".repeat(50));
+        System.out.println("📁 Всего найдено файлов: " + summary.getTotalFilesFound());
+        System.out.println("✅ Успешно распарсено: " + summary.getSuccessfullyParsed());
+        System.out.println("💾 Сохранено в БД: " + summary.getSuccessfullySaved());
+        System.out.println("📂 Перемещено файлов: " + summary.getSuccessfullyMoved());
+        System.out.println("\n" + "=".repeat(50));
     }
 }

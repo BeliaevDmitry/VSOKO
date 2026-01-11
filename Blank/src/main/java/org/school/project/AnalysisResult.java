@@ -10,9 +10,9 @@ import java.util.*;
 public class AnalysisResult {
 
     // ===== НАСТРОЙКИ ПУТЕЙ =====
-    private static final String INPUT_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы\\На разбор";
-    private static final String REPORTS_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы\\{предмет}\\Отчёты";
-    private static final String FINAL_REPORT_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО";
+    private static final String INPUT_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\На разбор";
+    private static final String REPORTS_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\{предмет}\\Отчёты";
+    private static final String FINAL_REPORT_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО";
 
     // ===== ОСНОВНОЙ МЕТОД ДЛЯ ЗАПУСКА =====
     public static void main(String[] args) {

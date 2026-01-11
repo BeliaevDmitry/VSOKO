@@ -37,9 +37,8 @@ public class TeacherReportGenerator extends ExcelReportBase {
         try {
             Path reportsPath = createReportsFolder(school);
 
-            String fileName = String.format("Отчет_учителя_%s_%s.xlsx",
-                    teacherName.replace(" ", "_"),
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("ddMMyyyy_HHmm")));
+            String fileName = String.format("Отчет_учителя_%s.xlsx",
+                    teacherName.replace(" ", "_"));
 
             try (XSSFWorkbook workbook = new XSSFWorkbook()) {
                 createTeacherSummarySheet(workbook, teacherName, teacherTests);

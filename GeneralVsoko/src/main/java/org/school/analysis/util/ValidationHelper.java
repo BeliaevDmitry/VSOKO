@@ -22,7 +22,7 @@ public class ValidationHelper {
     private static final Pattern CLASS_NAME_PATTERN =
             Pattern.compile("^(1[0-1]|[1-9])[-][А-Яа-я]$");
     private static final Pattern SUBJECT_PATTERN =
-            Pattern.compile("^[А-Яа-яЁё\\s\\-]{3,50}$");
+            Pattern.compile("^[А-Яа-яЁё\\s\\-()]{3,100}$");
 
     /**
      * Валидация ФИО

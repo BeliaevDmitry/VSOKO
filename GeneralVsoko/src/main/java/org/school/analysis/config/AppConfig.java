@@ -30,6 +30,10 @@ public class AppConfig {
     public static final String FINAL_REPORT_FOLDER =
             "C:\\Users\\dimah\\Yandex.Disk\\{школа}\\ВСОКО\\Работы";
 
+    // Папка для сохранения статистики отчетов (сводная статистика)
+    public static final String STATISTIK_REPORT_FOLDER =
+            "C:\\Users\\dimah\\Yandex.Disk\\отчёты программ";
+
     // Добавьте это для контроля размера пакета
     public static final int BATCH_SIZE = 100;
 }

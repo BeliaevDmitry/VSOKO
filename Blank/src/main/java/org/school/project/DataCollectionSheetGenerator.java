@@ -18,8 +18,8 @@ import java.util.*;
 public class DataCollectionSheetGenerator {
 
     // ===== НАСТРОЙКИ =====
-    private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы\\История\\Формы сбора";
-    private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\Реестр контингента.xlsx";
+    private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\История\\Формы сбора";
+    private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\Реестр контингента.xlsx";
 
     // Константы (можно менять под разные потребности)
     private static final String PARALLEL = "10"; // Параллель классов

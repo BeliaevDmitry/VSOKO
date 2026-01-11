@@ -65,10 +65,10 @@ public class EGKRReportGenerator {
                     case 1: // Основной учитель + класс
                         return new SchoolConfig(
                                 "Школа 1811",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                                 "Свод вертикальный",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
                                 "Основной учитель",  // колонка с основным учителем
                                 "Номер и буква класса", // группировка по классу
                                 "ГБОУ №1811"
@@ -76,10 +76,10 @@ public class EGKRReportGenerator {
                     case 2: // Учитель практикума + группа
                         return new SchoolConfig(
                                 "Школа 1811",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                                 "Свод вертикальный",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
                                 "Учитель практикума", // колонка с учителем практикума
                                 "группа практикума",   // группировка по группе
                                 "ГБОУ №1811"
@@ -87,10 +87,10 @@ public class EGKRReportGenerator {
                     case 3: // Основной учитель + адрес
                         return new SchoolConfig(
                                 "Школа 1811",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                                 "Свод вертикальный",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
                                 "Основной учитель",  // колонка с основным учителем
                                 "Адрес",             // группировка по адресу
                                 "ГБОУ №1811"
@@ -103,10 +103,10 @@ public class EGKRReportGenerator {
                     case 1: // Основной учитель + класс
                         return new SchoolConfig(
                                 "ГБОУ №7",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                                 "СВОД",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
                                 "Основной учитель",
                                 "Номер и буква класса",
                                 "ГБОУ №7"
@@ -114,10 +114,10 @@ public class EGKRReportGenerator {
                     case 2: // Учитель практикума + группа
                         return new SchoolConfig(
                                 "ГБОУ №7",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                                 "СВОД",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
                                 "Учитель практикума",
                                 "группа практикума",
                                 "ГБОУ №7"
@@ -125,10 +125,10 @@ public class EGKRReportGenerator {
                     case 3: // Основной учитель + адрес
                         return new SchoolConfig(
                                 "ГБОУ №7",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                                 "СВОД",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
                                 "Основной учитель",
                                 "Корпус",  // Для ГБОУ №7 используем "Корпус"
                                 "ГБОУ №7"
@@ -146,10 +146,10 @@ public class EGKRReportGenerator {
         if (SCHOOL_CHOICE == 1) {
             return new SchoolConfig(
                     "Школа 1811",
-                    "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                    "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                     "Свод вертикальный",
-                    "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
                     "Основной учитель",
                     "Номер и буква класса",
                     "ГБОУ №1811"
@@ -157,10 +157,10 @@ public class EGKRReportGenerator {
         } else {
             return new SchoolConfig(
                     "ГБОУ №7",
-                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                     "СВОД",
-                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
                     "Основной учитель",
                     "Номер и буква класса",
                     "ГБОУ №7"
@@ -770,49 +770,26 @@ public class EGKRReportGenerator {
         row1.createCell(1).setCellValue(teacherName);
         row1.getCell(1).setCellStyle(styles.get("teacher"));
 
-        // Строка 2: Дата написания работы - ИСПРАВЛЕННАЯ
+        // Строка 2: Дата написания работы - УПРОЩЕННАЯ ВЕРСИЯ
         Row row2 = sheet.createRow(rowNum++);
         row2.createCell(0).setCellValue("Дата написания работы");
         row2.getCell(0).setCellStyle(styles.get("header"));
 
         Cell dateCell = row2.createCell(1);
 
-        // Получаем дату из результатов ЕГКР
+// Получаем дату из результатов ЕГКР
         String workDate = "";
         if (!results.isEmpty() && results.get(0).getDate() != null && !results.get(0).getDate().trim().isEmpty()) {
             workDate = results.get(0).getDate().trim();
         } else {
-            // Если даты нет, используем текущую дату
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd");
+            // Если даты нет, используем текущую дату в формате DD.MM.YYYY
+            SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
             workDate = sdf.format(new Date());
         }
 
-        // Пытаемся преобразовать строку в дату Excel
-        try {
-            // Пробуем разные форматы дат
-            Date parsedDate = null;
-            SimpleDateFormat sdf1 = new SimpleDateFormat("yyyy.MM.dd");
-            SimpleDateFormat sdf2 = new SimpleDateFormat("dd.MM.yyyy");
-
-            try {
-                parsedDate = sdf1.parse(workDate);
-            } catch (Exception e1) {
-                try {
-                    parsedDate = sdf2.parse(workDate);
-                } catch (Exception e2) {
-                    // Если не удалось распарсить, используем текущую дату
-                    parsedDate = new Date();
-                }
-            }
-
-            dateCell.setCellValue(parsedDate);
-            dateCell.setCellStyle(dateStyle);
-
-        } catch (Exception e) {
-            // Если не удалось установить как дату, устанавливаем как строку
-            dateCell.setCellValue(workDate);
-            dateCell.setCellStyle(styles.get("teacher"));
-        }
+// ПРОСТО УСТАНАВЛИВАЕМ КАК СТРОКУ (не как дату Excel)
+        dateCell.setCellValue(workDate);
+        dateCell.setCellStyle(styles.get("teacher"));  // ← Используем обычный стиль, а не dateStyle
 
         // Остальные строки остаются без изменений
         // Строка 3: Предмет
@@ -1501,23 +1478,26 @@ public class EGKRReportGenerator {
     private static String extractDateFromLine(String line) {
         if (line == null || line.isEmpty()) return "";
 
+        // Ищем дату в формате YYYY.MM.DD
         Pattern pattern = Pattern.compile("\\d{4}\\.\\d{2}\\.\\d{2}");
         Matcher matcher = pattern.matcher(line);
-
-        if (matcher.find()) {
-            return matcher.group();
-        }
-
-        // Пробуем другие форматы
-        pattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
-        matcher = pattern.matcher(line);
 
         if (matcher.find()) {
             String date = matcher.group();
             String[] parts = date.split("\\.");
             if (parts.length == 3) {
+                // Конвертируем YYYY.MM.DD в DD.MM.YYYY
                 return parts[2] + "." + parts[1] + "." + parts[0];
             }
+        }
+
+        // Ищем дату в формате DD.MM.YYYY
+        pattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
+        matcher = pattern.matcher(line);
+
+        if (matcher.find()) {
+            // Возвращаем как есть (уже в нужном формате)
+            return matcher.group();
         }
 
         return "";
@@ -1707,7 +1687,7 @@ public class EGKRReportGenerator {
 
             // Определяем предмет, дату из ячейки A5 (или подобной)
             String subject = "Неизвестный предмет";
-            String date = "2025.12.11";
+            String date = "11.12.2025";
 
             // Ищем информацию о предмете и дате в первых строках
             for (int i = 0; i <= 10; i++) {
