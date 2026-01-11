@@ -596,10 +596,15 @@ public class DetailReportGenerator {
      * Создает уникальное имя листа для рабочей книги
      */
     public String createUniqueSheetName(XSSFWorkbook workbook, TestSummaryDto testSummary) {
+        // Обработка subject с учетом возможного уменьшения длины после replaceAll
+        String subjectCleaned = testSummary.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9_]", "");
+        String subjectPart = subjectCleaned.substring(0, Math.min(12, subjectCleaned.length()));
+
+        String classNameCleaned = testSummary.getClassName().replaceAll("[^a-zA-Zа-яА-Я0-9_]", "");
+
         String baseName = String.format("%s_%s_%s",
-                testSummary.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9_]", "").substring(0,
-                        Math.min(12, testSummary.getSubject().length())),
-                testSummary.getClassName().replaceAll("[^a-zA-Zа-яА-Я0-9_]", ""),
+                subjectPart,
+                classNameCleaned,
                 testSummary.getTestDate().format(DateTimeFormatter.ofPattern("ddMM")));
 
         if (baseName.length() > 31) {

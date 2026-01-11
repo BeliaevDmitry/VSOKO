@@ -18,27 +18,27 @@ import java.util.*;
 public class DataCollectionSheetGenerator {
 
     // ===== НАСТРОЙКИ =====
-    private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\История\\Формы сбора";
+    private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\{предмет}\\Формы сбора\\{класс}";
     private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\Реестр контингента.xlsx";
 
     // Константы (можно менять под разные потребности)
-    private static final String PARALLEL = "10"; // Параллель классов
-    private static final String SUBJECT = "История"; // Название предмета
+    private static final String PARALLEL = "8"; // Параллель классов
+    private static final String SUBJECT = "Русский язык"; // Название предмета
     private static final String SCHOOL_NAME = "ГБОУ №7"; // Название школы
     private static final String ACADEMIC_YEAR = "2025-2026"; // Учебный год
-    private static final int MAX_TASKS = 10; // Максимальное количество заданий
-    private static final int CURRENT_TASKS_COUNT = 10; // Текущее количество заданий (можно менять)
+    private static final int MAX_TASKS = 30; // Максимальное количество заданий
+    private static final int CURRENT_TASKS_COUNT = 19; // Текущее количество заданий (можно менять)
     private static final int MAX_STUDENTS = 34; // Максимальное количество учеников в классе
     private static final int VARIANTS_COUNT = 5; // Количество вариантов
 
     // Максимальные баллы за каждое задание (по умолчанию все по 1 баллу)
     private static final int[] MAX_SCORES_PER_TASK = {
-            2, 2, 2, 2, 2,  // задания 1-5
-            2, 2, 2, 2, 2,  // задания 6-10
+            1, 1, 1, 1, 1,  // задания 1-5
+            1, 1, 1, 1, 1,  // задания 6-10
             1, 1, 1, 1, 1,  // задания 11-15
-            1, 1, 1, 1, 2,  // задания 16-20
-            2, 2, 2, 2, 2,  // задания 21-25
-            1, 1, 1, 1, 1,  // задания 26-30
+            1, 1, 1, 1 // задания 16-20
+            // задания 21-25
+              // задания 26-30
     };
 
     // Цвета для подсветки
@@ -52,7 +52,8 @@ public class DataCollectionSheetGenerator {
     public static void main(String[] args) {
         try {
             // Создаем папку для параллели, если не существует
-            String parallelFolder = OUTPUT_BASE_FOLDER + "\\" + PARALLEL + " класс";
+            String parallelFolder = OUTPUT_BASE_FOLDER.replace("{предмет}", SUBJECT)
+                    .replace("{класс}", PARALLEL +  " класс");
             Files.createDirectories(Paths.get(parallelFolder));
 
             // Читаем список классов из Excel
