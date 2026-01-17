@@ -86,6 +86,9 @@ public abstract class ExcelReportBase {
     /** Размер шрифта обычного текста */
     protected static final short NORMAL_FONT_SIZE = 10;
 
+    /** Колличтсво ячеек объеденных под заголовок */
+     protected static final short HEADER_MERGE_COUNT  = 6;
+
     // ============ ЦВЕТА ============
 
     /** Цвет фона заголовков таблиц (IndexedColors.LIGHT_CORNFLOWER_BLUE) */
@@ -183,7 +186,7 @@ public abstract class ExcelReportBase {
     /**
      * Создает стиль для заголовков секций
      */
-    protected CellStyle createSectionHeaderStyle(Workbook workbook) {
+    public CellStyle createSectionHeaderStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         Font font = workbook.createFont();
         font.setBold(true);

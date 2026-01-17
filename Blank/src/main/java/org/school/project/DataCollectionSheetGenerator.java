@@ -22,12 +22,12 @@ public class DataCollectionSheetGenerator {
     private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\Реестр контингента.xlsx";
 
     // Константы (можно менять под разные потребности)
-    private static final String PARALLEL = "8"; // Параллель классов
+    private static final String PARALLEL = "6"; // Параллель классов
     private static final String SUBJECT = "Русский язык"; // Название предмета
     private static final String SCHOOL_NAME = "ГБОУ №7"; // Название школы
     private static final String ACADEMIC_YEAR = "2025-2026"; // Учебный год
     private static final int MAX_TASKS = 30; // Максимальное количество заданий
-    private static final int CURRENT_TASKS_COUNT = 19; // Текущее количество заданий (можно менять)
+    private static final int CURRENT_TASKS_COUNT = 14; // Текущее количество заданий (можно менять)
     private static final int MAX_STUDENTS = 34; // Максимальное количество учеников в классе
     private static final int VARIANTS_COUNT = 5; // Количество вариантов
 

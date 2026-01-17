@@ -44,6 +44,7 @@ public class GeneralServiceImpl implements GeneralService {
     private final FileOrganizerService fileOrganizerService;
     private final AnalysisService analysisService;
     private final ExcelReportService excelReportService;
+    private final TeacherService teacherService;
 
     @Override
     @Transactional
@@ -62,7 +63,8 @@ public class GeneralServiceImpl implements GeneralService {
                 String currentAcademicYear = ALL_ACADEMIC_YEAR.get(0);
                 System.out.println("  Учебный год: " + currentAcademicYear);
                 System.out.println("  Обработка школы " + school);
-
+                //Инициализация учителей (если нужно)
+                initTeacherDatabase(school);
                 String folderPath = INPUT_FOLDER.replace("{школа}", school);
                 ProcessingSummary schoolSummary = new ProcessingSummary();
 
@@ -133,8 +135,6 @@ public class GeneralServiceImpl implements GeneralService {
             String finalSummary = PerformanceTracker.getFinalSummary();
             System.out.println(finalSummary);
 
-            // Сохраняем статистику в файл
-            PerformanceTracker.saveStatisticsToFile();
 
             System.out.println("=".repeat(80));
             System.out.println("ОБРАБОТКА ЗАВЕРШЕНА!");
@@ -143,6 +143,32 @@ public class GeneralServiceImpl implements GeneralService {
             // Очищаем статистику после завершения (опционально)
             PerformanceTracker.clear();
         }
+    }
+
+    /**
+     * Инициализация базы данных учителей
+     */
+    private void initTeacherDatabase(String school) {
+        log.info("=== ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ УЧИТЕЛЕЙ ===");
+
+        try {
+            // Загружаем статистику до импорта
+            Map<String, Object> statsBefore = teacherService.getStatistics();
+            log.info("До импорта: {} активных учителей в БД", statsBefore.get("activeTeachers"));
+
+            // Импортируем из файла (если есть изменения)
+            teacherService.importTeachersFromExcel(school);
+
+            // Загружаем статистику после импорта
+            Map<String, Object> statsAfter = teacherService.getStatistics();
+            log.info("После импорта: {} активных учителей в БД", statsAfter.get("activeTeachers"));
+
+        } catch (Exception e) {
+            log.error("Ошибка при инициализации базы учителей: {}", e.getMessage());
+            log.warn("Продолжаем обработку без проверки учителей");
+        }
+
+        log.info("=== ЗАВЕРШЕНО ИНИЦИАЛИЗАЦИЯ УЧИТЕЛЕЙ ===\n");
     }
 
     /**
