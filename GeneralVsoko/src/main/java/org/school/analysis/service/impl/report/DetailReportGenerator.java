@@ -17,7 +17,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -50,7 +49,7 @@ public class DetailReportGenerator extends ExcelReportBase {
             // 1. Заголовок отчета
             currentRow = createReportHeader(workbook, sheet, testSummary, currentRow);
 
-            // 2. Общая статистика
+            // 2. Общая статистика (обновленная версия)
             currentRow = createGeneralStatistics(workbook, sheet, testSummary, currentRow);
 
             // 3. Результаты студентов
@@ -59,8 +58,8 @@ public class DetailReportGenerator extends ExcelReportBase {
             // 4. Анализ по заданиям (основная таблица)
             currentRow = createTaskAnalysis(workbook, sheet, taskStatistics, currentRow);
 
-            // 5. ГРАФИЧЕСКИЙ АНАЛИЗ (ТОЛЬКО ГРАФИКИ, без дублирования данных)
-            currentRow = createGraphicalAnalysis(workbook, sheet,taskStatistics, currentRow);
+            // 5. ГРАФИЧЕСКИЙ АНАЛИЗ
+            currentRow = createGraphicalAnalysis(workbook, sheet, taskStatistics, currentRow);
 
             // Автонастройка ширины столбцов
             autoSizeColumns(sheet, taskStatistics.size());
@@ -91,14 +90,13 @@ public class DetailReportGenerator extends ExcelReportBase {
         Cell headerCell = sectionHeader.createCell(0);
         headerCell.setCellValue("ГРАФИЧЕСКИЙ АНАЛИЗ");
         headerCell.setCellStyle(createSectionHeaderStyle(workbook));
-        // Объединяем ячейки для заголовка
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
 
         // Описание - откуда берутся данные
         Row descriptionRow = sheet.createRow(startRow++);
         Cell descCell = descriptionRow.createCell(0);
         descCell.setCellValue("*Данные для графиков взяты из раздела 'АНАЛИЗ ПО ЗАДАНИЯМ'");
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
 
         // Стиль для описания
         CellStyle descStyle = workbook.createCellStyle();
@@ -188,9 +186,7 @@ public class DetailReportGenerator extends ExcelReportBase {
                         testSummary.getSubject(), testSummary.getClassName())
         );
         titleCell.setCellStyle(createTitleStyle(workbook));
-
-        // Объединяем ячейки для заголовка
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
 
         // Подзаголовок
         Row subtitleRow = sheet.createRow(startRow++);
@@ -201,72 +197,182 @@ public class DetailReportGenerator extends ExcelReportBase {
                         testSummary.getTestType())
         );
         subtitleCell.setCellStyle(createSubtitleStyle(workbook));
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
 
         // Дополнительная информация
         if (testSummary.getTeacher() != null && !testSummary.getTeacher().isEmpty()) {
-            sheet.createRow(startRow++).createCell(0).setCellValue("Учитель: " + testSummary.getTeacher());
-            sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
-
+            Row teacherRow = sheet.createRow(startRow++);
+            teacherRow.createCell(0).setCellValue("Учитель: " + testSummary.getTeacher());
+            sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
         }
 
         if (testSummary.getFileName() != null && !testSummary.getFileName().isEmpty()) {
-            sheet.createRow(startRow++).createCell(0).setCellValue("Файл отчета: " + testSummary.getFileName());
-            sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
+            Row fileNameRow = sheet.createRow(startRow++);
+            fileNameRow.createCell(0).setCellValue("Файл отчета: " + testSummary.getFileName());
+            sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
         }
 
         return startRow + 1; // Пустая строка
     }
 
     /**
-     * Создает общую статистику теста
+     * Создает общую статистику теста (ОБНОВЛЕННАЯ ВЕРСИЯ)
      */
     private int createGeneralStatistics(Workbook workbook, Sheet sheet,
                                         TestSummaryDto testSummary, int startRow) {
 
-        // Заголовок раздела
+        // =================== ЗАГОЛОВОК РАЗДЕЛА ===================
         Row headerRow = sheet.createRow(startRow++);
-        headerRow.createCell(0).setCellValue("ОБЩАЯ СТАТИСТИКА ТЕСТА");
-        headerRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 2, startRow - 2, 0, HEADER_MERGE_COUNT));
+        Cell headerCell = headerRow.createCell(0);
+        headerCell.setCellValue("ОБЩАЯ СТАТИСТИКА ТЕСТА");
 
-        // Данные статистики
-        startRow = addStatisticRow(sheet, startRow, "Всего учеников в классе",
-                testSummary.getClassSize() != null ? testSummary.getClassSize() : testSummary.getStudentsTotal());
-        startRow = addStatisticRow(sheet, startRow, "Присутствовало на тесте", testSummary.getStudentsPresent());
-        startRow = addStatisticRow(sheet, startRow, "Отсутствовало на тесте", testSummary.getStudentsAbsent());
+        // Стиль для заголовка раздела БЕЗ границ
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setFontHeightInPoints(SECTION_FONT_SIZE);
+        headerStyle.setFont(headerFont);
+        headerStyle.setFillForegroundColor(SECTION_HEADER_BG_COLOR);
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        // УБИРАЕМ ВСЕ ГРАНИЦЫ
+        headerStyle.setBorderTop(BorderStyle.NONE);
+        headerStyle.setBorderBottom(BorderStyle.NONE);
+        headerStyle.setBorderLeft(BorderStyle.NONE);
+        headerStyle.setBorderRight(BorderStyle.NONE);
+        headerStyle.setAlignment(HorizontalAlignment.LEFT);
+        headerCell.setCellStyle(headerStyle);
 
-        // Рассчитываем процент присутствия
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, 3));
+
+        // =================== ДАННЫЕ СТАТИСТИКИ ===================
+        // Создаем стиль для данных статистики С ГРАНИЦАМИ
+        CellStyle dataStyle = workbook.createCellStyle();
+        dataStyle.setBorderTop(BorderStyle.THIN);
+        dataStyle.setBorderBottom(BorderStyle.THIN);
+        dataStyle.setBorderLeft(BorderStyle.THIN);
+        dataStyle.setBorderRight(BorderStyle.THIN);
+        dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        dataStyle.setWrapText(true);
+
+        // Стиль для меток (левая колонка)
+        CellStyle labelStyle = workbook.createCellStyle();
+        labelStyle.cloneStyleFrom(dataStyle);
+        labelStyle.setAlignment(HorizontalAlignment.RIGHT);
+        labelStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        labelStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        Font labelFont = workbook.createFont();
+        labelFont.setBold(true);
+        labelStyle.setFont(labelFont);
+
+        // Стиль для значений (правая колонка)
+        CellStyle valueStyle = workbook.createCellStyle();
+        valueStyle.cloneStyleFrom(dataStyle);
+        valueStyle.setAlignment(HorizontalAlignment.CENTER);
+
+        // 1. Первая группа данных (посещаемость)
+        Row row1 = sheet.createRow(startRow++);
+
+        // Всего учеников в классе
+        Cell label1 = row1.createCell(1);
+        label1.setCellValue("Всего учеников в классе");
+        label1.setCellStyle(labelStyle);
+
+        Cell value1 = row1.createCell(3); // Перемещаем в колонку D
+        Integer totalStudents = testSummary.getClassSize() != null ?
+                testSummary.getClassSize() : testSummary.getStudentsTotal();
+        value1.setCellValue(totalStudents != null ? totalStudents : 0);
+        value1.setCellStyle(valueStyle);
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2)); // Объединяем B-C
+
+        // Присутствовало на тесте
+        Row row2 = sheet.createRow(startRow++);
+        Cell label2 = row2.createCell(1);
+        label2.setCellValue("Присутствовало на тесте");
+        label2.setCellStyle(labelStyle);
+
+        Cell value2 = row2.createCell(3);
+        value2.setCellValue(testSummary.getStudentsPresent() != null ? testSummary.getStudentsPresent() : 0);
+        value2.setCellStyle(valueStyle);
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2));
+
+        // Отсутствовало на тесте
+        Row row3 = sheet.createRow(startRow++);
+        Cell label3 = row3.createCell(1);
+        label3.setCellValue("Отсутствовало на тесте");
+        label3.setCellStyle(labelStyle);
+
+        Cell value3 = row3.createCell(3);
+        value3.setCellValue(testSummary.getStudentsAbsent() != null ? testSummary.getStudentsAbsent() : 0);
+        value3.setCellStyle(valueStyle);
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2));
+
+        // Процент присутствия
+        Row row4 = sheet.createRow(startRow++);
+        Cell label4 = row4.createCell(1);
+        label4.setCellValue("Процент присутствия");
+        label4.setCellStyle(labelStyle);
+
+        Cell value4 = row4.createCell(3);
         double attendancePercentage = 0.0;
         if (testSummary.getStudentsPresent() != null && testSummary.getClassSize() != null &&
                 testSummary.getClassSize() > 0) {
             attendancePercentage = (testSummary.getStudentsPresent() * 100.0) / testSummary.getClassSize();
         }
-        startRow = addStatisticRow(sheet, startRow, "Процент присутствия",
-                String.format("%.1f%%", attendancePercentage));
+        value4.setCellValue(attendancePercentage / 100.0);
+        value4.setCellStyle(createPercentStyle(workbook));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2));
 
-        startRow++; // Пустая строка
+        // 2. Вторая группа данных (результаты)
+        Row row5 = sheet.createRow(startRow++);
+        Cell label5 = row5.createCell(1);
+        label5.setCellValue("Количество заданий");
+        label5.setCellStyle(labelStyle);
 
-        startRow = addStatisticRow(sheet, startRow, "Количество заданий", testSummary.getTaskCount());
-        startRow = addStatisticRow(sheet, startRow, "Максимальный балл за тест", testSummary.getMaxTotalScore());
+        Cell value5 = row5.createCell(3);
+        value5.setCellValue(testSummary.getTaskCount() != null ? testSummary.getTaskCount() : 0);
+        value5.setCellStyle(valueStyle);
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2));
 
-        // Средний балл
+        Row row6 = sheet.createRow(startRow++);
+        Cell label6 = row6.createCell(1);
+        label6.setCellValue("Максимальный балл за тест");
+        label6.setCellStyle(labelStyle);
+
+        Cell value6 = row6.createCell(3);
+        value6.setCellValue(testSummary.getMaxTotalScore() != null ? testSummary.getMaxTotalScore() : 0);
+        value6.setCellStyle(valueStyle);
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2));
+
+        Row row7 = sheet.createRow(startRow++);
+        Cell label7 = row7.createCell(1);
+        label7.setCellValue("Средний балл по классу");
+        label7.setCellStyle(labelStyle);
+
+        Cell value7 = row7.createCell(3);
         Double averageScore = testSummary.getAverageScore();
-        if (averageScore == null && testSummary.getAverageScore() != null) {
-            averageScore = testSummary.getAverageScore();
-        }
-        startRow = addStatisticRow(sheet, startRow, "Средний балл по классу",
-                String.format("%.2f", averageScore != null ? averageScore : 0.0));
+        value7.setCellValue(averageScore != null ? averageScore : 0.0);
+        value7.setCellStyle(createDecimalStyle(workbook));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2));
 
-        // Процент выполнения
+        Row row8 = sheet.createRow(startRow++);
+        Cell label8 = row8.createCell(1);
+        label8.setCellValue("Процент выполнения теста");
+        label8.setCellStyle(labelStyle);
+
+        Cell value8 = row8.createCell(3);
         double successPercentage = 0.0;
         if (testSummary.getMaxTotalScore() != null && testSummary.getMaxTotalScore() > 0 &&
                 averageScore != null) {
             successPercentage = (averageScore * 100.0) / testSummary.getMaxTotalScore();
         }
-        startRow = addStatisticRow(sheet, startRow, "Процент выполнения теста",
-                String.format("%.1f%%", successPercentage));
+        value8.setCellValue(successPercentage / 100.0);
+        value8.setCellStyle(createPercentStyle(workbook));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 1, 2));
+
+        // Устанавливаем ширину колонок для красивого отображения
+        sheet.setColumnWidth(1, 20 * 256); // Колонка B
+        sheet.setColumnWidth(2, 1 * 256);  // Колонка C (очень узкая, почти не видна)
+        sheet.setColumnWidth(3, 12 * 256); // Колонка D
 
         return startRow + 1; // Пустая строка в конце
     }
@@ -286,7 +392,7 @@ public class DetailReportGenerator extends ExcelReportBase {
         Row headerRow = sheet.createRow(startRow++);
         headerRow.createCell(0).setCellValue("РЕЗУЛЬТАТЫ СТУДЕНТОВ");
         headerRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
 
         // Определяем максимальное количество заданий
         int maxTaskNumber = taskStatistics != null && !taskStatistics.isEmpty() ?
@@ -391,7 +497,7 @@ public class DetailReportGenerator extends ExcelReportBase {
         Row headerRow = sheet.createRow(startRow++);
         headerRow.createCell(0).setCellValue("АНАЛИЗ ПО ЗАДАНИЯМ");
         headerRow.getCell(0).setCellStyle(createSectionHeaderStyle(workbook));
-        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, HEADER_MERGE_COUNT_TEST));
 
         // Заголовки таблицы
         Row columnHeaderRow = sheet.createRow(startRow++);
@@ -441,17 +547,6 @@ public class DetailReportGenerator extends ExcelReportBase {
 
     // ============ ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ============
 
-    private int addStatisticRow(Sheet sheet, int rowNum, String label, Object value) {
-        Row row = sheet.createRow(rowNum);
-        row.createCell(1).setCellValue(label);
-        if (value != null) {
-            row.createCell(2).setCellValue(value.toString());
-        } else {
-            row.createCell(2).setCellValue("");
-        }
-        return rowNum + 1;
-    }
-
     private String formatScoreDistribution(Map<Integer, Integer> distribution) {
         if (distribution == null || distribution.isEmpty()) {
             return "";
@@ -481,7 +576,6 @@ public class DetailReportGenerator extends ExcelReportBase {
     private File saveWorkbookToFile(Workbook workbook,
                                     TestSummaryDto testSummary) throws IOException {
         // Создаем директорию для отчетов, если её нет
-
         String safeSubject = testSummary.getSubject() != null ?
                 testSummary.getSubject().replaceAll("[\\\\/:*?\"<>|]", "_"): "";
         String safeSchool = testSummary.getSchoolName() != null ?
@@ -515,7 +609,6 @@ public class DetailReportGenerator extends ExcelReportBase {
      * Создает уникальное имя листа для рабочей книги
      */
     public String createUniqueSheetName(XSSFWorkbook workbook, TestSummaryDto testSummary) {
-        // Обработка subject с учетом возможного уменьшения длины после replaceAll
         String subjectCleaned = testSummary.getSubject().replaceAll("[^a-zA-Zа-яА-Я0-9_]", "");
         String subjectPart = subjectCleaned.substring(0, Math.min(12, subjectCleaned.length()));
 
@@ -542,7 +635,6 @@ public class DetailReportGenerator extends ExcelReportBase {
         return finalName;
     }
 
-
     /**
      * Создает детальный отчет на листе в существующей рабочей книге
      */
@@ -554,12 +646,12 @@ public class DetailReportGenerator extends ExcelReportBase {
 
         XSSFSheet sheet = workbook.createSheet(sheetName);
         int currentRow = 0;
-        //int taskAnalysisRorStart = 0;
+
         try {
             // 1. Заголовок отчета
             currentRow = createReportHeader(workbook, sheet, testSummary, currentRow);
 
-            // 2. Общая статистика теста
+            // 2. Общая статистика теста (ОБНОВЛЕННАЯ ВЕРСИЯ)
             currentRow = createGeneralStatistics(workbook, sheet, testSummary, currentRow);
 
             // 3. Результаты студентов
@@ -571,9 +663,7 @@ public class DetailReportGenerator extends ExcelReportBase {
             // 5. Графики (если есть данные)
             if (taskStatistics != null && !taskStatistics.isEmpty() &&
                     studentResults != null && !studentResults.isEmpty()) {
-
                 createGraphicalAnalysis(workbook, sheet, taskStatistics, currentRow);
-                //excelChartService.createCharts(workbook, sheet, testSummary, taskStatistics, currentRow);
             }
 
             // 6. Оптимизируем ширину колонок

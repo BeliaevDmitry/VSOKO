@@ -2,6 +2,7 @@ package org.school.analysis.service.impl.report;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
@@ -12,7 +13,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Component
@@ -20,6 +20,20 @@ import java.util.List;
 public class TeacherReportGenerator extends ExcelReportBase {
 
     private final DetailReportGenerator detailReportGenerator;
+
+    // Предопределенные ширины колонок в символах (уже с учетом фильтров)
+    private static final int[] TEACHER_SUMMARY_WIDTHS = {
+            19, // 0: Предмет
+            12, // 1: Класс
+            12, // 2: Дата (дд.мм.гггг)
+            15, // 3: Тип теста
+            17, // 4: Присутствовало
+            17, // 5: Отсутствовало
+            10,  // 6: Всего
+            15, // 7: % присутствия
+            17, // 8: Средний балл
+            18  // 9: % выполнения
+    };
 
     public TeacherReportGenerator(DetailReportGenerator detailReportGenerator) {
         this.detailReportGenerator = detailReportGenerator;
@@ -61,18 +75,63 @@ public class TeacherReportGenerator extends ExcelReportBase {
 
         Sheet sheet = workbook.createSheet("Сводка по тестам");
 
-        // Заголовок
-        Row titleRow = sheet.createRow(0);
-        titleRow.createCell(0).setCellValue("Отчет по тестам учителя: " + teacherName);
-        titleRow.getCell(0).setCellStyle(createTitleStyle(workbook));
+        // 1. ЗАГОЛОВОК ОТЧЕТА
+        createReportHeader(sheet, workbook, teacherName, teacherTests);
 
-        // Дата генерации
-        Row dateRow = sheet.createRow(1);
-        dateRow.createCell(0).setCellValue(
-                "Отчет сгенерирован: " + LocalDateTime.now().format(DateTimeFormatters.DISPLAY_DATE)
-        );
+        // 2. ЗАГОЛОВКИ ТАБЛИЦЫ
+        Row headerRow = createTableHeaders(sheet, workbook);
 
-        // Заголовки таблицы
+        // 3. ДАННЫЕ ТЕСТОВ
+        fillTeacherTestData(sheet, workbook, teacherTests, headerRow.getRowNum() + 1);
+
+        // 4. ИТОГОВАЯ СТРОКА
+        if (!teacherTests.isEmpty()) {
+            addTeacherSummaryRow(sheet, workbook, teacherTests);
+        }
+
+        // 5. НАСТРОЙКА ФУНКЦИОНАЛЬНОСТИ
+        setupTableFeatures(sheet, headerRow, TEACHER_SUMMARY_WIDTHS.length);
+    }
+
+    /**
+     * Создает заголовок отчета и информационную строку
+     */
+    private void createReportHeader(Sheet sheet, Workbook workbook,
+                                    String teacherName, List<TestSummaryDto> teacherTests) {
+
+        CellStyle titleStyle = getTitleStyle(workbook);
+        CellStyle infoStyle = getSubtitleStyle(workbook);
+
+        // Заголовок отчета
+        createMergedTitle(sheet,
+                "Отчет по тестам учителя: " + teacherName,
+                titleStyle,
+                0, 0, TEACHER_SUMMARY_WIDTHS.length - 1);
+
+        // Информационная строка
+        Row infoRow = sheet.createRow(1);
+
+        // Дата формирования (левая часть)
+        Cell dateCell = infoRow.createCell(0);
+        dateCell.setCellValue("Отчет сгенерирован: " +
+                LocalDateTime.now().format(DateTimeFormatters.DISPLAY_DATE));
+        dateCell.setCellStyle(infoStyle);
+        sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 4));
+
+        // Количество тестов (правая часть)
+        Cell testCountCell = infoRow.createCell(5);
+        testCountCell.setCellValue("Тестов: " + teacherTests.size());
+        testCountCell.setCellStyle(infoStyle);
+        sheet.addMergedRegion(new CellRangeAddress(1, 1, 5, TEACHER_SUMMARY_WIDTHS.length - 1));
+
+        // Пустая строка для разделения
+        sheet.createRow(2);
+    }
+
+    /**
+     * Создает заголовки таблицы
+     */
+    private Row createTableHeaders(Sheet sheet, Workbook workbook) {
         String[] headers = {
                 "Предмет", "Класс", "Дата", "Тип",
                 "Присутствовало", "Отсутствовало", "Всего", "% присутствия",
@@ -80,64 +139,116 @@ public class TeacherReportGenerator extends ExcelReportBase {
         };
 
         Row headerRow = sheet.createRow(3);
+        CellStyle tableHeaderStyle = getTableHeaderStyle(workbook);
+
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
-            cell.setCellStyle(createTableHeaderStyle(workbook));
+            cell.setCellStyle(tableHeaderStyle);
         }
 
-        // Данные тестов
-        int rowNum = 4;
+        return headerRow;
+    }
+
+    /**
+     * Заполняет данные тестов с правильным форматированием
+     */
+    private void fillTeacherTestData(Sheet sheet, Workbook workbook,
+                                     List<TestSummaryDto> teacherTests, int startRow) {
+
+        // Получаем стили из кэша
+        CellStyle normalStyle = getStyle(workbook, StyleType.NORMAL);
+        CellStyle percentStyle = getStyle(workbook, StyleType.PERCENT);
+        CellStyle decimalStyle = getStyle(workbook, StyleType.DECIMAL);
+        CellStyle centeredStyle = getStyle(workbook, StyleType.CENTERED);
+
+        // Маппинг стилей по колонкам
+        CellStyle[] columnStyles = {
+                normalStyle,    // 0: Предмет
+                normalStyle,    // 1: Класс
+                centeredStyle,  // 2: Дата
+                centeredStyle,  // 3: Тип
+                centeredStyle,  // 4: Присутствовало
+                centeredStyle,  // 5: Отсутствовало
+                centeredStyle,  // 6: Всего
+                percentStyle,   // 7: % присутствия
+                decimalStyle,   // 8: Средний балл
+                percentStyle    // 9: % выполнения
+        };
+
+        int rowNum = startRow;
         for (TestSummaryDto test : teacherTests) {
             Row row = sheet.createRow(rowNum++);
-
-            // Базовые данные
-            row.createCell(0).setCellValue(test.getSubject());
-            row.createCell(1).setCellValue(test.getClassName());
-            row.createCell(2).setCellValue(test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE));
-            row.createCell(3).setCellValue(test.getTestType());
-
-            // Посещаемость
-            setNumericCellValue(row, 4, test.getStudentsPresent());
-            setNumericCellValue(row, 5, test.getStudentsAbsent());
-            setNumericCellValue(row, 6, test.getClassSize());
-
-            // Процент присутствия
-            Cell attendanceCell = row.createCell(7);
-            double attendance = test.getAttendancePercentage() != null ?
-                    test.getAttendancePercentage() / 100.0 : 0.0;
-            attendanceCell.setCellValue(attendance);
-            attendanceCell.setCellStyle(createPercentStyle(workbook));
-
-            // Результаты
-            Cell avgScoreCell = row.createCell(8);
-            avgScoreCell.setCellValue(test.getAverageScore() != null ?
-                    test.getAverageScore() : 0.0);
-            avgScoreCell.setCellStyle(createDecimalStyle(workbook));
-
-            Cell successCell = row.createCell(9);
-            double success = test.getSuccessPercentage() != null ?
-                    test.getSuccessPercentage() / 100.0 : 0.0;
-            successCell.setCellValue(success);
-            successCell.setCellStyle(createPercentStyle(workbook));
-        }
-
-        // Итоговая строка
-        if (!teacherTests.isEmpty()) {
-            addTeacherSummaryRow(sheet, rowNum, teacherTests, workbook);
+            fillTeacherTestRow(row, test, columnStyles);
         }
     }
 
-    private void addTeacherSummaryRow(Sheet sheet, int rowNum,
-                                      List<TestSummaryDto> tests, Workbook workbook) {
+    /**
+     * Заполняет одну строку с данными теста
+     */
+    private void fillTeacherTestRow(Row row, TestSummaryDto test, CellStyle[] columnStyles) {
+        // Текстовые данные
+        setCellValue(row, 0, test.getSubject(), columnStyles[0]);
+        setCellValue(row, 1, test.getClassName(), columnStyles[1]);
+        setCellValue(row, 2,
+                test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE),
+                columnStyles[2]);
+        setCellValue(row, 3, test.getTestType(), columnStyles[3]);
 
-        Row summaryRow = sheet.createRow(rowNum + 1);
-        CellStyle summaryStyle = createSummaryStyle((XSSFWorkbook) workbook);
+        // Числовые данные
+        setCellValue(row, 4, test.getStudentsPresent(), columnStyles[4]);
+        setCellValue(row, 5, test.getStudentsAbsent(), columnStyles[5]);
+        setCellValue(row, 6, test.getClassSize(), columnStyles[6]);
 
+        // Проценты
+        double attendancePercent = test.getAttendancePercentage() != null ?
+                test.getAttendancePercentage() / 100.0 : 0.0;
+        setCellValue(row, 7, attendancePercent, columnStyles[7]);
+
+        // Десятичные числа
+        double avgScore = test.getAverageScore() != null ? test.getAverageScore() : 0.0;
+        setCellValue(row, 8, avgScore, columnStyles[8]);
+
+        // Проценты выполнения
+        double successPercent = test.getSuccessPercentage() != null ?
+                test.getSuccessPercentage() / 100.0 : 0.0;
+        setCellValue(row, 9, successPercent, columnStyles[9]);
+    }
+
+    /**
+     * Добавляет итоговую строку со средними показателями
+     */
+    private void addTeacherSummaryRow(Sheet sheet, Workbook workbook,
+                                      List<TestSummaryDto> tests) {
+
+        int lastRow = sheet.getLastRowNum() + 2; // Пропускаем строку
+        Row summaryRow = sheet.createRow(lastRow);
+
+        // Получаем стили
+        CellStyle summaryStyle = createSummaryStyle(workbook);
+        CellStyle percentStyle = getStyle(workbook, StyleType.PERCENT);
+        CellStyle decimalStyle = getStyle(workbook, StyleType.DECIMAL);
+
+        // Заголовок итогов
         summaryRow.createCell(0).setCellValue("Средние показатели:");
         summaryRow.getCell(0).setCellStyle(summaryStyle);
 
         // Рассчитываем средние значения
+        double[] averages = calculateAverages(tests);
+
+        // Заполняем ячейки
+        setSummaryCell(summaryRow, 4, averages[0], summaryStyle); // Присутствовало
+        setSummaryCell(summaryRow, 5, averages[1], summaryStyle); // Отсутствовало
+        setSummaryCell(summaryRow, 6, averages[2], summaryStyle); // Всего
+        setSummaryCell(summaryRow, 7, averages[3], percentStyle); // % присутствия
+        setSummaryCell(summaryRow, 8, averages[4], decimalStyle); // Средний балл
+        setSummaryCell(summaryRow, 9, averages[5], percentStyle); // % выполнения
+    }
+
+    /**
+     * Рассчитывает средние значения по всем тестам
+     */
+    private double[] calculateAverages(List<TestSummaryDto> tests) {
         double avgPresent = tests.stream()
                 .filter(t -> t.getStudentsPresent() != null)
                 .mapToInt(TestSummaryDto::getStudentsPresent)
@@ -168,30 +279,104 @@ public class TeacherReportGenerator extends ExcelReportBase {
                 .mapToDouble(t -> t.getSuccessPercentage() / 100.0)
                 .average().orElse(0);
 
-        // Заполняем ячейки
-        Cell avgPresentCell = summaryRow.createCell(4);
-        avgPresentCell.setCellValue(avgPresent);
-        avgPresentCell.setCellStyle(summaryStyle);
+        return new double[]{avgPresent, avgAbsent, avgClassSize,
+                avgAttendance, avgScore, avgSuccess};
+    }
 
-        Cell avgAbsentCell = summaryRow.createCell(5);
-        avgAbsentCell.setCellValue(avgAbsent);
-        avgAbsentCell.setCellStyle(summaryStyle);
+    /**
+     * Устанавливает значение в ячейку итоговой строки
+     */
+    private void setSummaryCell(Row row, int column, double value, CellStyle style) {
+        Cell cell = row.createCell(column);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
 
-        Cell avgClassSizeCell = summaryRow.createCell(6);
-        avgClassSizeCell.setCellValue(avgClassSize);
-        avgClassSizeCell.setCellStyle(summaryStyle);
+    /**
+     * Настраивает функциональность таблицы (фильтры, закрепление, ширины)
+     */
+    private void setupTableFeatures(Sheet sheet, Row headerRow, int columnCount) {
+        try {
+            // 1. Устанавливаем ширины колонок (ПЕРВЫМ делом!)
+            setColumnWidthsWithFilterMargin(sheet, columnCount);
 
-        Cell avgAttendanceCell = summaryRow.createCell(7);
-        avgAttendanceCell.setCellValue(avgAttendance);
-        avgAttendanceCell.setCellStyle(createPercentStyle(workbook));
+            // 2. Включаем автофильтр
+            enableAutoFilter(sheet, headerRow, columnCount);
 
-        Cell avgScoreCell = summaryRow.createCell(8);
-        avgScoreCell.setCellValue(avgScore);
-        avgScoreCell.setCellStyle(createDecimalStyle(workbook));
+            // 3. Закрепляем первые 4 строки
+            freezeFirstNRows(sheet, 4);
 
-        Cell avgSuccessCell = summaryRow.createCell(9);
-        avgSuccessCell.setCellValue(avgSuccess);
-        avgSuccessCell.setCellStyle(createPercentStyle(workbook));
+            // 4. Настраиваем высоту строки заголовков (для лучшего отображения фильтров)
+            headerRow.setHeight((short) (sheet.getDefaultRowHeight() * 1.2));
+
+            log.info("✅ Настройки листа 'Сводка по тестам' применены");
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при настройке листа: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Устанавливает фиксированные ширины колонок с учетом фильтров
+     */
+    private void setColumnWidthsWithFilterMargin(Sheet sheet, int columnCount) {
+        for (int i = 0; i < columnCount && i < TEACHER_SUMMARY_WIDTHS.length; i++) {
+            int widthInTwips = TEACHER_SUMMARY_WIDTHS[i] * 256;
+            sheet.setColumnWidth(i, widthInTwips);
+            log.debug("Установлена ширина колонки {}: {} символов",
+                    i, TEACHER_SUMMARY_WIDTHS[i]);
+        }
+    }
+
+    /**
+     * Включает автофильтр на заголовках таблицы
+     */
+    private void enableAutoFilter(Sheet sheet, Row headerRow, int columnCount) {
+        if (sheet.getLastRowNum() > headerRow.getRowNum()) {
+            CellRangeAddress filterRange = new CellRangeAddress(
+                    headerRow.getRowNum(),
+                    sheet.getLastRowNum(),
+                    0,
+                    columnCount - 1
+            );
+
+            sheet.setAutoFilter(filterRange);
+            log.debug("Автофильтр установлен на диапазоне A{}-{}{}",
+                    headerRow.getRowNum() + 1, // Excel 1-based
+                    getExcelColumnName(columnCount - 1),
+                    sheet.getLastRowNum() + 1);
+        }
+    }
+
+    /**
+     * Закрепляет первые N строк листа
+     */
+    private void freezeFirstNRows(Sheet sheet, int rowsCount) {
+        try {
+            sheet.createFreezePane(0, rowsCount);
+            log.debug("Закреплены первые {} строк", rowsCount);
+        } catch (Exception e) {
+            log.error("Ошибка при закреплении строк: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Создает именованный диапазон для удобства
+     */
+    private void createNamedRange(Sheet sheet, Row headerRow, int columnCount) {
+        try {
+            Name namedRange = sheet.getWorkbook().createName();
+            namedRange.setNameName("TeacherTestData");
+            namedRange.setRefersToFormula(
+                    String.format("'%s'!$A$%d:$%s$%d",
+                            sheet.getSheetName(),
+                            headerRow.getRowNum() + 1,
+                            getExcelColumnName(columnCount - 1),
+                            sheet.getLastRowNum() + 1)
+            );
+        } catch (Exception e) {
+            log.warn("Не удалось создать именованный диапазон: {}", e.getMessage());
+        }
     }
 
     private void createTeacherTestDetailSheet(XSSFWorkbook workbook,
@@ -203,11 +388,9 @@ public class TeacherReportGenerator extends ExcelReportBase {
             return;
         }
 
-        // Создаем уникальное имя листа
         String sheetName = detailReportGenerator.createUniqueSheetName(workbook, testSummary);
 
         try {
-            // Создаем детальный отчет на отдельном листе
             detailReportGenerator.createDetailReportOnSheet(
                     workbook, testSummary,
                     testDetail.getStudentResults(),
@@ -220,5 +403,20 @@ public class TeacherReportGenerator extends ExcelReportBase {
             log.error("❌ Ошибка создания листа для теста {}: {}",
                     testSummary.getFileName(), e.getMessage(), e);
         }
+    }
+
+    /**
+     * Преобразует индекс колонки в буквенное обозначение Excel (A, B, C, ... AA, AB, ...)
+     */
+    private String getExcelColumnName(int columnIndex) {
+        StringBuilder columnName = new StringBuilder();
+
+        while (columnIndex >= 0) {
+            int remainder = columnIndex % 26;
+            columnName.insert(0, (char) ('A' + remainder));
+            columnIndex = (columnIndex / 26) - 1;
+        }
+
+        return columnName.toString();
     }
 }

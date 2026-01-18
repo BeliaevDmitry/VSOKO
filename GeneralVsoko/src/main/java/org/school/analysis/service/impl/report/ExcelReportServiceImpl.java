@@ -35,7 +35,6 @@ public class ExcelReportServiceImpl implements ExcelReportService {
         log.info("Генерация детального отчета для теста: {} - {}",
                 testSummary.getSubject(), testSummary.getClassName());
 
-        // Используем новый метод generateDetailReportFile
         return detailReportGenerator.generateDetailReportFile(testSummary, studentResults, taskStatistics);
     }
 

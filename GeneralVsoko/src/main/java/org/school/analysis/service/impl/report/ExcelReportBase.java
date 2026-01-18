@@ -3,7 +3,6 @@ package org.school.analysis.service.impl.report;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.analysis.config.AppConfig;
 
 import java.io.File;
@@ -12,6 +11,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ГЕНЕРАТОРОВ ОТЧЕТОВ
@@ -25,6 +29,67 @@ import java.nio.file.Paths;
 @Slf4j
 public abstract class ExcelReportBase {
 
+    /// Кэш для стилей (по workbook) - делаем static для общего доступа
+    private static final Map<String, CellStyle> styleCache = new ConcurrentHashMap<>();
+
+    /**
+     * Получить стиль из кэша или создать новый
+     */
+    protected CellStyle getCachedStyle(Workbook workbook, String styleKey,
+                                       Supplier<CellStyle> styleCreator) {
+        String cacheKey = System.identityHashCode(workbook) + "_" + styleKey;
+        return styleCache.computeIfAbsent(cacheKey, k -> {
+            CellStyle style = styleCreator.get();
+            log.debug("Создан стиль: {} для workbook {}", styleKey, cacheKey);
+            return style;
+        });
+    }
+
+    /**
+     * Предопределенные ключи стилей
+     */
+    protected enum StyleType {
+        NORMAL, PERCENT, DECIMAL, CENTERED,
+        TABLE_HEADER, SECTION_HEADER, TITLE, SUMMARY
+    }
+
+    /**
+     * Получить стиль по типу
+     */
+    protected CellStyle getStyle(Workbook workbook, StyleType type) {
+        switch (type) {
+            case PERCENT:
+                return getCachedStyle(workbook, "PERCENT", () -> createPercentStyle(workbook));
+            case DECIMAL:
+                return getCachedStyle(workbook, "DECIMAL", () -> createDecimalStyle(workbook));
+            case CENTERED:
+                return getCachedStyle(workbook, "CENTERED", () -> createCenteredStyle(workbook));
+            case NORMAL:
+            default:
+                return getCachedStyle(workbook, "NORMAL", () -> createNormalStyle(workbook));
+        }
+    }
+
+    /**
+     * Получить стиль заголовка (с кэшированием)
+     */
+    protected CellStyle getTitleStyle(Workbook workbook) {
+        return getCachedStyle(workbook, "TITLE", () -> createTitleStyle(workbook));
+    }
+
+    /**
+     * Получить стиль заголовка таблицы (с кэшированием)
+     */
+    protected CellStyle getTableHeaderStyle(Workbook workbook) {
+        return getCachedStyle(workbook, "TABLE_HEADER", () -> createTableHeaderStyle(workbook));
+    }
+
+    /**
+     * Получить стиль подзаголовка (с кэшированием)
+     */
+    protected CellStyle getSubtitleStyle(Workbook workbook) {
+        return getCachedStyle(workbook, "SUBTITLE", () -> createSubtitleStyle(workbook));
+    }
     // ============ КОНФИГУРАЦИЯ ПУТЕЙ ============
 
     /** Путь для сохранения итоговых отчетов */
@@ -86,9 +151,11 @@ public abstract class ExcelReportBase {
     /** Размер шрифта обычного текста */
     protected static final short NORMAL_FONT_SIZE = 10;
 
-    /** Колличтсво ячеек объеденных под заголовок */
-     protected static final short HEADER_MERGE_COUNT  = 6;
+    /** Количество ячеек объеденных под заголовок в отчётах теста */
+     protected static final short HEADER_MERGE_COUNT_TEST = 10;
 
+    /** Количество ячеек объеденных под заголовок в отчётах теста */
+    protected static final short HEADER_MERGE_COUNT_SUMMARY_REPORT = 13;
     // ============ ЦВЕТА ============
 
     /** Цвет фона заголовков таблиц (IndexedColors.LIGHT_CORNFLOWER_BLUE) */
@@ -154,6 +221,8 @@ public abstract class ExcelReportBase {
             }
         }
     }
+
+
 
     // ============ МЕТОДЫ ДЛЯ СОЗДАНИЯ СТИЛЕЙ ============
 
@@ -301,10 +370,12 @@ public abstract class ExcelReportBase {
 
     // ============ УТИЛИТНЫЕ МЕТОДЫ ============
 
+
+
     /**
-     * Устанавливает значение в ячейку с автоматическим определением типа
+     * Устанавливает значение в ячейку с автоматическим определением типа и стилем
      */
-    protected void setCellValue(Row row, int cellIndex, Object value) {
+    protected void setCellValue(Row row, int cellIndex, Object value, CellStyle style) {
         Cell cell = row.createCell(cellIndex);
 
         if (value == null) {
@@ -321,11 +392,27 @@ public abstract class ExcelReportBase {
             cell.setCellValue((Long) value);
         } else if (value instanceof Boolean) {
             cell.setCellValue((Boolean) value);
+        } else if (value instanceof LocalDate) {
+            // Поддержка дат
+            cell.setCellValue((LocalDate) value);
+        } else if (value instanceof LocalDateTime) {
+            // Поддержка даты-времени
+            cell.setCellValue((LocalDateTime) value);
         } else {
             cell.setCellValue(value.toString());
         }
+
+        if (style != null) {
+            cell.setCellStyle(style);
+        }
     }
 
+    /**
+     * Перегруженная версия без стиля (для обратной совместимости)
+     */
+    protected void setCellValue(Row row, int cellIndex, Object value) {
+        setCellValue(row, cellIndex, value, null);
+    }
     /**
      * Устанавливает числовое значение в ячейку
      */
