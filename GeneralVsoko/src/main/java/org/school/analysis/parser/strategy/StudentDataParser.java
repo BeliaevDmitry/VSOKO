@@ -49,7 +49,7 @@ public class StudentDataParser {
         }
 
         // 2. Анализируем структуру колонок
-        ColumnStructure columnStructure = analyzeColumnStructure(headerRow, maxScores.size());
+        ColumnStructure columnStructure = analyzeColumnStructure(headerRow, maxScores.size(), subject, className);
         if (!columnStructure.isValid()) {
             log.error("Не удалось определить структуру колонок для файла");
             return results;
@@ -83,28 +83,41 @@ public class StudentDataParser {
     /**
      * Анализ структуры колонок файла
      */
-    private ColumnStructure analyzeColumnStructure(Row headerRow, int expectedTaskCount) {
+    private ColumnStructure analyzeColumnStructure(Row headerRow, int expectedTaskCount,
+                                                   String subject,
+                                                   String className) {
         ColumnStructure structure = new ColumnStructure();
 
-        // 1. Ищем колонку "Итог" или "Итого" (последняя колонка с данными)
-        for (int colIdx = 0; colIdx < headerRow.getLastCellNum(); colIdx++) {
-            Cell cell = headerRow.getCell(colIdx);
-            String cellValue = ExcelParser.getCellValueAsString(cell);
+        Sheet sheet = headerRow.getSheet();
 
-            if (cellValue != null &&
-                    (cellValue.equalsIgnoreCase("Итог") ||
-                            cellValue.equalsIgnoreCase("Итого"))) {
-                structure.totalScoreColumn = colIdx;
-                log.debug("Найдена колонка 'Итог' в индексе {}", colIdx);
-                break;
+        // Ищем "Итог" во всех строках от 0 до HEADER_ROW_INDEX
+        boolean found = false;
+        for (int rowIdx = 0; rowIdx <= HEADER_ROW_INDEX && !found; rowIdx++) {
+            Row row = sheet.getRow(rowIdx);
+            if (row == null) continue;
+
+            for (int colIdx = 0; colIdx < row.getLastCellNum(); colIdx++) {
+                Cell cell = row.getCell(colIdx);
+                String cellValue = ExcelParser.getCellValueAsString(cell);
+
+                if (cellValue != null &&
+                        (cellValue.equalsIgnoreCase("Итог") ||
+                                cellValue.equalsIgnoreCase("Итого"))) {
+                    structure.totalScoreColumn = colIdx;
+                    log.debug("Найдена колонка 'Итог' в строке {} (индекс {}) в колонке {}",
+                            rowIdx + 1, rowIdx, colIdx);
+                    found = true;
+                    break;
+                }
             }
         }
 
-        // Если не нашли "Итог", используем последнюю колонку как итоговую
-        if (structure.totalScoreColumn == -1) {
+        // Если не нашли, используем последнюю колонку заголовочной строки
+        if (!found) {
             structure.totalScoreColumn = headerRow.getLastCellNum() - 1;
-            log.warn("Не найдена колонка 'Итог', используем последнюю колонку {} как итоговую",
-                    structure.totalScoreColumn);
+            log.warn("Не найдена колонка 'Итог', используем последнюю колонку {} как итоговую" +
+                            " предмет класс {} {}",
+                    structure.totalScoreColumn, subject, className);
         }
 
         // 2. Ищем начало заданий (первая колонка с номером задания)
@@ -136,8 +149,9 @@ public class StudentDataParser {
 
         // 5. Проверяем соответствие ожидаемому количеству
         if (actualTaskCount != expectedTaskCount) {
-            log.warn("⚠️ ВНИМАНИЕ: Количество заданий в файле ({}) не совпадает с ожидаемым ({})",
-                    actualTaskCount, expectedTaskCount);
+            log.warn("⚠️ ВНИМАНИЕ: Количество заданий в файле ({}) не совпадает с ожидаемым ({})" +
+                            " по предмету в классе {} {}",
+                    actualTaskCount, expectedTaskCount, subject, className);
 
             // Если разница небольшая, можем работать с тем, что есть
             if (Math.abs(actualTaskCount - expectedTaskCount) <= 5) {
@@ -201,7 +215,7 @@ public class StudentDataParser {
         }
         fio = fio.trim();
 
-        // 2. Присутствие (колонка C)
+        // 2. Присутствие (колонка C) - исходное значение
         String presence = ExcelParser.getCellValueAsString(row.getCell(COL_PRESENCE));
         if (presence == null || presence.trim().isEmpty()) {
             presence = "Не указано";
@@ -220,10 +234,21 @@ public class StudentDataParser {
         // 4. Парсинг баллов за задания
         Map<Integer, Integer> taskScores = parseTaskScores(row, maxScores, columnStructure, rowIndex);
 
-        // 5. Итоговый балл из колонки Итог
+        // 5. Автоматическое определение присутствия на основе баллов
+        if ("Не указано".equals(presence) || presence.isEmpty()) {
+            boolean hasAnyScore = taskScores.values().stream()
+                    .anyMatch(score -> score != null && score > 0);
+
+            presence = hasAnyScore ? "Был" : "Не был";
+
+            log.debug("Строка {}: Студент {} - статус присутствия определен автоматически как '{}' на основе баллов",
+                    rowIndex + 1, fio, presence);
+        }
+
+        // 6. Итоговый балл из колонки Итог
         Integer totalScore = parseTotalScore(row, columnStructure.totalScoreColumn, rowIndex);
 
-        // 6. Создание результата
+        // 7. Создание результата
         StudentResult result = new StudentResult();
         result.setFio(fio);
         result.setPresence(presence);
@@ -232,7 +257,7 @@ public class StudentDataParser {
         result.setClassName(className);
         result.setTaskScores(taskScores);
 
-        // 7. Устанавливаем итоговый балл (приоритет - колонка Итог)
+        // 8. Устанавливаем итоговый балл (приоритет - колонка Итог)
         if (totalScore != null) {
             result.setTotalScore(totalScore);
 
@@ -240,8 +265,9 @@ public class StudentDataParser {
             int calculatedTotal = JsonScoreUtils.calculateTotalScore(taskScores);
             if (!totalScore.equals(calculatedTotal)) {
                 double difference = Math.abs(totalScore - calculatedTotal);
-                log.warn("Строка {}: Студент {} - расхождение баллов: Итог={}, сумма={} (разница={})",
-                        rowIndex + 1, fio, totalScore, calculatedTotal, difference);
+                log.warn("Строка {}: Студент {} - расхождение баллов: Итог={}, сумма={} (разница={})" +
+                                "предмет{}  класс{}",
+                        rowIndex + 1, fio, totalScore, calculatedTotal, difference,subject,className);
 
                 // Если разница небольшая (1-2 балла), вероятно округление
                 if (difference <= 2) {
