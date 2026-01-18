@@ -152,7 +152,7 @@ public abstract class ExcelReportBase {
     protected static final short NORMAL_FONT_SIZE = 10;
 
     /** Количество ячеек объеденных под заголовок в отчётах теста */
-     protected static final short HEADER_MERGE_COUNT_TEST = 10;
+     protected static final short HEADER_MERGE_COUNT_TEST = 15;
 
     /** Количество ячеек объеденных под заголовок в отчётах теста */
     protected static final short HEADER_MERGE_COUNT_SUMMARY_REPORT = 13;

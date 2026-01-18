@@ -20,13 +20,13 @@ public class ChartStyleConfig {
     // ============ РАЗМЕРЫ И ПОЗИЦИИ ============
 
     /** Ширина графика в колонках */
-    private int colSpan = 10;
+    private int colSpan = 16;
 
     /** Высота графика в строках */
     private int rowSpan = 15;
 
     /** Отступ между графиками в строках */
-    private int spacing = 5;
+    private int spacing = 3;
 
     /** Отступ графика от левого края в колонках */
     private int leftOffset = 0;
