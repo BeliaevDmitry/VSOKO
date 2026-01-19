@@ -20,13 +20,13 @@ public class EGKRReportGenerator {
     // ========== НАСТРОЙКИ ==========
 
     // Выбор типа отчета (изменяйте эту переменную)
-    private static final int REPORT_TYPE = 3;
+    private static final int REPORT_TYPE = 2;
     // 1 - по основному учителю и классу,
     // 2 - по учителю практикума и группе,
     // 3 - по основному учителю и адресу
 
     // Выбор школы
-    private static final int SCHOOL_CHOICE = 2; // 1\ - Школа 1811, 2 - ГБОУ №7
+    private static final int SCHOOL_CHOICE = 1; // 1\ - Школа 1811, 2 - ГБОУ №7
 
     // Константы для отчета
     private static final String ACADEMIC_YEAR = "2025-2026";

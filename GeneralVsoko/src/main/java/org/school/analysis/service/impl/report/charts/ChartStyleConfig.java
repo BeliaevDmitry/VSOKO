@@ -34,13 +34,13 @@ public class ChartStyleConfig {
     // ============ ЦВЕТА ГРАФИКОВ ============
 
     /** Цвет для "Полностью выполнивших" в формате RGB (R,G,B) */
-    private String fullyCompletedColor = "0,20,236";
+    private String fullyCompletedColor = "76,175,80"; // Зеленый
 
     /** Цвет для "Частично выполнивших" */
-    private String partiallyCompletedColor = "241,120,0";
+    private String partiallyCompletedColor = "255,235,59"; // Желтый
 
     /** Цвет для "Не выполнивших" */
-    private String notCompletedColor = "231,50,60";
+    private String notCompletedColor = "244,67,54"; // Красный
 
     /** Цвет для графика процента выполнения */
     private String percentageColor = "52,152,219";

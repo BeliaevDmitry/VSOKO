@@ -27,4 +27,6 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
 
     @Query("SELECT COUNT(t) FROM Teacher t WHERE t.isActive = true")
     long countActiveTeachers();
+
+    List<Teacher> findByLastNameContainingIgnoreCase(String lastNamePart);
 }

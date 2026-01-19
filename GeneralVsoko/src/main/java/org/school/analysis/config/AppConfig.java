@@ -1,9 +1,18 @@
 package org.school.analysis.config;
 
+import org.springframework.context.annotation.Bean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
 import java.util.List;
 
 public class AppConfig {
     // ========== КОНФИГУРАЦИЯ ==========
+
+    @Bean
+    public TransactionTemplate transactionTemplate(PlatformTransactionManager transactionManager) {
+        return new TransactionTemplate(transactionManager);
+    }
 
     public static final List<String> SCHOOLS = List.of(
             "ГБОУ №7",

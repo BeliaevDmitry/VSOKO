@@ -565,26 +565,19 @@ public class ValidationHelper {
     }
 
     /**
-     * Валидация ФИО учителя с проверкой в базе данных
+     * Проверка учителя с использованием нового matcher
      */
     public static ValidationResult validateTeacher(String teacherName, TeacherService teacherService) {
         ValidationResult result = new ValidationResult();
 
-        if (teacherName == null || teacherName.trim().isEmpty()) {
-            result.addError("ФИО учителя не может быть пустым");
+        if (teacherName == null || teacherName.trim().isEmpty() || "Не указан".equals(teacherName)) {
+            result.addError("Не указан учитель");
             return result;
         }
 
-        String trimmedName = teacherName.trim();
-
-        // Базовые проверки формата
-        if (!isValidTeacherNameFormat(trimmedName)) {
-            result.addError("Некорректный формат ФИО учителя: " + trimmedName);
-        }
-
-        // Проверка в базе данных (если передан TeacherService)
-        if (teacherService != null && !teacherService.isTeacherValid(trimmedName)) {
-            result.addError("Учитель '" + trimmedName + "' не найден в базе данных");
+        // Проверяем валидность
+        if (!teacherService.isTeacherValid(teacherName)) {
+            result.addError(String.format("Учитель '%s' не найден в базе", teacherName));
         }
 
         return result;

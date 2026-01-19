@@ -15,12 +15,7 @@ public class TeacherNameNormalizer {
     private static final Pattern DIACRITICS = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
     private static final Pattern MULTIPLE_SPACES = Pattern.compile("\\s+");
     private static final Pattern PUNCTUATION = Pattern.compile("[.,!?;:()\\[\\]{}<>\\/\\\\\"'`~@#$%^&*_+=|]");
-    private static final Pattern RUSSIAN_LETTERS = Pattern.compile("[а-яА-ЯёЁ\\s-]+");
     private static final LevenshteinDistance LEVENSHTEIN = new LevenshteinDistance();
-
-    // Регулярное выражение для инициалов с точками и пробелами
-    private static final Pattern INITIALS_PATTERN =
-            Pattern.compile("([а-я])\\.?\\s*([а-я])\\.?\\s*([а-я])?\\.?");
 
     // Типичные сокращения
     private static final Map<String, String> COMMON_SHORTENINGS = Stream.of(
@@ -39,7 +34,11 @@ public class TeacherNameNormalizer {
                     {"серг.", "сергей"},
                     {"тат.", "татьяна"},
                     {"юл.", "юлия"},
-                    {"юр.", "юрий"}
+                    {"юр.", "юрий"},
+                    {"и.", "иван"},
+                    {"в.", "владимир"},
+                    {"а.", "александр"},
+                    {"с.", "сергей"}
             }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
     /**
@@ -52,48 +51,53 @@ public class TeacherNameNormalizer {
 
         String result = name.toLowerCase();
 
-        // 1. Удаляем пунктуацию
+        // 1. Заменяем сокращения на полные формы
+        result = expandShortenings(result);
+
+        // 2. Удаляем пунктуацию
         result = PUNCTUATION.matcher(result).replaceAll("");
 
-        // 2. Заменяем все последовательности пробелов одним пробелом
+        // 3. Заменяем все последовательности пробелов одним пробелом
         result = MULTIPLE_SPACES.matcher(result.trim()).replaceAll(" ");
 
-        // 3. Нормализуем русские символы
+        // 4. Нормализуем русские символы (латинские -> русские)
         result = normalizeRussian(result);
 
-        // 4. Обработка инициалов (например, "и и" -> "и и")
+        // 5. Обработка инициалов
         result = normalizeInitials(result);
 
-        // 5. Убираем диакритические знаки (если есть)
+        // 6. Убираем диакритические знаки (если есть)
         result = DIACRITICS.matcher(Normalizer.normalize(result, Normalizer.Form.NFD))
                 .replaceAll("");
 
-        // 6. Заменяем сокращения на полные формы
-        result = expandShortenings(result);
-
-        // 7. Сортируем части ФИО
+        // 7. Сортируем части ФИО (фамилия всегда первая)
         result = sortNameParts(result);
 
         return result.trim();
     }
 
     /**
-     * Нормализация русских символов
+     * Нормализация русских символов (замена латинских на русские)
      */
     private static String normalizeRussian(String text) {
-        return text.toLowerCase()
-                .replace('a', 'а')
-                .replace('b', 'в')
-                .replace('c', 'с')
-                .replace('e', 'е')
-                .replace('h', 'н')
-                .replace('k', 'к')
-                .replace('m', 'м')
-                .replace('o', 'о')
-                .replace('p', 'р')
-                .replace('t', 'т')
-                .replace('x', 'х')
-                .replace('y', 'у');
+        char[] chars = text.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            switch (chars[i]) {
+                case 'a': chars[i] = 'а'; break;
+                case 'b': chars[i] = 'б'; break;
+                case 'c': chars[i] = 'с'; break;
+                case 'e': chars[i] = 'е'; break;
+                case 'h': chars[i] = 'н'; break;
+                case 'k': chars[i] = 'к'; break;
+                case 'm': chars[i] = 'м'; break;
+                case 'o': chars[i] = 'о'; break;
+                case 'p': chars[i] = 'р'; break;
+                case 't': chars[i] = 'т'; break;
+                case 'x': chars[i] = 'х'; break;
+                case 'y': chars[i] = 'у'; break;
+            }
+        }
+        return new String(chars);
     }
 
     /**
@@ -102,31 +106,26 @@ public class TeacherNameNormalizer {
      * - "и.и." → "и и"
      * - "и . и ." → "и и"
      * - "и  и  " → "и и"
-     * - "иванов и и" → "иванов и и"
      */
     private static String normalizeInitials(String text) {
         // Удаляем точки возле букв
         String result = text.replaceAll("([а-я])\\.", "$1");
 
-        // Если текст похож на инициалы (1-2 буквы с пробелами)
+        // Заменяем инициалы с точками
         String[] parts = result.split("\\s+");
-        if (parts.length >= 2) {
-            // Проверяем, все ли части - одиночные буквы
-            boolean allAreSingleLetters = true;
-            for (String part : parts) {
-                if (part.length() != 1 || !Character.isLetter(part.charAt(0))) {
-                    allAreSingleLetters = false;
-                    break;
-                }
-            }
+        List<String> normalizedParts = new ArrayList<>();
 
-            // Если все части - одиночные буквы, это инициалы
-            if (allAreSingleLetters && parts.length <= 3) {
-                return String.join(" ", parts);
+        for (String part : parts) {
+            if (part.length() == 1 && Character.isLetter(part.charAt(0))) {
+                // Одиночная буква - это инициал
+                normalizedParts.add(part);
+            } else if (part.length() > 1) {
+                // Слово целиком
+                normalizedParts.add(part);
             }
         }
 
-        return result;
+        return String.join(" ", normalizedParts);
     }
 
     /**
@@ -136,13 +135,15 @@ public class TeacherNameNormalizer {
         String result = text;
         for (Map.Entry<String, String> entry : COMMON_SHORTENINGS.entrySet()) {
             // Используем границы слов для точного совпадения
-            result = result.replaceAll("\\b" + Pattern.quote(entry.getKey()) + "\\b", entry.getValue());
+            String pattern = "\\b" + Pattern.quote(entry.getKey()) + "\\b";
+            result = result.replaceAll(pattern, entry.getValue());
         }
         return result;
     }
 
     /**
      * Сортировка частей имени для унификации
+     * Фамилия всегда идет первой, затем имя, затем отчество
      */
     private static String sortNameParts(String name) {
         String[] parts = name.split("\\s+");
@@ -150,42 +151,32 @@ public class TeacherNameNormalizer {
             return name;
         }
 
-        // Ищем фамилию (обычно самая длинная часть или первая)
-        String likelySurname = findLikelySurname(parts);
+        // Определяем фамилию (самая длинная часть или первая)
+        String surname = parts[0];
+        if (parts.length > 1) {
+            for (int i = 1; i < parts.length; i++) {
+                if (parts[i].length() > surname.length() && parts[i].length() > 2) {
+                    surname = parts[i];
+                }
+            }
+        }
 
         List<String> otherParts = new ArrayList<>();
         for (String part : parts) {
-            if (!part.equals(likelySurname)) {
+            if (!part.equals(surname)) {
                 otherParts.add(part);
             }
         }
 
+        // Сортируем остальные части по длине (имя обычно короче отчества)
+        otherParts.sort(Comparator.comparingInt(String::length));
+
         // Собираем: фамилия + остальные части
         List<String> result = new ArrayList<>();
-        result.add(likelySurname);
+        result.add(surname);
         result.addAll(otherParts);
 
         return String.join(" ", result);
-    }
-
-    /**
-     * Поиск наиболее вероятной фамилии
-     */
-    private static String findLikelySurname(String[] parts) {
-        // Если первая часть длинная (>3 символов), это скорее всего фамилия
-        if (parts[0].length() > 3) {
-            return parts[0];
-        }
-
-        // Ищем самую длинную часть
-        String longestPart = parts[0];
-        for (String part : parts) {
-            if (part.length() > longestPart.length()) {
-                longestPart = part;
-            }
-        }
-
-        return longestPart;
     }
 
     /**
@@ -196,7 +187,7 @@ public class TeacherNameNormalizer {
         String[] parts = normalized.split("\\s+");
 
         if (parts.length < 2) {
-            return capitalizeName(fullName);
+            return capitalizeFirst(fullName.trim());
         }
 
         StringBuilder shortName = new StringBuilder(capitalizeFirst(parts[0])); // Фамилия
@@ -228,11 +219,6 @@ public class TeacherNameNormalizer {
             return true;
         }
 
-        // Проверка, содержатся ли части одного имени в другом
-        if (containsNameParts(norm1, norm2)) {
-            return true;
-        }
-
         // Проверка по Левенштейну
         Integer distance = LEVENSHTEIN.apply(norm1, norm2);
         int maxLength = Math.max(norm1.length(), norm2.length());
@@ -242,50 +228,44 @@ public class TeacherNameNormalizer {
         }
 
         double similarity = 1.0 - (double) distance / maxLength;
-        return similarity >= 0.7; // 70% похожести достаточно
-    }
 
-    /**
-     * Проверяет, содержатся ли части одного имени в другом
-     */
-    private static boolean containsNameParts(String name1, String name2) {
-        Set<String> parts1 = new HashSet<>(Arrays.asList(name1.split("\\s+")));
-        Set<String> parts2 = new HashSet<>(Arrays.asList(name2.split("\\s+")));
-
-        // Находим пересечение
-        parts1.retainAll(parts2);
-        return !parts1.isEmpty();
-    }
-
-    /**
-     * Приведение имени к нормальному виду (с заглавными буквами)
-     */
-    private static String capitalizeName(String name) {
-        if (name == null || name.isEmpty()) {
-            return name;
+        // Для коротких имен (с инициалами) требуем более высокую схожесть
+        if (norm1.length() < 10 || norm2.length() < 10) {
+            return similarity >= 0.8; // 80% для коротких имен
         }
 
-        String[] parts = name.split("\\s+");
-        StringBuilder result = new StringBuilder();
+        return similarity >= 0.7; // 70% для полных имен
+    }
 
-        for (String part : parts) {
-            if (!part.isEmpty()) {
-                if (result.length() > 0) {
-                    result.append(" ");
-                }
+    /**
+     * Проверка совпадения инициалов
+     */
+    public static boolean checkInitialsMatch(String name1, String name2) {
+        String norm1 = normalize(name1);
+        String norm2 = normalize(name2);
 
-                if (part.length() == 1) {
-                    // Одиночная буква (инициал)
-                    result.append(part.toUpperCase());
-                } else {
-                    // Полные части имени
-                    result.append(Character.toUpperCase(part.charAt(0)))
-                            .append(part.substring(1));
+        String[] parts1 = norm1.split("\\s+");
+        String[] parts2 = norm2.split("\\s+");
+
+        if (parts1.length <= 1 || parts2.length <= 1) {
+            return false; // Нет инициалов для сравнения
+        }
+
+        // Проверяем совпадение фамилии
+        if (!parts1[0].equals(parts2[0])) {
+            return false;
+        }
+
+        // Проверяем совпадение инициалов
+        for (int i = 1; i < Math.min(parts1.length, parts2.length); i++) {
+            if (parts1[i].length() > 0 && parts2[i].length() > 0) {
+                if (parts1[i].charAt(0) != parts2[i].charAt(0)) {
+                    return false;
                 }
             }
         }
 
-        return result.toString();
+        return true;
     }
 
     /**
@@ -299,15 +279,7 @@ public class TeacherNameNormalizer {
             return "";
         }
 
-        // Ищем фамилию (первая часть или самая длинная)
-        String lastName = parts[0];
-        for (String part : parts) {
-            if (part.length() > lastName.length() && part.length() > 2) {
-                lastName = part;
-            }
-        }
-
-        return capitalizeFirst(lastName);
+        return capitalizeFirst(parts[0]);
     }
 
     /**
@@ -318,20 +290,48 @@ public class TeacherNameNormalizer {
         String[] parts = normalized.split("\\s+");
 
         StringBuilder initials = new StringBuilder();
-        for (String part : parts) {
-            if (part.length() == 1 && Character.isLetter(part.charAt(0))) {
-                initials.append(part.toUpperCase()).append(".");
+        for (int i = 1; i < parts.length && i < 3; i++) {
+            if (parts[i].length() > 0) {
+                initials.append(Character.toUpperCase(parts[i].charAt(0)))
+                        .append(".");
             }
         }
 
         return initials.toString();
     }
 
-    private static String capitalizeFirst(String word) {
+    /**
+     * Приведение первой буквы к заглавной
+     */
+    public static String capitalizeFirst(String word) {
         if (word == null || word.isEmpty()) {
             return word;
         }
         return Character.toUpperCase(word.charAt(0)) + word.substring(1);
+    }
+
+    /**
+     * Приведение имени к нормальному виду (с заглавными буквами)
+     */
+    public static String capitalizeName(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+
+        String normalized = normalize(name);
+        String[] parts = normalized.split("\\s+");
+        StringBuilder result = new StringBuilder();
+
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                if (result.length() > 0) {
+                    result.append(" ");
+                }
+                result.append(capitalizeFirst(part));
+            }
+        }
+
+        return result.toString();
     }
 
     /**

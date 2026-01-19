@@ -15,6 +15,7 @@ import org.school.analysis.service.*;
 import org.school.analysis.util.JsonScoreUtils;
 import org.school.analysis.util.PerformanceTracker;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
@@ -47,50 +48,42 @@ public class GeneralServiceImpl implements GeneralService {
     private final TeacherService teacherService;
 
     @Override
-    @Transactional
-    public void processAll() {
-        // Старт отсчета времени программы
-        PerformanceTracker.startProgram();
 
+    public void processAll() {
+        PerformanceTracker.startProgram();
         ProcessingSummary totalSummary = new ProcessingSummary();
 
         try {
             for (String school : SCHOOLS) {
-                // Начинаем отсчет времени для школы
                 PerformanceTracker.SchoolProcessingMetrics schoolMetrics =
                         PerformanceTracker.startSchoolProcessing(school);
 
                 String currentAcademicYear = ALL_ACADEMIC_YEAR.get(0);
                 System.out.println("  Учебный год: " + currentAcademicYear);
                 System.out.println("  Обработка школы " + school);
-                //Инициализация учителей (если нужно)
+
                 initTeacherDatabase(school);
+
                 String folderPath = INPUT_FOLDER.replace("{школа}", school);
                 ProcessingSummary schoolSummary = new ProcessingSummary();
 
                 try {
-                    // Фаза 1: Поиск файлов
                     long phase1Start = System.currentTimeMillis();
                     List<ReportFile> foundFiles = findAndProcessFiles(folderPath, schoolSummary);
                     long phase1Time = System.currentTimeMillis() - phase1Start;
-                    PerformanceTracker.recordPhaseTime(school, "fileFinding",
-                            Duration.ofMillis(phase1Time));
+                    PerformanceTracker.recordPhaseTime(school, "fileFinding", Duration.ofMillis(phase1Time));
 
-                    // Фаза 2: Генерация отчетов
                     long phase2Start = System.currentTimeMillis();
                     if (!foundFiles.isEmpty()) {
                         validateProcessingResults(foundFiles, schoolSummary);
                         generateReports(schoolSummary, school, currentAcademicYear);
                     }
                     long phase2Time = System.currentTimeMillis() - phase2Start;
-                    PerformanceTracker.recordPhaseTime(school, "reportGeneration",
-                            Duration.ofMillis(phase2Time));
+                    PerformanceTracker.recordPhaseTime(school, "reportGeneration", Duration.ofMillis(phase2Time));
 
-                    // Общее время обработки файлов (фаза 1 + фаза 2)
                     PerformanceTracker.recordPhaseTime(school, "fileProcessing",
                             Duration.ofMillis(phase1Time + phase2Time));
 
-                    // Завершаем сбор статистики для школы
                     PerformanceTracker.finishSchoolProcessing(
                             schoolMetrics,
                             schoolSummary.getTotalFilesFound(),
@@ -98,10 +91,8 @@ public class GeneralServiceImpl implements GeneralService {
                             schoolSummary.getGeneratedReportsCount()
                     );
 
-                    // Вывод промежуточных результатов
                     printSchoolSummary(schoolSummary, school);
 
-                    // Суммируем общую статистику
                     totalSummary.incrementTotalFilesFound(schoolSummary.getTotalFilesFound());
                     totalSummary.incrementSuccessfullyParsed(schoolSummary.getSuccessfullyParsed());
                     totalSummary.incrementSuccessfullySaved(schoolSummary.getSuccessfullySaved());
@@ -109,7 +100,6 @@ public class GeneralServiceImpl implements GeneralService {
 
                 } catch (Exception e) {
                     log.error("❌ Критическая ошибка при обработке школы {}: {}", school, e.getMessage(), e);
-                    // Даже при ошибке завершаем сбор статистики
                     PerformanceTracker.finishSchoolProcessing(
                             schoolMetrics,
                             schoolSummary.getTotalFilesFound(),
@@ -119,29 +109,85 @@ public class GeneralServiceImpl implements GeneralService {
                 }
             }
 
-            // Выводим итоговую статистику
             printSummary(totalSummary);
 
-            // ДОБАВЛЕН ВЫВОД СТАТИСТИКИ НА ЭКРАН И В ФАЙЛ
             System.out.println("\n" + "=".repeat(80));
             System.out.println("СТАТИСТИКА ОБРАБОТКИ");
             System.out.println("=".repeat(80));
 
-            // Выводим статистику по школам на экран
             String schoolsStats = PerformanceTracker.getSchoolsStatistics();
             System.out.println(schoolsStats);
 
-            // Выводим итоговую сводку на экран
             String finalSummary = PerformanceTracker.getFinalSummary();
             System.out.println(finalSummary);
-
 
             System.out.println("=".repeat(80));
             System.out.println("ОБРАБОТКА ЗАВЕРШЕНА!");
 
         } finally {
-            // Очищаем статистику после завершения (опционально)
             PerformanceTracker.clear();
+        }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = {Exception.class})
+    public List<ReportFile> saveResultsToDatabase(List<ParseResult> parseResults) {
+        List<ReportFile> savedFiles = new ArrayList<>();
+        AtomicInteger totalStudentsSaved = new AtomicInteger(0);
+
+        for (ParseResult parseResult : parseResults) {
+            if (!parseResult.isSuccess()) {
+                continue;
+            }
+
+            ReportFile reportFile = parseResult.getReportFile();
+            List<StudentResult> studentResults = parseResult.getStudentResults();
+
+            try {
+                if (processAndSaveReport(reportFile, studentResults, totalStudentsSaved)) {
+                    savedFiles.add(reportFile);
+                }
+            } catch (Exception e) {
+                log.error("Ошибка сохранения отчета {}: {}",
+                        reportFile.getFileName(), e.getMessage());
+                handleSaveError(reportFile, e);
+            }
+        }
+
+        log.info("Всего сохранено студентов: {}", totalStudentsSaved.get());
+        return savedFiles;
+    }
+
+    /**
+     * Обработать и сохранить один отчет
+     */
+    private boolean processAndSaveReport(ReportFile reportFile,
+                                         List<StudentResult> studentResults,
+                                         AtomicInteger totalStudentsSaved) {
+        try {
+            if (!validateReportFile(reportFile)) {
+                markFileAsInvalid(reportFile, "Некорректные данные");
+                return false;
+            }
+
+            enrichReportFileData(reportFile);
+            calculateStudentScores(studentResults, reportFile);
+
+            int savedCount = savedService.saveAll(reportFile, studentResults);
+
+            if (savedCount > 0) {
+                markFileAsSaved(reportFile, savedCount);
+                totalStudentsSaved.addAndGet(savedCount);
+                return true;
+            } else {
+                markFileAsSaveFailed(reportFile, "Не удалось сохранить данные");
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Ошибка обработки отчета {}: {}",
+                    reportFile.getFileName(), e.getMessage());
+            markFileAsSaveFailed(reportFile, "Ошибка обработки: " + e.getMessage());
+            return false;
         }
     }
 
@@ -460,58 +506,6 @@ public class GeneralServiceImpl implements GeneralService {
         }
     }
 
-    @Override
-    @Transactional
-    public List<ReportFile> saveResultsToDatabase(List<ParseResult> parseResults) {
-        List<ReportFile> savedFiles = new ArrayList<>();
-        AtomicInteger totalStudentsSaved = new AtomicInteger(0);
-
-        for (ParseResult parseResult : parseResults) {
-            if (!parseResult.isSuccess()) {
-                continue;
-            }
-
-            ReportFile reportFile = parseResult.getReportFile();
-            List<StudentResult> studentResults = parseResult.getStudentResults();
-
-            try {
-                if (processAndSaveReport(reportFile, studentResults, totalStudentsSaved)) {
-                    savedFiles.add(reportFile);
-                }
-            } catch (Exception e) {
-                handleSaveError(reportFile, e);
-            }
-        }
-
-        log.info("Всего сохранено студентов: {}", totalStudentsSaved.get());
-        return savedFiles;
-    }
-
-    /**
-     * Обработать и сохранить один отчет
-     */
-    private boolean processAndSaveReport(ReportFile reportFile,
-                                         List<StudentResult> studentResults,
-                                         AtomicInteger totalStudentsSaved) {
-        if (!validateReportFile(reportFile)) {
-            markFileAsInvalid(reportFile, "Некорректные данные");
-            return false;
-        }
-
-        enrichReportFileData(reportFile);
-        calculateStudentScores(studentResults, reportFile);
-
-        int savedCount = savedService.saveAll(reportFile, studentResults);
-
-        if (savedCount > 0) {
-            markFileAsSaved(reportFile, savedCount);
-            totalStudentsSaved.addAndGet(savedCount);
-            return true;
-        } else {
-            markFileAsSaveFailed(reportFile, "Не удалось сохранить данные");
-            return false;
-        }
-    }
 
     /**
      * Обогатить данные отчета
