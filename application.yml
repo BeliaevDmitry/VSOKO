@@ -23,5 +23,7 @@ file:
 
 logging:
   level:
-    org.school.analysis: DEBUG
-    org.springframework.transaction: INFO
+    org.school.analysis: WARN
+    org.springframework.transaction: WARN
+
+

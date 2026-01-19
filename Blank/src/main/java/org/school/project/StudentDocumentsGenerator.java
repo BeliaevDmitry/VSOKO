@@ -13,8 +13,8 @@ import java.util.List;
 
 public class StudentDocumentsGenerator {
 
-    private static final String EXCEL_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Реестр контингента ОУ_19-12-2025 17-44.xlsx";
-    private static final String OUTPUT_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Готовые_бланки\\";
+    private static final String EXCEL_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Реестр контингента ОУ_19-12-2025 17-44.xlsx";
+    private static final String OUTPUT_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Готовые_бланки\\";
 
     // Классы, которые нужно обработать
     private static final Set<String> TARGET_CLASSES = Set.of("6");

@@ -32,6 +32,88 @@ public class EGKRReportGenerator {
     private static final String ACADEMIC_YEAR = "2025-2026";
     private static final String WORK_TYPE = "ЕГКР декабрь";
 
+    // РУЧНЫЕ НАСТРОЙКИ МАКСИМАЛЬНЫХ БАЛЛОВ ПО ПРЕДМЕТАМ
+    private static final Map<String, List<Integer>> MANUAL_MAX_SCORES = new HashMap<>();
+
+    static {
+        // АНГЛИЙСКИЙ ЯЗЫК - 52 задания
+        MANUAL_MAX_SCORES.put("английский язык", Arrays.asList(
+                2, 3, 1, 1, 1, 1, 1, 1, 1, 3,  // 1-10
+                2, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 11-20
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 21-30
+                1, 1, 1, 1, 1, 1, 2, 2, 2, 3,  // 31-40
+                 3, 3, 3, 2, 1, 4, 5, 4,3, 3  // 41-50
+        ));
+
+        // Информатика и ИКТ (КЕГЭ) - 29 задания
+        MANUAL_MAX_SCORES.put("информатика и ИКТ (КЕГЭ)", Arrays.asList(
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 1-10
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 11-20
+                1, 1, 1, 1, 1, 2, 2  // 21-30
+                  // 31-40
+                  // 41-50
+        ));
+
+        // Русский язык - 36 задания
+        MANUAL_MAX_SCORES.put("русский язык", Arrays.asList(
+                1, 1, 1, 1, 1, 1, 1, 2, 1, 1,  // 1-10
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 11-20
+                1, 2, 1, 1, 1, 1, 1, 3, 2, 1,  // 21-30
+                2, 1, 3, 3, 3, 3// 31-40
+                // 41-50
+        ));
+
+        // Биология - 28 задания
+        MANUAL_MAX_SCORES.put("биология", Arrays.asList(
+                1, 2, 1, 1, 1, 2, 2, 2, 1, 2,  // 1-10
+                2, 2, 1, 2, 2, 2, 2, 2, 2, 2,  // 11-20
+                2, 3, 3, 3, 3, 3, 3, 3  // 21-30
+                // 31-40
+                // 41-50
+        ));
+
+        // Обществознание - 28 задания
+        MANUAL_MAX_SCORES.put("обществознание", Arrays.asList(
+                1, 2, 1, 2, 2, 2, 2, 2, 1, 2,  // 1-10
+                2, 1, 2, 2, 2, 2, 2, 2, 3, 3,  // 11-20
+                3, 4, 3, 3, 1, 2, 1, 3  // 21-30
+                // 31-40
+                // 41-50
+        ));
+
+        // Химия - 34 задания
+        MANUAL_MAX_SCORES.put("химия", Arrays.asList(
+                1, 1, 1, 1, 1, 2, 2, 2, 1, 1,  // 1-10
+                1, 1, 1, 2, 2, 1, 1, 1, 1, 1, // 11-20
+                1, 2, 2, 2, 1, 1, 1, 1, 2, 2, // 21-30
+                4, 5, 3, 4// 31-40
+                // 41-50
+        ));
+
+        // физика - 27 задания
+        MANUAL_MAX_SCORES.put("физика", Arrays.asList(
+                1, 1, 1, 1, 2, 2, 1, 1, 2, 2,  // 1-10
+                1, 1, 1, 2, 2, 1, 2, 2, 1, 1,  // 11-20
+                3, 2, 2, 3, 3, 1, 3  // 21-30
+                // 31-40
+                // 41-50
+        ));
+
+        // ГЕОГРАФИЯ - 30 заданий
+        MANUAL_MAX_SCORES.put("география", Arrays.asList(
+                1, 1, 1, 1, 2, 1, 1, 1, 1, 1,  // 1-10
+                1, 2, 1, 1, 1, 1, 1, 1, 1, 1,  // 11-20
+                1, 1, 1, 2, 2, 2, 2, 2, 2, 1   // 21-30
+        ));
+
+        // ИСТОРИЯ - 21 задание
+        MANUAL_MAX_SCORES.put("история", Arrays.asList(
+                2, 1, 2, 3, 2, 2, 2, 1, 1, 1,  // 1-10: 1,2,3,4,5,6,7,8,9,10
+                1, 2, 2, 2, 2, 2, 3, 3, 2, 3,  // 11-20: 11,12,13,14,15,16,17,18,19,20
+                3  // 21: 21
+        ));
+    }
+
     // Конфигурация для школ
     private static class SchoolConfig {
         String name;
@@ -65,10 +147,10 @@ public class EGKRReportGenerator {
                     case 1: // Основной учитель + класс
                         return new SchoolConfig(
                                 "Школа 1811",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                                 "Свод вертикальный",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
                                 "Основной учитель",  // колонка с основным учителем
                                 "Номер и буква класса", // группировка по классу
                                 "ГБОУ №1811"
@@ -76,10 +158,10 @@ public class EGKRReportGenerator {
                     case 2: // Учитель практикума + группа
                         return new SchoolConfig(
                                 "Школа 1811",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                                 "Свод вертикальный",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
                                 "Учитель практикума", // колонка с учителем практикума
                                 "группа практикума",   // группировка по группе
                                 "ГБОУ №1811"
@@ -87,10 +169,10 @@ public class EGKRReportGenerator {
                     case 3: // Основной учитель + адрес
                         return new SchoolConfig(
                                 "Школа 1811",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                                 "Свод вертикальный",
-                                "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
                                 "Основной учитель",  // колонка с основным учителем
                                 "Адрес",             // группировка по адресу
                                 "ГБОУ №1811"
@@ -103,10 +185,10 @@ public class EGKRReportGenerator {
                     case 1: // Основной учитель + класс
                         return new SchoolConfig(
                                 "ГБОУ №7",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                                 "СВОД",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_классу",
                                 "Основной учитель",
                                 "Номер и буква класса",
                                 "ГБОУ №7"
@@ -114,10 +196,10 @@ public class EGKRReportGenerator {
                     case 2: // Учитель практикума + группа
                         return new SchoolConfig(
                                 "ГБОУ №7",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                                 "СВОД",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_практикума_и_группе",
                                 "Учитель практикума",
                                 "группа практикума",
                                 "ГБОУ №7"
@@ -125,10 +207,10 @@ public class EGKRReportGenerator {
                     case 3: // Основной учитель + адрес
                         return new SchoolConfig(
                                 "ГБОУ №7",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                                 "СВОД",
-                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
+                                "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты\\по_учителю_и_адресу",
                                 "Основной учитель",
                                 "Корпус",  // Для ГБОУ №7 используем "Корпус"
                                 "ГБОУ №7"
@@ -146,10 +228,10 @@ public class EGKRReportGenerator {
         if (SCHOOL_CHOICE == 1) {
             return new SchoolConfig(
                     "Школа 1811",
-                    "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР",
-                    "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГЭ 2026.xlsx",
                     "Свод вертикальный",
-                    "C:\\Users\\dimah\\Yandex.Disk\\1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №1811\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
                     "Основной учитель",
                     "Номер и буква класса",
                     "ГБОУ №1811"
@@ -157,10 +239,10 @@ public class EGKRReportGenerator {
         } else {
             return new SchoolConfig(
                     "ГБОУ №7",
-                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР",
-                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГЭ 2026 админ.xlsx",
                     "СВОД",
-                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
+                    "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ЕГЭ 2026\\ЕГКР\\ЕГКРотчёты",
                     "Основной учитель",
                     "Номер и буква класса",
                     "ГБОУ №7"
@@ -182,7 +264,7 @@ public class EGKRReportGenerator {
             SchoolConfig config = getSchoolConfig();
 
             System.out.println("=========================================");
-            System.out.println("Генератор отчетов ЕГКР (версия 2)");
+            System.out.println("Генератор отчетов ЕГКР");
             System.out.println("Школа: " + config.SCHOOL_NAME);
             System.out.println("Учебный год: " + ACADEMIC_YEAR);
             System.out.println("Тип работы: " + WORK_TYPE);
@@ -195,6 +277,15 @@ public class EGKRReportGenerator {
             System.out.println("Колонка группировки: " + config.groupingColumn);
             System.out.println("Выходная папка: " + config.outputFolder);
             System.out.println("=========================================\n");
+
+            // Показываем ручные настройки
+            System.out.println("=== РУЧНЫЕ НАСТРОЙКИ МАКСИМАЛЬНЫХ БАЛЛОВ ===");
+            for (String subject : MANUAL_MAX_SCORES.keySet()) {
+                List<Integer> scores = MANUAL_MAX_SCORES.get(subject);
+                System.out.println("  " + subject + ": " + scores.size() + " заданий, сумма=" +
+                        scores.stream().mapToInt(Integer::intValue).sum());
+            }
+            System.out.println();
 
             // Создаем папку для отчетов
             Files.createDirectories(Paths.get(config.outputFolder));
@@ -753,7 +844,14 @@ public class EGKRReportGenerator {
         sheet.setColumnWidth(0, 4000);
         sheet.setColumnWidth(1, 8000);
 
-        String workDate = results.isEmpty() ? "2025.12.11" : results.get(0).getDate();
+        // Создаем стиль для ячейки с датой
+        XSSFCellStyle dateStyle = workbook.createCellStyle();
+        dateStyle.cloneStyleFrom(styles.get("teacher"));
+
+        // Настраиваем формат даты
+        CreationHelper createHelper = workbook.getCreationHelper();
+        dateStyle.setDataFormat(createHelper.createDataFormat().getFormat("yyyy.mm.dd"));
+
         int rowNum = 0;
 
         // Строка 1: Учитель
@@ -763,13 +861,28 @@ public class EGKRReportGenerator {
         row1.createCell(1).setCellValue(teacherName);
         row1.getCell(1).setCellStyle(styles.get("teacher"));
 
-        // Строка 2: Дата написания работы
+        // Строка 2: Дата написания работы - УПРОЩЕННАЯ ВЕРСИЯ
         Row row2 = sheet.createRow(rowNum++);
         row2.createCell(0).setCellValue("Дата написания работы");
         row2.getCell(0).setCellStyle(styles.get("header"));
-        row2.createCell(1).setCellValue(workDate);
-        row2.getCell(1).setCellStyle(styles.get("teacher"));
 
+        Cell dateCell = row2.createCell(1);
+
+// Получаем дату из результатов ЕГКР
+        String workDate = "";
+        if (!results.isEmpty() && results.get(0).getDate() != null && !results.get(0).getDate().trim().isEmpty()) {
+            workDate = results.get(0).getDate().trim();
+        } else {
+            // Если даты нет, используем текущую дату в формате DD.MM.YYYY
+            SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
+            workDate = sdf.format(new Date());
+        }
+
+// ПРОСТО УСТАНАВЛИВАЕМ КАК СТРОКУ (не как дату Excel)
+        dateCell.setCellValue(workDate);
+        dateCell.setCellStyle(styles.get("teacher"));  // ← Используем обычный стиль, а не dateStyle
+
+        // Остальные строки остаются без изменений
         // Строка 3: Предмет
         Row row3 = sheet.createRow(rowNum++);
         row3.createCell(0).setCellValue("Предмет");
@@ -891,368 +1004,150 @@ public class EGKRReportGenerator {
         return styles;
     }
 
-    private static List<Integer> parseTaskScores(EGKRData data, List<Integer> maxScores) {
+    // ========== ПАРСЕРЫ ДЛЯ ЗАДАНИЙ ==========
+
+    /**
+     * Парсер 1: Задания с КРАТКИМ ответом
+     * Формат: "01--+----00--+----+----+------+-----"
+     * Правила: '+' → 1 балл, '-' → 0 баллов, цифра 0-9 → соответствующее количество баллов
+     */
+    private static List<Integer> parseShortAnswerTasks(String input) {
         List<Integer> scores = new ArrayList<>();
 
-        System.out.println("\n=== ПАРСИНГ БАЛЛОВ ===");
-        System.out.println("Предмет: " + data.getSubject());
-
-        String subjectLower = data.getSubject().toLowerCase();
-
-        // ОСОБАЯ ЛОГИКА ДЛЯ АНГЛИЙСКОГО
-        if (subjectLower.contains("английский")) {
-            System.out.println("АНГЛИЙСКИЙ ЯЗЫК - ОСОБЫЙ ПАРСИНГ");
-
-            int shortTaskCount = 0;
-            int longTaskCount = 0;
-            int oralTaskCount = 0;
-
-            // 1. КРАТКИЕ ОТВЕТЫ (38 заданий) - ВАЖНО: удаляем ведущие "10" если есть
-            if (data.getShortAnswerTasks() != null && !data.getShortAnswerTasks().isEmpty()) {
-                String shortTasks = data.getShortAnswerTasks().trim();
-                System.out.println("Краткие ответы английского: '" + shortTasks + "'");
-
-                // УДАЛЯЕМ ВЕДУЩИЕ "10" если они есть (это не задания, а что-то другое)
-                String cleaned = shortTasks;
-                if (shortTasks.startsWith("10")) {
-                    cleaned = shortTasks.substring(2);
-                    System.out.println("Удалили ведущие '10': '" + cleaned + "'");
-                }
-
-                // Парсим каждый символ как задание (макс 38)
-                int parsed = 0;
-                for (int i = 0; i < cleaned.length() && parsed < 38; i++) {
-                    char c = cleaned.charAt(i);
-                    int score = 0;
-
-                    if (c == '+' || c == '1') {
-                        score = 1;
-                    } else if (c == '-' || c == '0') {
-                        score = 0;
-                    } else if (Character.isDigit(c)) {
-                        score = Character.getNumericValue(c);
-                        // В английском цифры 2,3 и т.д. маловероятны, но на всякий случай
-                    } else {
-                        continue; // Пропускаем другие символы
-                    }
-
-                    scores.add(score);
-                    parsed++;
-                    shortTaskCount++;
-                }
-
-                // Если распарсили меньше 38, добавляем нули
-                while (shortTaskCount < 38) {
-                    scores.add(0);
-                    shortTaskCount++;
-                }
-
-                System.out.println("Краткие задания: " + shortTaskCount + "/38");
-            } else {
-                // Если нет данных, добавляем 38 нулей
-                for (int i = 0; i < 38; i++) {
-                    scores.add(0);
-                    shortTaskCount++;
-                }
-                System.out.println("Краткие задания: 38 (по умолчанию, данных нет)");
-            }
-
-            // 2. РАЗВЕРНУТЫЕ ОТВЕТЫ (Письмо) - 8 заданий
-            if (data.getLongAnswerTasks() != null && !data.getLongAnswerTasks().isEmpty()) {
-                String longTasks = data.getLongAnswerTasks();
-                System.out.println("Письменные ответы: '" + longTasks + "'");
-
-                Pattern pattern = Pattern.compile("(\\d+)\\((\\d+)\\)");
-                Matcher matcher = pattern.matcher(longTasks);
-
-                while (matcher.find() && longTaskCount < 8) {
-                    try {
-                        int score = Integer.parseInt(matcher.group(1));
-                        scores.add(score);
-                        longTaskCount++;
-                    } catch (NumberFormatException e) {
-                        scores.add(0);
-                        longTaskCount++;
-                    }
-                }
-
-                // Если меньше 8 заданий, добавляем нули
-                while (longTaskCount < 8) {
-                    scores.add(0);
-                    longTaskCount++;
-                }
-
-                System.out.println("Письменные задания: " + longTaskCount + "/8");
-            } else {
-                for (int i = 0; i < 8; i++) {
-                    scores.add(0);
-                    longTaskCount++;
-                }
-                System.out.println("Письменные задания: 8 (по умолчанию, данных нет)");
-            }
-
-            // 3. УСТНАЯ ЧАСТЬ (Говорение) - 6 заданий
-            if (data.hasOralPart()) {
-                String oralTasks = data.getOralPartTasks().trim();
-                System.out.println("Устная часть: '" + oralTasks + "'");
-
-                if (!oralTasks.isEmpty()) {
-                    Pattern pattern = Pattern.compile("(\\d+)\\((\\d+)\\)");
-                    Matcher matcher = pattern.matcher(oralTasks);
-
-                    while (matcher.find() && oralTaskCount < 6) {
-                        try {
-                            int score = Integer.parseInt(matcher.group(1));
-                            scores.add(score);
-                            oralTaskCount++;
-                        } catch (NumberFormatException e) {
-                            scores.add(0);
-                            oralTaskCount++;
-                        }
-                    }
-
-                    // Если меньше 6 заданий, добавляем нули
-                    while (oralTaskCount < 6) {
-                        scores.add(0);
-                        oralTaskCount++;
-                    }
-                } else {
-                    for (int i = 0; i < 6; i++) {
-                        scores.add(0);
-                        oralTaskCount++;
-                    }
-                }
-
-                System.out.println("Устные задания: " + oralTaskCount + "/6");
-            } else {
-                for (int i = 0; i < 6; i++) {
-                    scores.add(0);
-                    oralTaskCount++;
-                }
-                System.out.println("Устные задания: 6 (по умолчанию или не сдавалось)");
-            }
-
-            // ИТОГО для английского
-            System.out.println("ВСЕГО для английского: " + scores.size() +
-                    " заданий (38+8+6=" + (38 + 8 + 6) + ")");
-
-        } else {
-            System.out.println("\n=== ПАРСИНГ БАЛЛОВ УЧЕНИКА ===");
-            System.out.println("ФИО: " + data.getFullName());
-            System.out.println("Предмет: " + data.getSubject());
-
-            int shortTaskCount = 0;
-            int longTaskCount = 0;
-            int oralTaskCount = 0;
-
-            // 1. Парсим задания с КРАТКИМ ответом
-            if (data.getShortAnswerTasks() != null && !data.getShortAnswerTasks().isEmpty()) {
-                String shortTasks = data.getShortAnswerTasks().trim();
-
-                // Удаляем ведущие нули (если есть)
-                shortTasks = shortTasks.replaceAll("^0+", "");
-
-                for (int i = 0; i < shortTasks.length(); i++) {
-                    char c = shortTasks.charAt(i);
-                    int score = 0;
-
-                    switch (c) {
-                        case '+':
-                            score = 1;
-                            break;
-                        case '-':
-                            score = 0;
-                            break;
-                        case '0':
-                        case '1':
-                        case '2':
-                        case '3':
-                        case '4':
-                        case '5':
-                        case '6':
-                        case '7':
-                        case '8':
-                        case '9':
-                            score = Character.getNumericValue(c);
-                            break;
-                        default:
-                            // Пропускаем другие символы
-                            continue;
-                    }
-
-                    scores.add(score);
-                    shortTaskCount++;
-                }
-
-                System.out.println("Краткие задания: " + shortTaskCount);
-            }
-
-            // 2. Парсим задания с РАЗВЕРНУТЫМ ответом
-            if (data.getLongAnswerTasks() != null && !data.getLongAnswerTasks().isEmpty()) {
-                String longTasks = data.getLongAnswerTasks();
-                Pattern pattern = Pattern.compile("(\\d+)\\((\\d+)\\)");
-                Matcher matcher = pattern.matcher(longTasks);
-
-                while (matcher.find()) {
-                    try {
-                        int score = Integer.parseInt(matcher.group(1));
-                        scores.add(score);
-                        longTaskCount++;
-                    } catch (NumberFormatException e) {
-                        scores.add(0);
-                        longTaskCount++;
-                    }
-                }
-
-                System.out.println("Развернутые задания: " + longTaskCount);
-            }
-
-            // 3. Парсим УСТНУЮ ЧАСТЬ (если есть) - ИСПРАВЛЕННАЯ ВЕРСИЯ
-            if (data.hasOralPart()) {
-                String oralTasks = data.getOralPartTasks().trim();
-                System.out.println("\nУстная часть (сырые): '" + oralTasks + "'");
-
-                if (!oralTasks.isEmpty()) {
-                    Pattern pattern = Pattern.compile("(\\d+)\\((\\d+)\\)");
-                    Matcher matcher = pattern.matcher(oralTasks);
-
-                    int position = shortTaskCount + longTaskCount + 1;
-                    int oralIndex = 1;
-
-                    while (matcher.find()) {
-                        try {
-                            int score = Integer.parseInt(matcher.group(1));
-                            int maxScore = Integer.parseInt(matcher.group(2));
-                            scores.add(score);
-                            oralTaskCount++;
-
-                            System.out.println("  Устное задание " + oralIndex + " (общее " + position +
-                                    "): " + score + " из " + maxScore + " баллов");
-                            position++;
-                            oralIndex++;
-                        } catch (NumberFormatException e) {
-                            scores.add(0);
-                            oralTaskCount++;
-                            System.out.println("  Устное задание " + oralIndex + " (общее " + position +
-                                    "): ошибка парсинга → 0 баллов");
-                            position++;
-                            oralIndex++;
-                        }
-                    }
-
-                    // ПРОВЕРКА: посчитали ли мы ВСЕ задания?
-                    // Иногда в строке могут быть пробелы или другие разделители
-                    if (oralTaskCount == 0 && oralTasks.matches(".*\\d.*")) {
-                        System.out.println("ВНИМАНИЕ: Устная часть не распарсена, но содержит цифры!");
-                        System.out.println("Пробуем альтернативный парсинг...");
-
-                        // Альтернативный парсинг: ищем все числа
-                        Pattern altPattern = Pattern.compile("\\d+");
-                        Matcher altMatcher = altPattern.matcher(oralTasks);
-
-                        position = shortTaskCount + longTaskCount + 1;
-                        oralIndex = 1;
-
-                        while (altMatcher.find()) {
-                            try {
-                                int score = Integer.parseInt(altMatcher.group());
-                                scores.add(score);
-                                oralTaskCount++;
-                                System.out.println("  Устное задание " + oralIndex + " (альт. парсинг): " +
-                                        score + " баллов");
-                                position++;
-                                oralIndex++;
-                            } catch (NumberFormatException e) {
-                                // игнорируем
-                            }
-                        }
-                    }
-                } else {
-                    System.out.println("Устная часть пустая");
-                }
-
-                System.out.println("Всего устных заданий: " + oralTaskCount);
-
-                if (oralTaskCount > 0) {
-                    int oralStartIndex = shortTaskCount + longTaskCount;
-                    int oralEndIndex = oralStartIndex + oralTaskCount;
-                    int oralSum = 0;
-                    for (int i = oralStartIndex; i < oralEndIndex; i++) {
-                        oralSum += scores.get(i);
-                    }
-                    System.out.println("Сумма баллов за устную часть: " + oralSum);
-                }
-            }
-            // 4. Сравниваем с ожидаемым количеством заданий
-            int expectedCount = maxScores.size();
-            int actualCount = scores.size();
-
-            if (actualCount < expectedCount) {
-                System.out.println("Добавляем " + (expectedCount - actualCount) + " нулей");
-                while (scores.size() < expectedCount) {
-                    scores.add(0);
-                }
-            } else if (actualCount > expectedCount) {
-                System.out.println("Обрезаем с " + actualCount + " до " + expectedCount + " заданий");
-                scores = scores.subList(0, expectedCount);
-            }
-
-            // 5. Проверяем сумму
-            double totalScore = scores.stream().mapToInt(Integer::intValue).sum();
-            System.out.println("Сумма баллов: " + totalScore);
-            System.out.println("Первичный балл из файла: " + data.getPrimaryScore());
-
-            if (Math.abs(totalScore - data.getPrimaryScore()) > 0.1) {
-                System.out.println("РАСХОЖДЕНИЕ: сумма баллов (" + totalScore +
-                        ") не равна первичному баллу (" + data.getPrimaryScore() + ")");
-            }
-
-            // 6. Финальная проверка С УЧЕТОМ УСТНОЙ ЧАСТИ
-            double finalScore = scores.stream().mapToInt(Integer::intValue).sum();
-            System.out.println("\nФИНАЛЬНЫЙ РЕЗУЛЬТАТ:");
-            System.out.println("Количество заданий: " + scores.size());
-            System.out.println("Сумма баллов: " + finalScore);
-            System.out.println("Должно быть: " + data.getPrimaryScore());
-
-// Проверяем составные части
-            if (shortTaskCount > 0) {
-                int shortSum = scores.stream().limit(shortTaskCount).mapToInt(Integer::intValue).sum();
-                System.out.println("Краткие задания: " + shortTaskCount + " шт., сумма: " + shortSum);
-            }
-
-            if (longTaskCount > 0) {
-                int longSum = scores.stream()
-                        .skip(shortTaskCount)
-                        .limit(longTaskCount)
-                        .mapToInt(Integer::intValue).sum();
-                System.out.println("Развернутые задания: " + longTaskCount + " шт., сумма: " + longSum);
-            }
-
-            if (oralTaskCount > 0) {
-                int oralSum = scores.stream()
-                        .skip(shortTaskCount + longTaskCount)
-                        .limit(oralTaskCount)
-                        .mapToInt(Integer::intValue).sum();
-                System.out.println("Устные задания: " + oralTaskCount + " шт., сумма: " + oralSum);
-            }
-
-            if (Math.abs(finalScore - data.getPrimaryScore()) > 0.1) {
-                System.out.println("⚠️ ВНИМАНИЕ: РАСХОЖДЕНИЕ! Разница: " +
-                        (data.getPrimaryScore() - finalScore));
-
-                // Проверяем, возможно устная часть не учтена в первичном балле
-                if (data.getOralScore() > 0) {
-                    System.out.println("Балл за устную часть из файла: " + data.getOralScore());
-                    System.out.println("Учитываем его?");
-                }
-            }
+        if (input == null || input.trim().isEmpty()) {
+            return scores;
         }
+
+        String cleaned = input.trim();
+
+        for (int i = 0; i < cleaned.length(); i++) {
+            char c = cleaned.charAt(i);
+            int score = 0;
+
+            switch (c) {
+                case '+':
+                    score = 1;
+                    break;
+                case '-':
+                    score = 0;
+                    break;
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    score = Character.getNumericValue(c);
+                    break;
+                default:
+                    // Пропускаем все другие символы
+                    continue;
+            }
+
+            scores.add(score);
+        }
+
         return scores;
     }
 
+    /**
+     * Парсер 2: Задания с РАЗВЕРНУТЫМ ответом и УСТНАЯ часть
+     * Формат: "1(2)2(2)0(2)0(3)0(3)0(3)0(3)0(2)"
+     * Формат: "0(1)0(4)0(5)0(4)0(3)0(3)"
+     * Правила: X(Y) - где X = баллы ученика, Y = максимальный балл
+     */
+    private static List<Integer> parseExtendedAnswerTasks(String input) {
+        List<Integer> scores = new ArrayList<>();
+
+        if (input == null || input.trim().isEmpty()) {
+            return scores;
+        }
+
+        String cleaned = input.trim();
+
+        // Регулярное выражение для поиска пар X(Y)
+        Pattern pattern = Pattern.compile("(\\d+)\\((\\d+)\\)");
+        Matcher matcher = pattern.matcher(cleaned);
+
+        while (matcher.find()) {
+            try {
+                int score = Integer.parseInt(matcher.group(1));
+                scores.add(score);
+            } catch (NumberFormatException e) {
+                scores.add(0);
+            }
+        }
+
+        return scores;
+    }
+
+    private static List<Integer> parseTaskScores(EGKRData data, List<Integer> maxScores) {
+        List<Integer> scores = new ArrayList<>();
+
+        System.out.println("\n=== ПАРСИНГ БАЛЛОВ УЧЕНИКА ===");
+        System.out.println("ФИО: " + data.getFullName());
+        System.out.println("Предмет: " + data.getSubject());
+
+        int shortTaskCount = 0;
+        int longTaskCount = 0;
+        int oralTaskCount = 0;
+
+        // 1. Парсим задания с КРАТКИМ ответом
+        if (data.getShortAnswerTasks() != null && !data.getShortAnswerTasks().isEmpty()) {
+            List<Integer> shortScores = parseShortAnswerTasks(data.getShortAnswerTasks());
+            scores.addAll(shortScores);
+            shortTaskCount = shortScores.size();
+            System.out.println("Краткие задания: " + shortTaskCount + " шт.");
+        }
+
+        // 2. Парсим задания с РАЗВЕРНУТЫМ ответом
+        if (data.getLongAnswerTasks() != null && !data.getLongAnswerTasks().isEmpty()) {
+            List<Integer> longScores = parseExtendedAnswerTasks(data.getLongAnswerTasks());
+            scores.addAll(longScores);
+            longTaskCount = longScores.size();
+            System.out.println("Развернутые задания: " + longTaskCount + " шт.");
+        }
+
+        // 3. Парсим УСТНУЮ ЧАСТЬ
+        if (data.hasOralPart()) {
+            List<Integer> oralScores = parseExtendedAnswerTasks(data.getOralPartTasks());
+            scores.addAll(oralScores);
+            oralTaskCount = oralScores.size();
+            System.out.println("Устные задания: " + oralTaskCount + " шт.");
+        }
+
+        // 4. Сравниваем с ожидаемым количеством заданий
+        int expectedCount = maxScores.size();
+        int actualCount = scores.size();
+
+        if (actualCount < expectedCount) {
+            System.out.println("Добавляем " + (expectedCount - actualCount) + " нулей");
+            while (scores.size() < expectedCount) {
+                scores.add(0);
+            }
+        } else if (actualCount > expectedCount) {
+            System.out.println("Обрезаем с " + actualCount + " до " + expectedCount + " заданий");
+            scores = scores.subList(0, expectedCount);
+        }
+
+        // 5. Проверяем сумму
+        double totalScore = scores.stream().mapToInt(Integer::intValue).sum();
+        System.out.println("Сумма баллов: " + totalScore);
+        System.out.println("Первичный балл из файла: " + data.getPrimaryScore());
+
+        if (Math.abs(totalScore - data.getPrimaryScore()) > 0.1) {
+            System.out.println("РАСХОЖДЕНИЕ: сумма баллов (" + totalScore +
+                    ") не равна первичному баллу (" + data.getPrimaryScore() + ")");
+        }
+
+        return scores;
+    }
 
     private static List<Integer> analyzeMaxScores(EGKRData data) {
-
         List<Integer> maxScores = new ArrayList<>();
 
         System.out.println("\n=== АНАЛИЗ МАКСИМАЛЬНЫХ БАЛЛОВ ===");
@@ -1260,219 +1155,124 @@ public class EGKRReportGenerator {
 
         String subjectLower = data.getSubject().toLowerCase();
 
-        // ОСОБАЯ ЛОГИКА ДЛЯ АНГЛИЙСКОГО
-        if (subjectLower.contains("английский")) {
-            System.out.println("ОБНАРУЖЕН АНГЛИЙСКИЙ ЯЗЫК - ОСОБЫЙ ФОРМАТ ЕГЭ");
+        // ПРОВЕРЯЕМ РУЧНЫЕ НАСТРОЙКИ В ПЕРВУЮ ОЧЕРЕДЬ
+        for (String manualSubject : MANUAL_MAX_SCORES.keySet()) {
+            if (subjectLower.contains(manualSubject.toLowerCase())) {
+                System.out.println("ИСПОЛЬЗУЮ РУЧНЫЕ НАСТРОЙКИ для: " + manualSubject);
+                maxScores.addAll(MANUAL_MAX_SCORES.get(manualSubject));
+                System.out.println("Загружено " + maxScores.size() + " заданий из ручных настроек");
+                return maxScores;
+            }
+        }
 
-            // 1. Задания с КРАТКИМ ответом - всегда 38 заданий по 1 баллу
-            int englishShortTasks = 38;
-            System.out.println("Краткие задания английского (Аудирование+Чтение+Грамматика): " +
-                    englishShortTasks + " заданий по 1 баллу");
+        // СТАНДАРТНАЯ ЛОГИКА для других предметов
+        System.out.println("СТАНДАРТНЫЙ ПРЕДМЕТ - общая логика");
 
-            for (int i = 0; i < englishShortTasks; i++) {
+        int shortTaskCount = 0;
+        int longTaskCount = 0;
+        int oralTaskCount = 0;
+
+        // 1. Анализируем задания с КРАТКИМ ответом (для всех предметов)
+        if (data.getShortAnswerTasks() != null && !data.getShortAnswerTasks().isEmpty()) {
+            // Для кратких ответов максимальный балл обычно 1
+            List<Integer> shortScores = parseShortAnswerTasks(data.getShortAnswerTasks());
+            shortTaskCount = shortScores.size();
+            for (int i = 0; i < shortTaskCount; i++) {
                 maxScores.add(1);
             }
-
-            // 2. Задания с РАЗВЕРНУТЫМ ответом (Письмо) - 8 заданий
-            if (data.getLongAnswerTasks() != null && !data.getLongAnswerTasks().isEmpty()) {
-                String longTasks = data.getLongAnswerTasks();
-                Pattern pattern = Pattern.compile("\\((\\d+)\\)");
-                Matcher matcher = pattern.matcher(longTasks);
-
-                int longCount = 0;
-                while (matcher.find()) {
-                    try {
-                        int maxScore = Integer.parseInt(matcher.group(1));
-                        maxScores.add(maxScore);
-                        longCount++;
-                    } catch (NumberFormatException e) {
-                        maxScores.add(1);
-                        longCount++;
-                    }
-                }
-
-                // Если не нашли 8 заданий, добавляем по умолчанию
-                if (longCount < 8) {
-                    System.out.println("Найдено только " + longCount + " развернутых заданий, добавляем до 8");
-                    // Стандартные максимальные баллы для письма английского
-                    int[] defaultWritingScores = {2, 2, 2, 3, 3, 3, 3, 2}; // 6+14=20 баллов
-                    for (int i = longCount; i < 8; i++) {
-                        maxScores.add(defaultWritingScores[i]);
-                    }
-                }
-                System.out.println("Письменные задания (Writing): " + longCount + " -> 8 заданий");
-            } else {
-                // Если нет данных, добавляем 8 заданий по умолчанию
-                int[] defaultWritingScores = {2, 2, 2, 3, 3, 3, 3, 2};
-                for (int score : defaultWritingScores) {
-                    maxScores.add(score);
-                }
-                System.out.println("Письменные задания: 8 (по умолчанию)");
-            }
-
-            // 3. УСТНАЯ ЧАСТЬ (Говорение) - 6 заданий
-            if (data.hasOralPart()) {
-                String oralTasks = data.getOralPartTasks();
-                Pattern pattern = Pattern.compile("\\((\\d+)\\)");
-                Matcher matcher = pattern.matcher(oralTasks);
-
-                int oralCount = 0;
-                while (matcher.find()) {
-                    try {
-                        int maxScore = Integer.parseInt(matcher.group(1));
-                        maxScores.add(maxScore);
-                        oralCount++;
-                    } catch (NumberFormatException e) {
-                        maxScores.add(1);
-                        oralCount++;
-                    }
-                }
-
-                // Если не нашли 6 заданий, добавляем по умолчанию
-                if (oralCount < 6) {
-                    System.out.println("Найдено только " + oralCount + " устных заданий, добавляем до 6");
-                    // Стандартные максимальные баллы для устной части английского
-                    int[] defaultSpeakingScores = {1, 4, 5, 4, 3, 3}; // 1+5+9+6=20 баллов
-                    for (int i = oralCount; i < 6; i++) {
-                        maxScores.add(defaultSpeakingScores[i]);
-                    }
-                }
-                System.out.println("Устные задания (Speaking): " + oralCount + " -> 6 заданий");
-            } else {
-                // Если нет устной части, все равно добавляем 6 заданий (могли не сдавать)
-                int[] defaultSpeakingScores = {1, 4, 5, 4, 3, 3};
-                for (int score : defaultSpeakingScores) {
-                    maxScores.add(score);
-                }
-                System.out.println("Устные задания: 6 (по умолчанию или не сдавалось)");
-            }
-
-            // ИТОГО для английского: 38 + 8 + 6 = 52 задания
-            System.out.println("ВСЕГО заданий английского: " + maxScores.size() +
-                    " (должно быть 52: 38 кратких + 8 письмо + 6 говорение)");
-
-        } else {
-            // СТАНДАРТНАЯ ЛОГИКА для других предметов
-            System.out.println("СТАНДАРТНЫЙ ПРЕДМЕТ - общая логика");
-
-            System.out.println("\n=== АНАЛИЗ МАКСИМАЛЬНЫХ БАЛЛОВ ===");
-            System.out.println("Предмет: " + data.getSubject());
-            System.out.println("Краткие ответы: '" + data.getShortAnswerTasks() + "'");
-            System.out.println("Развернутые ответы: '" + data.getLongAnswerTasks() + "'");
-            System.out.println("Устная часть: '" + (data.hasOralPart() ? data.getOralPartTasks() : "нет") + "'");
-
-            int shortTaskCount = 0;
-            int longTaskCount = 0;
-            int oralTaskCount = 0;
-
-            // 1. Анализируем задания с КРАТКИМ ответом (для всех предметов)
-            if (data.getShortAnswerTasks() != null && !data.getShortAnswerTasks().isEmpty()) {
-                String shortTasks = data.getShortAnswerTasks();
-
-                // Удаляем ведущие нули (как в "01--+----00--+----+----+------+-----")
-                String cleanedShortTasks = shortTasks.replaceAll("^0+", "");
-
-                // Считаем все символы, которые могут быть заданиями
-                for (int i = 0; i < cleanedShortTasks.length(); i++) {
-                    char c = cleanedShortTasks.charAt(i);
-                    if (c == '+' || c == '-' || Character.isDigit(c)) {
-                        // Для кратких ответов максимальный балл обычно 1
-                        // Но могут быть и цифры 2,3 - это баллы ученика, а не максимальные
-                        // Для анализа максимальных баллов считаем все как задания с макс. баллом 1
-                        maxScores.add(1);
-                        shortTaskCount++;
-                    }
-                }
-                System.out.println("Краткие задания: " + shortTaskCount + " (макс. балл: 1 каждый)");
-            }
-
-            // 2. Анализируем задания с РАЗВЕРНУТЫМ ответом (для всех предметов)
-            if (data.getLongAnswerTasks() != null && !data.getLongAnswerTasks().isEmpty()) {
-                String longTasks = data.getLongAnswerTasks();
-                Pattern pattern = Pattern.compile("\\((\\d+)\\)");
-                Matcher matcher = pattern.matcher(longTasks);
-
-                while (matcher.find()) {
-                    try {
-                        int maxScore = Integer.parseInt(matcher.group(1));
-                        maxScores.add(Math.max(1, maxScore)); // гарантируем минимум 1 балл
-                        longTaskCount++;
-                    } catch (NumberFormatException e) {
-                        maxScores.add(1);
-                        longTaskCount++;
-                    }
-                }
-                System.out.println("Развернутые задания: " + longTaskCount);
-            }
-
-            // 3. Анализируем УСТНУЮ ЧАСТЬ (только для некоторых предметов)
-            if (data.hasOralPart()) {
-                String oralTasks = data.getOralPartTasks();
-                Pattern pattern = Pattern.compile("\\((\\d+)\\)");
-                Matcher matcher = pattern.matcher(oralTasks);
-
-                while (matcher.find()) {
-                    try {
-                        int maxScore = Integer.parseInt(matcher.group(1));
-                        maxScores.add(Math.max(1, maxScore));
-                        oralTaskCount++;
-                    } catch (NumberFormatException e) {
-                        maxScores.add(1);
-                        oralTaskCount++;
-                    }
-                }
-                System.out.println("Устные задания: " + oralTaskCount);
-            }
-
-            // 4. Для некоторых предметов (математика базовая, информатика) могут быть ТОЛЬКО краткие ответы
-            // Если у нас 0 заданий, создаем минимальный набор
-            if (maxScores.isEmpty()) {
-                System.out.println("ВНИМАНИЕ: Не найдено заданий. Создаем минимальный набор.");
-
-                String subject = data.getSubject().toLowerCase();
-                int defaultTaskCount = 20;
-
-                if (subject.contains("математика базовая")) {
-                    defaultTaskCount = 21; // ЕГЭ математика базовая
-                } else if (subject.contains("информатика") || subject.contains("икт") || subject.contains("кегэ")) {
-                    defaultTaskCount = 27; // КЕГЭ
-                }
-
-                for (int i = 0; i < defaultTaskCount; i++) {
-                    maxScores.add(1);
-                }
-                System.out.println("Создано " + defaultTaskCount + " заданий по умолчанию");
-            }
-
-            System.out.println("ВСЕГО заданий: " + maxScores.size() +
-                    " (кратких: " + shortTaskCount +
-                    ", развернутых: " + longTaskCount +
-                    ", устных: " + oralTaskCount + ")");
-            System.out.println("Максимальные баллы: " + maxScores);
+            System.out.println("Краткие задания: " + shortTaskCount + " (макс. балл: 1 каждый)");
         }
+
+        // 2. Анализируем задания с РАЗВЕРНУТЫМ ответом (для всех предметов)
+        if (data.getLongAnswerTasks() != null && !data.getLongAnswerTasks().isEmpty()) {
+            String longTasks = data.getLongAnswerTasks();
+            Pattern pattern = Pattern.compile("\\((\\d+)\\)");
+            Matcher matcher = pattern.matcher(longTasks);
+
+            while (matcher.find()) {
+                try {
+                    int maxScore = Integer.parseInt(matcher.group(1));
+                    maxScores.add(Math.max(1, maxScore)); // гарантируем минимум 1 балл
+                    longTaskCount++;
+                } catch (NumberFormatException e) {
+                    maxScores.add(1);
+                    longTaskCount++;
+                }
+            }
+            System.out.println("Развернутые задания: " + longTaskCount);
+        }
+
+        // 3. Анализируем УСТНУЮ ЧАСТЬ (только для некоторых предметов)
+        if (data.hasOralPart()) {
+            String oralTasks = data.getOralPartTasks();
+            Pattern pattern = Pattern.compile("\\((\\d+)\\)");
+            Matcher matcher = pattern.matcher(oralTasks);
+
+            while (matcher.find()) {
+                try {
+                    int maxScore = Integer.parseInt(matcher.group(1));
+                    maxScores.add(Math.max(1, maxScore));
+                    oralTaskCount++;
+                } catch (NumberFormatException e) {
+                    maxScores.add(1);
+                    oralTaskCount++;
+                }
+            }
+            System.out.println("Устные задания: " + oralTaskCount);
+        }
+
+        // 4. Для некоторых предметов (математика базовая, информатика) могут быть ТОЛЬКО краткие ответы
+        // Если у нас 0 заданий, создаем минимальный набор
+        if (maxScores.isEmpty()) {
+            System.out.println("ВНИМАНИЕ: Не найдено заданий. Создаем минимальный набор.");
+
+            String subject = data.getSubject().toLowerCase();
+            int defaultTaskCount = 20;
+
+            if (subject.contains("математика базовая")) {
+                defaultTaskCount = 21; // ЕГЭ математика базовая
+            } else if (subject.contains("информатика") || subject.contains("икт") || subject.contains("кегэ")) {
+                defaultTaskCount = 27; // КЕГЭ
+            }
+
+            for (int i = 0; i < defaultTaskCount; i++) {
+                maxScores.add(1);
+            }
+            System.out.println("Создано " + defaultTaskCount + " заданий по умолчанию");
+        }
+
+        System.out.println("ВСЕГО заданий: " + maxScores.size() +
+                " (кратких: " + shortTaskCount +
+                ", развернутых: " + longTaskCount +
+                ", устных: " + oralTaskCount + ")");
+        System.out.println("Максимальные баллы: " + maxScores);
+
         return maxScores;
     }
 
     private static String extractDateFromLine(String line) {
         if (line == null || line.isEmpty()) return "";
 
+        // Ищем дату в формате YYYY.MM.DD
         Pattern pattern = Pattern.compile("\\d{4}\\.\\d{2}\\.\\d{2}");
         Matcher matcher = pattern.matcher(line);
-
-        if (matcher.find()) {
-            return matcher.group();
-        }
-
-        // Пробуем другие форматы
-        pattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
-        matcher = pattern.matcher(line);
 
         if (matcher.find()) {
             String date = matcher.group();
             String[] parts = date.split("\\.");
             if (parts.length == 3) {
+                // Конвертируем YYYY.MM.DD в DD.MM.YYYY
                 return parts[2] + "." + parts[1] + "." + parts[0];
             }
+        }
+
+        // Ищем дату в формате DD.MM.YYYY
+        pattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
+        matcher = pattern.matcher(line);
+
+        if (matcher.find()) {
+            // Возвращаем как есть (уже в нужном формате)
+            return matcher.group();
         }
 
         return "";
@@ -1662,7 +1462,7 @@ public class EGKRReportGenerator {
 
             // Определяем предмет, дату из ячейки A5 (или подобной)
             String subject = "Неизвестный предмет";
-            String date = "2025.12.11";
+            String date = "11.12.2025";
 
             // Ищем информацию о предмете и дате в первых строках
             for (int i = 0; i <= 10; i++) {
@@ -2162,9 +1962,4 @@ public class EGKRReportGenerator {
         // Если не нашли, возвращаем первую строку
         return 0;
     }
-
-
 }
-
-// ВАЖНО: Вам нужно скопировать ВСЕ остальные методы из оригинального класса EGKRReportGenerator
-// и вставить их в этот новый класс EGKRReportGeneratorV2

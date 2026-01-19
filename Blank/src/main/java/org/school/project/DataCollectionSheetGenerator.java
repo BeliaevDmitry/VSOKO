@@ -18,27 +18,27 @@ import java.util.*;
 public class DataCollectionSheetGenerator {
 
     // ===== НАСТРОЙКИ =====
-    private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\Работы\\История\\Формы сбора";
-    private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\Реестр контингента.xlsx";
+    private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\{предмет}\\Формы сбора\\{класс}";
+    private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\Реестр контингента.xlsx";
 
     // Константы (можно менять под разные потребности)
-    private static final String PARALLEL = "10"; // Параллель классов
-    private static final String SUBJECT = "История"; // Название предмета
+    private static final String PARALLEL = "6"; // Параллель классов
+    private static final String SUBJECT = "Русский язык"; // Название предмета
     private static final String SCHOOL_NAME = "ГБОУ №7"; // Название школы
     private static final String ACADEMIC_YEAR = "2025-2026"; // Учебный год
-    private static final int MAX_TASKS = 10; // Максимальное количество заданий
-    private static final int CURRENT_TASKS_COUNT = 10; // Текущее количество заданий (можно менять)
+    private static final int MAX_TASKS = 30; // Максимальное количество заданий
+    private static final int CURRENT_TASKS_COUNT = 14; // Текущее количество заданий (можно менять)
     private static final int MAX_STUDENTS = 34; // Максимальное количество учеников в классе
     private static final int VARIANTS_COUNT = 5; // Количество вариантов
 
     // Максимальные баллы за каждое задание (по умолчанию все по 1 баллу)
     private static final int[] MAX_SCORES_PER_TASK = {
-            2, 2, 2, 2, 2,  // задания 1-5
-            2, 2, 2, 2, 2,  // задания 6-10
+            1, 1, 1, 1, 1,  // задания 1-5
+            1, 1, 1, 1, 1,  // задания 6-10
             1, 1, 1, 1, 1,  // задания 11-15
-            1, 1, 1, 1, 2,  // задания 16-20
-            2, 2, 2, 2, 2,  // задания 21-25
-            1, 1, 1, 1, 1,  // задания 26-30
+            1, 1, 1, 1 // задания 16-20
+            // задания 21-25
+              // задания 26-30
     };
 
     // Цвета для подсветки
@@ -52,7 +52,8 @@ public class DataCollectionSheetGenerator {
     public static void main(String[] args) {
         try {
             // Создаем папку для параллели, если не существует
-            String parallelFolder = OUTPUT_BASE_FOLDER + "\\" + PARALLEL + " класс";
+            String parallelFolder = OUTPUT_BASE_FOLDER.replace("{предмет}", SUBJECT)
+                    .replace("{класс}", PARALLEL +  " класс");
             Files.createDirectories(Paths.get(parallelFolder));
 
             // Читаем список классов из Excel
@@ -405,16 +406,16 @@ public class DataCollectionSheetGenerator {
             cell.setCellStyle(styles.get("header"));
         }
 
-        // Заголовок "Баллы за задания" (объединенная ячейка)
+        // Заголовок "Баллы за задания" (объединенная ячейка) - теперь начинается с колонки 4 (E в Excel)
         Cell taskHeaderCell = headerRow.createCell(headers.length);
         taskHeaderCell.setCellValue("Баллы за задания");
         taskHeaderCell.setCellStyle(styles.get("header"));
 
-        // Объединяем ячейку "Баллы за задания"
-        sheet.addMergedRegion(new CellRangeAddress(0, 0, headers.length, headers.length + CURRENT_TASKS_COUNT));
+        // Объединяем ячейку "Баллы за задания" - ИСПРАВЛЕНО: убрали сдвиг
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, headers.length, headers.length + CURRENT_TASKS_COUNT - 1));
 
         // Заголовок для итогового балла (после всех заданий)
-        Cell totalCell = headerRow.createCell(headers.length + CURRENT_TASKS_COUNT + 1);
+        Cell totalCell = headerRow.createCell(headers.length + CURRENT_TASKS_COUNT);
         totalCell.setCellValue("Итог");
         totalCell.setCellStyle(styles.get("header"));
 
@@ -427,16 +428,16 @@ public class DataCollectionSheetGenerator {
             emptyCell.setCellStyle(styles.get("header"));
         }
 
-        // Номера заданий (1-19 или другое количество)
-        int taskStartCol = headers.length; // Начинаем с колонки E (индекс 4)
-        for (int i = 1; i <= CURRENT_TASKS_COUNT; i++) {
+        // Номера заданий (1-10 или другое количество) - начинаются сразу после варианта
+        int taskStartCol = headers.length; // Теперь это колонка 4 (E в Excel)
+        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
             Cell taskNumberCell = taskNumberRow.createCell(taskStartCol + i);
-            taskNumberCell.setCellValue(i);
+            taskNumberCell.setCellValue(i + 1);
             taskNumberCell.setCellStyle(styles.get("taskHeader"));
         }
 
         // Пустая ячейка для итога на второй строке
-        Cell emptyTotalCell = taskNumberRow.createCell(taskStartCol + CURRENT_TASKS_COUNT + 1);
+        Cell emptyTotalCell = taskNumberRow.createCell(taskStartCol + CURRENT_TASKS_COUNT);
         emptyTotalCell.setCellStyle(styles.get("header"));
 
         // ===== ТРЕТЬЯ СТРОКА: максимальные баллы за задания =====
@@ -449,15 +450,15 @@ public class DataCollectionSheetGenerator {
         }
 
         // Максимальные баллы за каждое задание
-        for (int i = 1; i <= CURRENT_TASKS_COUNT; i++) {
+        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
             Cell maxScoreCell = maxScoresRow.createCell(taskStartCol + i);
-            int maxScore = getMaxScoreForTask(i - 1); // i-1 потому что массив с 0
+            int maxScore = getMaxScoreForTask(i); // i потому что начинаем с 0
             maxScoreCell.setCellValue(maxScore);
             maxScoreCell.setCellStyle(styles.get("maxScore"));
         }
 
         // Пустая ячейка для итога на третьей строке
-        Cell emptyTotalCell2 = maxScoresRow.createCell(taskStartCol + CURRENT_TASKS_COUNT + 1);
+        Cell emptyTotalCell2 = maxScoresRow.createCell(taskStartCol + CURRENT_TASKS_COUNT);
         emptyTotalCell2.setCellStyle(styles.get("header"));
 
         // ===== ДАННЫЕ УЧЕНИКОВ (начинаются с 4 строки) =====
@@ -486,15 +487,15 @@ public class DataCollectionSheetGenerator {
             Cell variantCell = row.createCell(3);
             variantCell.setCellStyle(styles.get("center"));
 
-            // Ячейки для баллов за задания
-            for (int taskNum = 1; taskNum <= CURRENT_TASKS_COUNT; taskNum++) {
+            // Ячейки для баллов за задания - начинаются сразу после варианта
+            for (int taskNum = 0; taskNum < CURRENT_TASKS_COUNT; taskNum++) {
                 Cell taskCell = row.createCell(taskStartCol + taskNum);
                 taskCell.setCellStyle(styles.get("center"));
                 // Валидация будет настроена позже
             }
 
             // Итоговая ячейка (формула суммы с учетом разных весов заданий)
-            Cell totalScoreCell = row.createCell(taskStartCol + CURRENT_TASKS_COUNT + 1);
+            Cell totalScoreCell = row.createCell(taskStartCol + CURRENT_TASKS_COUNT);
             totalScoreCell.setCellStyle(styles.get("center"));
 
             // Формула для итога (Excel строки начинаются с 1, а POI с 0)
@@ -506,7 +507,7 @@ public class DataCollectionSheetGenerator {
         // Добавляем пустые строки до максимума (начиная с текущей позиции)
         for (int i = studentCount; i < MAX_STUDENTS; i++) {
             Row row = sheet.createRow(firstStudentRow + i);
-            for (int col = 0; col < taskStartCol + CURRENT_TASKS_COUNT + 2; col++) {
+            for (int col = 0; col < taskStartCol + CURRENT_TASKS_COUNT + 1; col++) {
                 Cell cell = row.createCell(col);
                 cell.setCellStyle(styles.get("normal"));
             }
@@ -538,14 +539,14 @@ public class DataCollectionSheetGenerator {
 
         // Ширина для заданий
         for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
-            sheet.setColumnWidth(headers.length + 1 + i, 1500);
+            sheet.setColumnWidth(headers.length + i, 1500);
         }
 
-        sheet.setColumnWidth(headers.length + CURRENT_TASKS_COUNT + 1, 2000); // Итог
+        sheet.setColumnWidth(headers.length + CURRENT_TASKS_COUNT, 2000); // Итог
 
-        // Скрываем неиспользуемые колонки (включая колонки для заданий, которых нет)
-        int lastUsedColumn = headers.length + CURRENT_TASKS_COUNT + 1;
-        int maxPossibleColumn = headers.length + MAX_TASKS + 1; // Максимально возможная колонка
+        // Скрываем неиспользуемые колонки
+        int lastUsedColumn = headers.length + CURRENT_TASKS_COUNT;
+        int maxPossibleColumn = headers.length + MAX_TASKS; // Максимально возможная колонка
 
         for (int i = lastUsedColumn + 1; i <= maxPossibleColumn; i++) {
             sheet.setColumnHidden(i, true);
@@ -590,14 +591,14 @@ public class DataCollectionSheetGenerator {
         sheet.addValidationData(variantValidation);
 
         // Применяем валидацию к ячейкам заданий (колонки E и далее)
-        int taskStartCol = 4; // Колонка E
-        for (int taskNum = 1; taskNum <= CURRENT_TASKS_COUNT; taskNum++) {
+        int taskStartCol = 4; // Колонка E (индекс 4)
+        for (int taskNum = 0; taskNum < CURRENT_TASKS_COUNT; taskNum++) {
             CellRangeAddressList scoreRange = new CellRangeAddressList(
                     firstStudentRow, firstStudentRow + studentCount - 1,
                     taskStartCol + taskNum, taskStartCol + taskNum);
 
             // Создаем выпадающий список с возможными баллами от 0 до максимального
-            int maxScore = getMaxScoreForTask(taskNum - 1);
+            int maxScore = getMaxScoreForTask(taskNum);
             List<String> scoreOptions = new ArrayList<>();
             for (int score = 0; score <= maxScore; score++) {
                 scoreOptions.add(String.valueOf(score));
@@ -653,8 +654,8 @@ public class DataCollectionSheetGenerator {
         StringBuilder formula = new StringBuilder("SUM(");
 
         // Формируем список ячеек для суммирования
-        for (int i = 1; i <= CURRENT_TASKS_COUNT; i++) {
-            if (i > 1) formula.append(",");
+        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
+            if (i > 0) formula.append(",");
             String cellRef = CellReference.convertNumToColString(taskStartCol + i) + excelRowNum;
             formula.append(cellRef);
         }

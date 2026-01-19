@@ -35,24 +35,24 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final StudentResultRepository studentResultRepository;
 
     @Override
-    public List<TestSummaryDto> getAllTestsSummary() {
-        log.info("Получение сводки по всем тестам");
+    public List<TestSummaryDto> getAllTestsSummary(String schoolName, String currentAcademicYear) {
+        // Фильтрация происходит НА УРОВНЕ БД!
+        List<ReportFileEntity> reportFiles = reportFileRepository
+                .findBySchoolNameAndAcademicYear(
+                        schoolName,
+                        currentAcademicYear,
+                        Sort.by(Sort.Direction.DESC, "testDate")
+                                .and(Sort.by("subject"))
+                                .and(Sort.by("className"))
+                );
 
-        // Сортируем по дате (сначала новые), затем по предмету и классу
-        List<ReportFileEntity> reportFiles = reportFileRepository.findAll(
-                Sort.by(Sort.Direction.DESC, "testDate")
-                        .and(Sort.by("subject"))
-                        .and(Sort.by("className"))
-        );
-
-        // Конвертируем в DTO и рассчитываем средний балл для каждого теста
         return reportFiles.stream()
                 .map(this::convertToTestSummaryDto)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
-       /**
+    /**
      * Конвертирует ReportFileEntity в TestSummaryDto с расчетом статистики
      */
     private TestSummaryDto convertToTestSummaryDto(ReportFileEntity reportFile) {
@@ -90,7 +90,7 @@ public class AnalysisServiceImpl implements AnalysisService {
 
             return TestSummaryDto.builder()
                     .reportFileId(reportFile.getId().toString()) // ДОБАВЛЕНО: ID файла
-                    .school(reportFile.getSchool())
+                    .schoolName(reportFile.getSchoolName())
                     .subject(reportFile.getSubject())
                     .className(reportFile.getClassName())
                     .testDate(reportFile.getTestDate())
@@ -106,8 +106,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                     .studentsTotal(classSize)                     // Всего учеников в классе
                     .studentsPresent(studentsCount)               // Присутствовало на тесте
                     .studentsAbsent((int) absentCount)            // Отсутствовало на тесте
-                    .ACADEMIC_YEAR(reportFile.getACADEMIC_YEAR())
-                    .school(reportFile.getSchool())
+                    .academicYear(reportFile.getAcademicYear())
                     .build();
         } catch (Exception e) {
             log.error("Ошибка при конвертации ReportFileEntity в TestSummaryDto: {}", e.getMessage(), e);
@@ -311,11 +310,20 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public List<TestSummaryDto> getTestsByTeacher(String teacherName) {
+    public List<TestSummaryDto> getTestsByTeacher(String teacherName, String schoolName, String currentAcademicYear) {
         log.info("Получение тестов учителя: {}", teacherName);
 
-        List<ReportFileEntity> teacherTests = reportFileRepository.findByTeacher(teacherName,
-                Sort.by(Sort.Direction.DESC, "testDate"));
+        List<ReportFileEntity> teacherTests = reportFileRepository.findByTeacherAndSchoolNameAndAcademicYear(
+                teacherName,
+                schoolName,
+                currentAcademicYear,
+                Sort.by(Sort.Direction.DESC, "testDate")
+                        .and(Sort.by("subject"))
+                        .and(Sort.by("className"))
+        );
+
+        log.info("Найдено {} тестов учителя '{}' в школе '{}'",
+                teacherTests.size(), teacherName, schoolName);
 
         return teacherTests.stream()
                 .map(this::convertToTestSummaryDto)
@@ -324,9 +332,11 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public List<String> getAllTeachers() {
+    public List<String> getAllTeachers(String schoolName, String currentAcademicYear) {
         log.info("Получение списка всех учителей");
-        return reportFileRepository.findAll()
+        return reportFileRepository.findBySchoolNameAndAcademicYear(schoolName,
+                        currentAcademicYear,
+                        Sort.unsorted())
                 .stream()
                 .map(ReportFileEntity::getTeacher)
                 .filter(Objects::nonNull)
@@ -345,8 +355,8 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .totalScore(entity.getTotalScore())
                 .percentageScore(entity.getPercentageScore())
                 .taskScores(scores)
-                .ACADEMIC_YEAR(entity.getACADEMIC_YEAR())
-                .school(entity.getSchool())
+                .academicYear(entity.getAcademicYear())
+                .schoolName(entity.getSchoolName())
                 .build();
     }
 }

@@ -14,6 +14,6 @@ public class StudentDetailedResultDto {
     private Integer totalScore;
     private Double percentageScore;
     private Map<Integer, Integer> taskScores; // Баллы по заданиям
-    private String ACADEMIC_YEAR;
-    private String school;
+    private String academicYear;
+    private String schoolName;
 }

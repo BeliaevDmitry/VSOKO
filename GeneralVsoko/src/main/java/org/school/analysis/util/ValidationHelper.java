@@ -3,6 +3,7 @@ package org.school.analysis.util;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.model.TestMetadata;
+import org.school.analysis.service.TeacherService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +23,7 @@ public class ValidationHelper {
     private static final Pattern CLASS_NAME_PATTERN =
             Pattern.compile("^(1[0-1]|[1-9])[-][А-Яа-я]$");
     private static final Pattern SUBJECT_PATTERN =
-            Pattern.compile("^[А-Яа-яЁё\\s\\-]{3,50}$");
+            Pattern.compile("^[А-Яа-яЁё\\s\\-()]{3,100}$");
 
     /**
      * Валидация ФИО
@@ -561,5 +562,104 @@ public class ValidationHelper {
             }
             return sb.toString();
         }
+    }
+
+    /**
+     * Проверка учителя с использованием нового matcher
+     */
+    public static ValidationResult validateTeacher(String teacherName, TeacherService teacherService) {
+        ValidationResult result = new ValidationResult();
+
+        if (teacherName == null || teacherName.trim().isEmpty() || "Не указан".equals(teacherName)) {
+            result.addError("Не указан учитель");
+            return result;
+        }
+
+        // Проверяем валидность
+        if (!teacherService.isTeacherValid(teacherName)) {
+            result.addError(String.format("Учитель '%s' не найден в базе", teacherName));
+        }
+
+        return result;
+    }
+
+    /**
+     * Валидация формата ФИО учителя (базовая проверка)
+     */
+    public static boolean isValidTeacherNameFormat(String teacherName) {
+        if (teacherName == null || teacherName.trim().isEmpty()) {
+            return false;
+        }
+
+        String trimmed = teacherName.trim();
+
+        // 1. Допустимые форматы:
+        // - Полное ФИО: "Иванов Иван Иванович"
+        // - Сокращенное: "Иванов И.И."
+        // - Только фамилия и инициалы: "Иванов И.И"
+        // - С ошибками: "Иванов Иван Ивановыч" (проверяется fuzzy search в TeacherService)
+
+        // 2. Минимальная длина
+        if (trimmed.length() < 3) {
+            return false;
+        }
+
+        // 3. Должны быть русские буквы
+        if (!trimmed.matches(".*[А-Яа-яЁё].*")) {
+            return false;
+        }
+
+        // 4. Не должен содержать запрещенных символов
+        if (trimmed.matches(".*[0-9!@#$%^&*()_+=<>?/\\\\|].*")) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Валидация Teacher из метаданных
+     */
+    public static ValidationResult validateTeacherInMetadata(TestMetadata metadata, TeacherService teacherService) {
+        ValidationResult result = new ValidationResult();
+
+        if (metadata == null) {
+            result.addError("Метаданные не могут быть null");
+            return result;
+        }
+
+        String teacherName = metadata.getTeacher();
+        if (teacherName == null || teacherName.trim().isEmpty()) {
+            result.addError("Не указан учитель");
+            return result;
+        }
+
+        // Используем общую валидацию учителя
+        ValidationResult teacherValidation = validateTeacher(teacherName, teacherService);
+        if (teacherValidation.hasErrors()) {
+            result.addError("Ошибка валидации учителя: " + teacherValidation.getErrorsAsString());
+        }
+
+        return result;
+    }
+
+    /**
+     * Комплексная валидация ReportFile с проверкой учителя
+     */
+    public static ValidationResult validateReportFileWithTeacher(ReportFile reportFile, TeacherService teacherService) {
+        ValidationResult result = validateReportFileDetailed(reportFile);
+
+        // Дополнительно проверяем учителя
+        if (reportFile != null && reportFile.getTeacher() != null) {
+            ValidationResult teacherResult = validateTeacher(reportFile.getTeacher(), teacherService);
+            if (teacherResult.hasErrors()) {
+                result.addError("Ошибка валидации учителя: " + teacherResult.getErrorsAsString());
+            }
+            if (teacherResult.hasWarnings()) {
+                result.addWarning("Предупреждение по учителю: " + teacherResult.getWarningsAsString());
+            }
+        }
+
+        return result;
     }
 }
