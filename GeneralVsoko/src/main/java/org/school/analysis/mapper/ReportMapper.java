@@ -78,7 +78,7 @@ public class ReportMapper {
                 .testType(model.getTestType())
                 .testDate(model.getTestDate())
                 .totalScore(JsonScoreUtils.calculateTotalScore(model.getTaskScores()))
-                .percentageScore(model.getPercentageScore()) // Добавьте это поле
+                .percentageScore(model.getPercentageScore())
                 .taskScoresJson(JsonScoreUtils.mapToJson(model.getTaskScores()))
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
