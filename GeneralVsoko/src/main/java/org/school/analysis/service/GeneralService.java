@@ -15,7 +15,7 @@ public interface GeneralService {
     /**
      * Полный цикл обработки
      */
-    ProcessingSummary processAll(String folderPath);
+    void processAll();
 
     /**
      * 1. Найти файлы в папке

@@ -11,17 +11,16 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.school.analysis.config.AppConfig.*;
 
 @Service
 public class FileOrganizerServiceImpl implements FileOrganizerService {
 
-    private final String reportsBaseFolderTemplate = REPORTS_BASE_FOLDER;
-
     public FileOrganizerServiceImpl() {
 
-        System.out.println("Используется базовый путь: " + reportsBaseFolderTemplate);
+        System.out.println("Используется базовый путь: " + REPORTS_BASE_FOLDER);
     }
 
     @Override
@@ -32,7 +31,12 @@ public class FileOrganizerServiceImpl implements FileOrganizerService {
         }
 
         String safeSubject = subject.replaceAll("[\\\\/:*?\"<>|]", "_");
-        String targetFolderPath = reportsBaseFolderTemplate.replace("{предмет}", safeSubject);
+        String safeSchool = reportFile.getSchoolName() != null ?
+                reportFile.getSchoolName().replaceAll("[\\\\/:*?\"<>|]", "_") : "";
+
+        String targetFolderPath = REPORTS_BASE_FOLDER
+                .replace("{школа}", safeSchool)
+                .replace("{предмет}", safeSubject);
 
         // Создаем папку если не существует
         Path targetFolder = Paths.get(targetFolderPath);
@@ -76,8 +80,7 @@ public class FileOrganizerServiceImpl implements FileOrganizerService {
             throw new IllegalArgumentException("Папка не существует: " + folderPath);
         }
 
-        // Простой и понятный вариант
-        for (File file : folder.listFiles()) {
+        for (File file : Objects.requireNonNull(folder.listFiles())) {
             if (file.isFile() && file.getName().toLowerCase().endsWith(".xlsx")) {
                 ReportFile reportFile = new ReportFile();
                 reportFile.setFile(file);
