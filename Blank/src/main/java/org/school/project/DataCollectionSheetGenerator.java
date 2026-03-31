@@ -19,24 +19,24 @@ public class DataCollectionSheetGenerator {
 
     // ===== НАСТРОЙКИ =====
     private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\{предмет}\\Формы сбора\\{класс}";
-    private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\Реестр контингента.xlsx";
+    private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\БД основные\\Реестр контингента.xlsx";
 
     // Константы (можно менять под разные потребности)
-    private static final String PARALLEL = "6"; // Параллель классов
+    private static final String PARALLEL = "9"; // Параллель классов
     private static final String SUBJECT = "Русский язык"; // Название предмета
     private static final String SCHOOL_NAME = "ГБОУ №7"; // Название школы
     private static final String ACADEMIC_YEAR = "2025-2026"; // Учебный год
-    private static final int MAX_TASKS = 30; // Максимальное количество заданий
-    private static final int CURRENT_TASKS_COUNT = 14; // Текущее количество заданий (можно менять)
+    private static final int MAX_TASKS = 18; // Максимальное количество заданий
+    private static final int CURRENT_TASKS_COUNT = 18; // Текущее количество заданий (можно менять)
     private static final int MAX_STUDENTS = 34; // Максимальное количество учеников в классе
-    private static final int VARIANTS_COUNT = 5; // Количество вариантов
+    private static final int VARIANTS_COUNT = 4; // Количество вариантов
 
     // Максимальные баллы за каждое задание (по умолчанию все по 1 баллу)
     private static final int[] MAX_SCORES_PER_TASK = {
-            1, 1, 1, 1, 1,  // задания 1-5
+            6, 1, 1, 1, 1,  // задания 1-5
             1, 1, 1, 1, 1,  // задания 6-10
-            1, 1, 1, 1, 1,  // задания 11-15
-            1, 1, 1, 1 // задания 16-20
+            1, 1, 7, 3, 3, 3, 3, 1  // задания 11-15
+             // задания 16-20
             // задания 21-25
               // задания 26-30
     };
