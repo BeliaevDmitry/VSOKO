@@ -39,7 +39,17 @@ public class ParserServiceImpl implements ParserService {
     public List<ParseResult> parseFiles(List<ReportFile> reportFiles) {
         log.info("Начало парсинга {} файлов", reportFiles.size());
         return reportFiles.stream()
-                .map(this::parseFile)
+                .map(reportFile -> {
+                    try {
+                        return parseFile(reportFile);
+                    } catch (Exception e) {
+                        log.error("Необработанная ошибка парсинга файла {}: {}",
+                                reportFile.getFile().getName(), e.getMessage(), e);
+                        return ParseResult.error(reportFile,
+                                "Критическая ошибка парсинга файла " + reportFile.getFile().getName()
+                                        + ": " + e.getMessage());
+                    }
+                })
                 .collect(Collectors.toList());
     }
 
