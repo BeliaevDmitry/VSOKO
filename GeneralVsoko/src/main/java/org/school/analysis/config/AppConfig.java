@@ -15,8 +15,8 @@ public class AppConfig {
     }
 
     public static final List<String> SCHOOLS = List.of(
-            "ГБОУ №7",
-            "ГБОУ №1811"
+            "ГБОУ №7"
+            //,"ГБОУ №1811"
     );
 
 
@@ -46,7 +46,7 @@ public class AppConfig {
 
 
     public static final String INPUT_TEACHER_NAME =
-            "C:\\Users\\dimah\\Yandex.Disk\\{школа}\\Учителя.xlsx";
+            "C:\\Users\\dimah\\Yandex.Disk\\{школа}\\БД основные\\Учителя.xlsx";
 
     // Настройки для импорта учителей
     public static final boolean AUTO_IMPORT_TEACHERS = true;
