@@ -20,17 +20,16 @@ public class EGKRReportGenerator {
     // ========== НАСТРОЙКИ ==========
 
     // Выбор типа отчета (изменяйте эту переменную)
-    private static final int REPORT_TYPE = 2;
+    private static final int REPORT_TYPE = 1;
     // 1 - по основному учителю и классу,
     // 2 - по учителю практикума и группе,
     // 3 - по основному учителю и адресу
 
     // Выбор школы
-    private static final int SCHOOL_CHOICE = 1; // 1\ - Школа 1811, 2 - ГБОУ №7
+    private static final int SCHOOL_CHOICE = 2; // 1 - Школа 1811, 2 - ГБОУ №7
 
-    // Константы для отчета
+    // Константы для отчета (тип работы теперь определяется автоматически)
     private static final String ACADEMIC_YEAR = "2025-2026";
-    private static final String WORK_TYPE = "ЕГКР декабрь";
 
     // РУЧНЫЕ НАСТРОЙКИ МАКСИМАЛЬНЫХ БАЛЛОВ ПО ПРЕДМЕТАМ
     private static final Map<String, List<Integer>> MANUAL_MAX_SCORES = new HashMap<>();
@@ -42,16 +41,14 @@ public class EGKRReportGenerator {
                 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 11-20
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 21-30
                 1, 1, 1, 1, 1, 1, 2, 2, 2, 3,  // 31-40
-                 3, 3, 3, 2, 1, 4, 5, 4,3, 3  // 41-50
+                3, 3, 3, 2, 1, 4, 5, 4, 3, 3   // 41-50
         ));
 
         // Информатика и ИКТ (КЕГЭ) - 29 задания
         MANUAL_MAX_SCORES.put("информатика и ИКТ (КЕГЭ)", Arrays.asList(
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 1-10
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 11-20
-                1, 1, 1, 1, 1, 2, 2  // 21-30
-                  // 31-40
-                  // 41-50
+                1, 1, 1, 1, 1, 2, 2             // 21-27
         ));
 
         // Русский язык - 36 задания
@@ -59,44 +56,36 @@ public class EGKRReportGenerator {
                 1, 1, 1, 1, 1, 1, 1, 2, 1, 1,  // 1-10
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 11-20
                 1, 2, 1, 1, 1, 1, 1, 3, 2, 1,  // 21-30
-                2, 1, 3, 3, 3, 3// 31-40
-                // 41-50
+                2, 1, 3, 3, 3, 3               // 31-36
         ));
 
         // Биология - 28 задания
         MANUAL_MAX_SCORES.put("биология", Arrays.asList(
                 1, 2, 1, 1, 1, 2, 2, 2, 1, 2,  // 1-10
                 2, 2, 1, 2, 2, 2, 2, 2, 2, 2,  // 11-20
-                2, 3, 3, 3, 3, 3, 3, 3  // 21-30
-                // 31-40
-                // 41-50
+                2, 3, 3, 3, 3, 3, 3, 3         // 21-28
         ));
 
         // Обществознание - 28 задания
         MANUAL_MAX_SCORES.put("обществознание", Arrays.asList(
                 1, 2, 1, 2, 2, 2, 2, 2, 1, 2,  // 1-10
                 2, 1, 2, 2, 2, 2, 2, 2, 3, 3,  // 11-20
-                3, 4, 3, 3, 1, 2, 1, 3  // 21-30
-                // 31-40
-                // 41-50
+                3, 4, 3, 3, 1, 2, 1, 3         // 21-28
         ));
 
         // Химия - 34 задания
         MANUAL_MAX_SCORES.put("химия", Arrays.asList(
                 1, 1, 1, 1, 1, 2, 2, 2, 1, 1,  // 1-10
-                1, 1, 1, 2, 2, 1, 1, 1, 1, 1, // 11-20
-                1, 2, 2, 2, 1, 1, 1, 1, 2, 2, // 21-30
-                4, 5, 3, 4// 31-40
-                // 41-50
+                1, 1, 1, 2, 2, 1, 1, 1, 1, 1,  // 11-20
+                1, 2, 2, 2, 1, 1, 1, 1, 2, 2,  // 21-30
+                4, 5, 3, 4                     // 31-34
         ));
 
         // физика - 27 задания
         MANUAL_MAX_SCORES.put("физика", Arrays.asList(
                 1, 1, 1, 1, 2, 2, 1, 1, 2, 2,  // 1-10
                 1, 1, 1, 2, 2, 1, 2, 2, 1, 1,  // 11-20
-                3, 2, 2, 3, 3, 1, 3  // 21-30
-                // 31-40
-                // 41-50
+                3, 2, 2, 3, 3, 1, 3            // 21-27
         ));
 
         // ГЕОГРАФИЯ - 30 заданий
@@ -108,9 +97,9 @@ public class EGKRReportGenerator {
 
         // ИСТОРИЯ - 21 задание
         MANUAL_MAX_SCORES.put("история", Arrays.asList(
-                2, 1, 2, 3, 2, 2, 2, 1, 1, 1,  // 1-10: 1,2,3,4,5,6,7,8,9,10
-                1, 2, 2, 2, 2, 2, 3, 3, 2, 3,  // 11-20: 11,12,13,14,15,16,17,18,19,20
-                3  // 21: 21
+                2, 1, 2, 3, 2, 2, 2, 1, 1, 1,  // 1-10
+                1, 2, 2, 2, 2, 2, 3, 3, 2, 3,  // 11-20
+                3                                  // 21
         ));
     }
 
@@ -267,7 +256,7 @@ public class EGKRReportGenerator {
             System.out.println("Генератор отчетов ЕГКР");
             System.out.println("Школа: " + config.SCHOOL_NAME);
             System.out.println("Учебный год: " + ACADEMIC_YEAR);
-            System.out.println("Тип работы: " + WORK_TYPE);
+            System.out.println("Тип работы: определяется автоматически по дате файлов");
             System.out.println("Тип отчета: " + REPORT_TYPE + " - " + getReportTypeDescription());
             System.out.println("=========================================");
             System.out.println("Папка с ЕГКР: " + config.egkrFolder);
@@ -355,7 +344,6 @@ public class EGKRReportGenerator {
             System.out.println("Школа: " + config.SCHOOL_NAME);
             System.out.println("Тип отчета: " + getReportTypeDescription());
             System.out.println("Учебный год: " + ACADEMIC_YEAR);
-            System.out.println("Тип работы: " + WORK_TYPE);
             System.out.println("Отчеты сохранены в папке: " + config.outputFolder);
             System.out.println("=========================================");
 
@@ -592,6 +580,58 @@ public class EGKRReportGenerator {
         }
     }
 
+    /**
+     * Определяет тип работы по дате (ЕГКР декабрь / ЕГКР весна)
+     * @param dateStr дата в формате DD.MM.YYYY
+     * @return строка типа работы
+     */
+    private static String determineWorkType(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) {
+            return "ЕГКР";
+        }
+        try {
+            String[] parts = dateStr.split("\\.");
+            if (parts.length != 3) return "ЕГКР";
+            int day = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]);
+            // int year = Integer.parseInt(parts[2]); // год не используется для определения сезона
+
+            int dayOfYear = getDayOfYear(day, month);
+
+            // Границы: 1 ноября = 305, 1 марта = 60 (для невисокосного года), 2 марта = 61, 28 апреля = 118
+            int startDec = getDayOfYear(1, 11);    // 1 ноября
+            int endDec = getDayOfYear(1, 3);       // 1 марта (не включая)
+            int startSpring = getDayOfYear(2, 3);  // 2 марта
+            int endSpring = getDayOfYear(28, 4);   // 28 апреля
+
+            // Диапазон "декабрь": с 1 ноября по 1 марта (исключая 1 марта)
+            // Особенность: переход через Новый год
+            boolean isDecemberRange = (dayOfYear >= startDec) || (dayOfYear < endDec);
+            boolean isSpringRange = (dayOfYear >= startSpring && dayOfYear <= endSpring);
+
+            if (isDecemberRange) {
+                return "ЕГКР декабрь";
+            } else if (isSpringRange) {
+                return "ЕГКР весна";
+            } else {
+                return "ЕГКР";
+            }
+        } catch (Exception e) {
+            return "ЕГКР";
+        }
+    }
+
+    private static int getDayOfYear(int day, int month) {
+        // Упрощённое вычисление без учёта високосности (для диапазонов ноябрь-апрель это не критично)
+        int[] daysInMonth = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+        int dayOfYear = 0;
+        for (int i = 0; i < month - 1; i++) {
+            dayOfYear += daysInMonth[i];
+        }
+        dayOfYear += day;
+        return dayOfYear;
+    }
+
     private static String getGroupLabel() {
         switch (REPORT_TYPE) {
             case 1:
@@ -619,7 +659,6 @@ public class EGKRReportGenerator {
                     return "Без группы";
             }
         }
-
         return group.trim();
     }
 
@@ -632,19 +671,26 @@ public class EGKRReportGenerator {
             return;
         }
 
+        // Определяем тип работы по дате первого ученика в отчёте
+        String workType = "ЕГКР";
+        if (!results.isEmpty() && results.get(0).getDate() != null && !results.get(0).getDate().isEmpty()) {
+            workType = determineWorkType(results.get(0).getDate());
+        }
+
         // Создаем безопасное имя файла
         String safeTeacherName = teacherName.replaceAll("[\\\\/:*?\"<>|]", "_");
         String safeGroupName = groupName.replaceAll("[\\\\/:*?\"<>|]", "_");
         String safeSubject = subject.replaceAll("[\\\\/:*?\"<>|]", "_");
+        String safeWorkType = workType.replaceAll("[\\\\/:*?\"<>|]", "_");   // ← НОВОЕ
 
         String fileName = config.outputFolder + "\\" +
-                safeTeacherName + "_" + safeSubject + "_" + safeGroupName + ".xlsx";
+                safeTeacherName + "_" + safeSubject + "_" + safeWorkType + "_" + safeGroupName + ".xlsx";
 
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Map<String, XSSFCellStyle> styles = createStyles(workbook);
 
             // ===== ЛИСТ 1: Информация =====
-            createInfoSheet(workbook, styles, teacherName, subject, groupName, results, config);
+            createInfoSheet(workbook, styles, teacherName, subject, groupName, results, config, workType);
 
             // ===== ЛИСТ 2: Сбор информации =====
             createDataCollectionSheet(workbook, styles, subject, groupName, results);
@@ -655,7 +701,7 @@ public class EGKRReportGenerator {
             }
 
             System.out.println("Создан отчет: " + fileName +
-                    " (" + results.size() + " учеников, группа: " + groupName + ")");
+                    " (" + results.size() + " учеников, группа: " + groupName + ", тип: " + workType + ")");
         } catch (Exception e) {
             System.err.println("Ошибка при создании отчета " + fileName + ": " + e.getMessage());
             e.printStackTrace();
@@ -838,19 +884,11 @@ public class EGKRReportGenerator {
 
     private static void createInfoSheet(XSSFWorkbook workbook, Map<String, XSSFCellStyle> styles,
                                         String teacherName, String subject, String groupName,
-                                        List<EGKRData> results, SchoolConfig config) {
+                                        List<EGKRData> results, SchoolConfig config, String workType) {
         XSSFSheet sheet = workbook.createSheet("Информация");
 
         sheet.setColumnWidth(0, 4000);
         sheet.setColumnWidth(1, 8000);
-
-        // Создаем стиль для ячейки с датой
-        XSSFCellStyle dateStyle = workbook.createCellStyle();
-        dateStyle.cloneStyleFrom(styles.get("teacher"));
-
-        // Настраиваем формат даты
-        CreationHelper createHelper = workbook.getCreationHelper();
-        dateStyle.setDataFormat(createHelper.createDataFormat().getFormat("yyyy.mm.dd"));
 
         int rowNum = 0;
 
@@ -861,28 +899,22 @@ public class EGKRReportGenerator {
         row1.createCell(1).setCellValue(teacherName);
         row1.getCell(1).setCellStyle(styles.get("teacher"));
 
-        // Строка 2: Дата написания работы - УПРОЩЕННАЯ ВЕРСИЯ
+        // Строка 2: Дата написания работы
         Row row2 = sheet.createRow(rowNum++);
         row2.createCell(0).setCellValue("Дата написания работы");
         row2.getCell(0).setCellStyle(styles.get("header"));
 
         Cell dateCell = row2.createCell(1);
-
-// Получаем дату из результатов ЕГКР
         String workDate = "";
         if (!results.isEmpty() && results.get(0).getDate() != null && !results.get(0).getDate().trim().isEmpty()) {
             workDate = results.get(0).getDate().trim();
         } else {
-            // Если даты нет, используем текущую дату в формате DD.MM.YYYY
             SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
             workDate = sdf.format(new Date());
         }
-
-// ПРОСТО УСТАНАВЛИВАЕМ КАК СТРОКУ (не как дату Excel)
         dateCell.setCellValue(workDate);
-        dateCell.setCellStyle(styles.get("teacher"));  // ← Используем обычный стиль, а не dateStyle
+        dateCell.setCellStyle(styles.get("teacher"));
 
-        // Остальные строки остаются без изменений
         // Строка 3: Предмет
         Row row3 = sheet.createRow(rowNum++);
         row3.createCell(0).setCellValue("Предмет");
@@ -892,16 +924,16 @@ public class EGKRReportGenerator {
 
         // Строка 4: Группировка (зависит от типа отчета)
         Row row4 = sheet.createRow(rowNum++);
-        row4.createCell(0).setCellValue("класс");
+        row4.createCell(0).setCellValue(getGroupLabel());
         row4.getCell(0).setCellStyle(styles.get("header"));
         row4.createCell(1).setCellValue(groupName);
         row4.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Строка 5: Тип
+        // Строка 5: Тип работы (теперь динамический)
         Row row5 = sheet.createRow(rowNum++);
-        row5.createCell(0).setCellValue("Тип");
+        row5.createCell(0).setCellValue("Тип работы");
         row5.getCell(0).setCellStyle(styles.get("header"));
-        row5.createCell(1).setCellValue(WORK_TYPE);
+        row5.createCell(1).setCellValue(workType);
         row5.getCell(1).setCellStyle(styles.get("normal"));
 
         // Строка 6: Максимальные баллы за задания (если есть данные)
@@ -922,21 +954,21 @@ public class EGKRReportGenerator {
             row6.getCell(1).setCellStyle(styles.get("normal"));
         }
 
-        // Строка 7: Примечание (ВСЕГДА есть)
+        // Строка 7: Примечание
         Row row7 = sheet.createRow(rowNum++);
         row7.createCell(0).setCellValue("Примечание:");
         row7.getCell(0).setCellStyle(styles.get("header"));
         row7.createCell(1).setCellValue("Заполнено автоматически на основе данных ЕГКР");
         row7.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Строка 8: Школа (ВСЕГДА есть)
+        // Строка 8: Школа
         Row row8 = sheet.createRow(rowNum++);
         row8.createCell(0).setCellValue("Школа:");
         row8.getCell(0).setCellStyle(styles.get("header"));
         row8.createCell(1).setCellValue(config.SCHOOL_NAME);
         row8.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Строка 9: Учебный год (ВСЕГДА есть)
+        // Строка 9: Учебный год
         Row row9 = sheet.createRow(rowNum++);
         row9.createCell(0).setCellValue("Учебный год:");
         row9.getCell(0).setCellStyle(styles.get("header"));
@@ -1327,7 +1359,6 @@ public class EGKRReportGenerator {
         return subject.trim();
     }
 
-
     private static String normalizeClassName(String className) {
         if (className == null) return "";
 
@@ -1462,7 +1493,7 @@ public class EGKRReportGenerator {
 
             // Определяем предмет, дату из ячейки A5 (или подобной)
             String subject = "Неизвестный предмет";
-            String date = "11.12.2025";
+            String date = "11.12.2025"; // значение по умолчанию, будет перезаписано, если найдём реальную дату
 
             // Ищем информацию о предмете и дате в первых строках
             for (int i = 0; i <= 10; i++) {
@@ -1740,7 +1771,6 @@ public class EGKRReportGenerator {
         return 0;
     }
 
-
     private static boolean isValidData(String fio, String teacher) {
         if (fio == null || fio.trim().isEmpty()) return false;
         if (teacher == null || teacher.trim().isEmpty()) return false;
@@ -1872,12 +1902,12 @@ public class EGKRReportGenerator {
         private String middleName;
         private String shortAnswerTasks;
         private String longAnswerTasks;
-        private String oralPartTasks; // НОВОЕ: устная часть
+        private String oralPartTasks;
         private double primaryScore;
         private double percent;
         private String teacherName;
-        private double oralScore; // НОВОЕ: балл за устную часть
-        private double testScore; // НОВОЕ: тестовый балл
+        private double oralScore;
+        private double testScore;
 
         public EGKRData(String subject, String date, String className,
                         String lastName, String firstName, String middleName,
@@ -1902,7 +1932,6 @@ public class EGKRReportGenerator {
             return lastName + " " + firstName + (middleName != null && !middleName.isEmpty() ? " " + middleName : "");
         }
 
-        // Новый метод для проверки, есть ли устная часть
         public boolean hasOralPart() {
             return oralPartTasks != null && !oralPartTasks.trim().isEmpty();
         }
