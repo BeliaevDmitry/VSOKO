@@ -20,6 +20,7 @@ import java.util.List;
 public class TeacherReportGenerator extends ExcelReportBase {
 
     private final DetailReportGenerator detailReportGenerator;
+    private final TeacherInputOutputComparisonReportService comparisonReportService;
 
     // Предопределенные ширины колонок в символах (уже с учетом фильтров)
     private static final int[] TEACHER_SUMMARY_WIDTHS = {
@@ -35,8 +36,10 @@ public class TeacherReportGenerator extends ExcelReportBase {
             18  // 9: % выполнения
     };
 
-    public TeacherReportGenerator(DetailReportGenerator detailReportGenerator) {
+    public TeacherReportGenerator(DetailReportGenerator detailReportGenerator,
+                                  TeacherInputOutputComparisonReportService comparisonReportService) {
         this.detailReportGenerator = detailReportGenerator;
+        this.comparisonReportService = comparisonReportService;
     }
 
     public File generateTeacherReportWithDetails(
@@ -60,6 +63,8 @@ public class TeacherReportGenerator extends ExcelReportBase {
                 for (TeacherTestDetailDto testDetail : teacherTestDetails) {
                     createTeacherTestDetailSheet(workbook, testDetail);
                 }
+
+                comparisonReportService.addInputOutputComparisonSheets(workbook, teacherName, teacherTestDetails);
 
                 return saveWorkbook(workbook, reportsPath, fileName);
             }
