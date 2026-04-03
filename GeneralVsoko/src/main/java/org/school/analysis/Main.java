@@ -1,8 +1,8 @@
 package org.school.analysis;
 
 import org.school.analysis.service.GeneralService;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 
 import static org.school.analysis.config.AppConfig.*;
@@ -10,7 +10,9 @@ import static org.school.analysis.config.AppConfig.*;
 @SpringBootApplication
 public class Main {
     public static void main(String[] args) {
-        ApplicationContext context = SpringApplication.run(Main.class, args);
+        ApplicationContext context = new SpringApplicationBuilder(Main.class)
+                .web(org.springframework.boot.WebApplicationType.NONE)
+                .run(args);
         GeneralService processor = context.getBean(GeneralService.class);
 
         System.out.println("=".repeat(80));

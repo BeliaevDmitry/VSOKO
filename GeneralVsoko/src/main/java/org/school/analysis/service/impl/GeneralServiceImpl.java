@@ -76,8 +76,10 @@ public class GeneralServiceImpl implements GeneralService {
                     long phase2Start = System.currentTimeMillis();
                     if (!foundFiles.isEmpty()) {
                         validateProcessingResults(foundFiles, schoolSummary);
-                        generateReports(schoolSummary, school, currentAcademicYear);
+                    } else {
+                        log.info("Новые файлы не найдены, запускаем генерацию отчетов по существующим данным");
                     }
+                    generateReports(schoolSummary, school, currentAcademicYear);
                     long phase2Time = System.currentTimeMillis() - phase2Start;
                     PerformanceTracker.recordPhaseTime(school, "reportGeneration", Duration.ofMillis(phase2Time));
 
