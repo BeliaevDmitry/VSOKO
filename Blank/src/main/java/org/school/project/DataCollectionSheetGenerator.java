@@ -17,31 +17,33 @@ import java.util.*;
 
 public class DataCollectionSheetGenerator {
 
+    // ===== БАЗОВЫЕ ПУТИ =====
+    private static final String OUTPUT_BASE_FOLDER_GENERAL =
+            "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\{предмет}\\Формы сбора\\{класс}";
+    private static final String OUTPUT_BASE_FOLDER_OGE =
+            "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\ОГЭ\\{предмет}\\Формы сбора\\{класс}";
+
     // ===== НАСТРОЙКИ =====
-    private static final String OUTPUT_BASE_FOLDER = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы\\{предмет}\\Формы сбора\\{класс}";
-    private static final String EXCEL_TEMPLATE_PATH = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\БД основные\\Реестр контингента.xlsx";
+    private static final String EXCEL_TEMPLATE_PATH =
+            "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\БД основные\\Реестр контингента.xlsx";
+    private static final String ADMIN_EXCEL_PATH =
+            "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ОГЭ 2026\\ОГЭ 2026 админ.xlsx";
+    private static final String PARALLEL = "9";
+    private static final String SCHOOL_NAME = "ГБОУ №7";
+    private static final String ACADEMIC_YEAR = "2025-2026";
+    private static final int MAX_STUDENTS = 34;
+    private static final int VARIANTS_COUNT = 5;
 
-    // Константы (можно менять под разные потребности)
-    private static final String PARALLEL = "9"; // Параллель классов
-    private static final String SUBJECT = "Русский язык"; // Название предмета
-    private static final String SCHOOL_NAME = "ГБОУ №7"; // Название школы
-    private static final String ACADEMIC_YEAR = "2025-2026"; // Учебный год
-    private static final int MAX_TASKS = 18; // Максимальное количество заданий
-    private static final int CURRENT_TASKS_COUNT = 18; // Текущее количество заданий (можно менять)
-    private static final int MAX_STUDENTS = 34; // Максимальное количество учеников в классе
-    private static final int VARIANTS_COUNT = 4; // Количество вариантов
-
-    // Максимальные баллы за каждое задание (по умолчанию все по 1 баллу)
-    private static final int[] MAX_SCORES_PER_TASK = {
-            6, 1, 1, 1, 1,  // задания 1-5
-            1, 1, 1, 1, 1,  // задания 6-10
-            1, 1, 7, 3, 3, 3, 3, 1  // задания 11-15
-             // задания 16-20
-            // задания 21-25
-              // задания 26-30
+    // Для ручного режима
+    private static final String MANUAL_SUBJECT = "Английский язык";
+    private static final int[] MANUAL_MAX_SCORES = {
+            1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1,
+            1, 1, 1, 1
     };
 
-    // Цвета для подсветки
+    // ===== ЦВЕТА (индексы из IndexedColors) =====
     private static final short GREEN_COLOR = IndexedColors.LIGHT_GREEN.getIndex();
     private static final short RED_COLOR = IndexedColors.RED.getIndex();
     private static final short LIGHT_YELLOW = IndexedColors.LIGHT_YELLOW.getIndex();
@@ -49,22 +51,122 @@ public class DataCollectionSheetGenerator {
     private static final short LIGHT_CORNFLOWER_BLUE = IndexedColors.PALE_BLUE.getIndex();
     private static final short LIGHT_GRAY = IndexedColors.GREY_25_PERCENT.getIndex();
 
+    // ===== ДАННЫЕ ДЛЯ ОГЭ (из таблицы) =====
+    private static final Map<String, int[]> OGE_SUBJECTS = new LinkedHashMap<>();
+
+    static {
+        // Математика (25 заданий)
+        OGE_SUBJECTS.put("Математика", new int[]{
+                1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2
+        });
+        // Русский язык
+        OGE_SUBJECTS.put("Русский язык", new int[]{
+                6,1,1,1,1,1,1,1,1,1,1,1,7,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+        });
+        // Обществознание
+        OGE_SUBJECTS.put("Обществознание", new int[]{
+                2,1,1,1,3,2,1,1,1,1,1,4,1,1,2,1,1,1,1,1,2,2,3,2,1
+        });
+        // Физика
+        OGE_SUBJECTS.put("Физика", new int[]{
+                2,2,1,2,1,1,1,1,1,1,1,2,2,2,1,2,3,2,2,3,3,3,1,1,1
+        });
+        // Химия
+        OGE_SUBJECTS.put("Химия", new int[]{
+                1,1,1,2,1,1,1,1,2,2,1,2,1,1,1,1,2,1,1,3,3,3,5,1,1,1
+        });
+        // Биология
+        OGE_SUBJECTS.put("Биология", new int[]{
+                1,1,1,2,2,1,2,1,2,2,2,1,3,1,1,2,2,2,2,1,2,2,2,3,3,3,3
+        });
+        // История
+        OGE_SUBJECTS.put("История", new int[]{
+                2,1,1,2,1,1,2,1,1,1,1,1,2,1,1,1,2,2,2,2,2,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+        });
+        // География
+        OGE_SUBJECTS.put("География", new int[]{
+                1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+        });
+        // Информатика
+        OGE_SUBJECTS.put("Информатика", new int[]{
+                1,1,1,1,1,1,1,1,1,1,1,1,2,3,2,2,2,1,1,1,1
+        });
+        // Литература
+        OGE_SUBJECTS.put("Литература", new int[]{
+                5,5,5,7,17
+        });
+        // Английский язык (в таблице ОГЭ называется "Иностранный язык", но мы используем "Английский язык")
+        OGE_SUBJECTS.put("Английский язык", new int[]{
+                1,1,1,1,5,1,1,1,1,1,1,6,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,10,2,6,7
+        });
+    }
+
     public static void main(String[] args) {
         try {
-            // Создаем папку для параллели, если не существует
-            String parallelFolder = OUTPUT_BASE_FOLDER.replace("{предмет}", SUBJECT)
-                    .replace("{класс}", PARALLEL +  " класс");
+            System.out.println("Выберите режим работы:");
+            System.out.println("1 - ОГЭ (автоматические баллы по предмету)");
+            System.out.println("2 - ЕГЭ (заглушка)");
+            System.out.println("3 - Ручной ввод (используются константы в коде)");
+            System.out.print("Ваш выбор: ");
+            Scanner scanner = new Scanner(System.in);
+            int mode = scanner.nextInt();
+            scanner.nextLine();
+
+            if (mode == 2) {
+                System.out.println("Режим ЕГЭ находится в разработке. Программа завершена.");
+                return;
+            }
+
+            String subjectName;
+            int[] maxScores;
+            int tasksCount;
+            String basePathTemplate;
+            Map<String, Set<String>> ogeStudentSubjects = null;
+
+            if (mode == 1) {
+                System.out.println("\nДоступные предметы ОГЭ:");
+                List<String> subjects = new ArrayList<>(OGE_SUBJECTS.keySet());
+                for (int i = 0; i < subjects.size(); i++) {
+                    System.out.println((i + 1) + " - " + subjects.get(i));
+                }
+                System.out.print("Выберите номер предмета: ");
+                int choice = scanner.nextInt();
+                scanner.nextLine();
+                if (choice < 1 || choice > subjects.size()) {
+                    System.out.println("Неверный выбор. Завершение.");
+                    return;
+                }
+                subjectName = subjects.get(choice - 1);
+                maxScores = OGE_SUBJECTS.get(subjectName);
+                tasksCount = maxScores.length;
+                basePathTemplate = OUTPUT_BASE_FOLDER_OGE;
+
+                // Загружаем список учеников, сдающих ОГЭ, из административного файла
+                ogeStudentSubjects = loadOGEStudentsMap();
+                System.out.println("Загружены данные о сдающих ОГЭ: " + ogeStudentSubjects.size() + " учеников");
+
+                System.out.println("Выбран предмет: " + subjectName);
+                System.out.println("Количество заданий: " + tasksCount);
+                System.out.println("Сумма баллов: " + Arrays.stream(maxScores).sum());
+            } else {
+                subjectName = MANUAL_SUBJECT;
+                maxScores = MANUAL_MAX_SCORES;
+                tasksCount = maxScores.length;
+                basePathTemplate = OUTPUT_BASE_FOLDER_GENERAL;
+                System.out.println("Ручной режим. Предмет: " + subjectName);
+                System.out.println("Количество заданий: " + tasksCount);
+            }
+
+            String parallelFolder = basePathTemplate
+                    .replace("{предмет}", subjectName)
+                    .replace("{класс}", PARALLEL + " класс");
             Files.createDirectories(Paths.get(parallelFolder));
 
-            // Читаем список классов из Excel
             List<String> classes = readClassesFromExcel();
+            System.out.println("Найдены классы для обработки: " + classes);
 
-            System.out.println("Найдены классы для обработки:");
-            classes.forEach(System.out::println);
-
-            // Создаем файлы для каждого класса
             for (String className : classes) {
-                createDataCollectionFile(className, parallelFolder);
+                createDataCollectionFile(className, parallelFolder, subjectName, maxScores, tasksCount, ogeStudentSubjects);
             }
 
             System.out.println("\nГотово! Файлы созданы в папке: " + parallelFolder);
@@ -74,6 +176,53 @@ public class DataCollectionSheetGenerator {
         }
     }
 
+    // ================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==================
+
+    /**
+     * Загружает из административного файла ОГЭ (лист "Выбор экзамена") список учеников
+     * и множество предметов, которые они сдают.
+     * Возвращает Map<ФИО, Set<названий предметов>>.
+     */
+    private static Map<String, Set<String>> loadOGEStudentsMap() throws IOException {
+        Map<String, Set<String>> studentSubjects = new HashMap<>();
+        Set<String> possibleSubjects = new HashSet<>(OGE_SUBJECTS.keySet());
+        // Добавляем синонимы для поиска в строке
+        possibleSubjects.add("Иностранный язык");
+
+        try (FileInputStream fis = new FileInputStream(ADMIN_EXCEL_PATH);
+             Workbook workbook = new XSSFWorkbook(fis)) {
+            Sheet sheet = workbook.getSheet("Выбор экзамена");
+            if (sheet == null) {
+                throw new IllegalArgumentException("Лист 'Выбор экзамена' не найден в файле " + ADMIN_EXCEL_PATH);
+            }
+            for (Row row : sheet) {
+                Cell fioCell = row.getCell(1); // колонка B
+                Cell subjectsCell = row.getCell(3); // колонка D
+                if (fioCell == null || subjectsCell == null) continue;
+                String fio = getCellValueAsString(fioCell).trim();
+                if (fio.isEmpty()) continue;
+                String subjectsStr = getCellValueAsString(subjectsCell);
+                if (subjectsStr.isEmpty()) continue;
+
+                Set<String> subjects = new HashSet<>();
+                for (String subject : possibleSubjects) {
+                    if (subjectsStr.contains(subject)) {
+                        // Приводим к каноническому названию: "Иностранный язык" -> "Английский язык"
+                        if (subject.equals("Иностранный язык")) {
+                            subjects.add("Английский язык");
+                        } else {
+                            subjects.add(subject);
+                        }
+                    }
+                }
+                if (!subjects.isEmpty()) {
+                    studentSubjects.put(fio, subjects);
+                }
+            }
+        }
+        return studentSubjects;
+    }
+
     private static List<String> readClassesFromExcel() throws IOException {
         List<String> classes = new ArrayList<>();
         Set<String> uniqueClasses = new TreeSet<>();
@@ -81,28 +230,20 @@ public class DataCollectionSheetGenerator {
         try (FileInputStream file = new FileInputStream(EXCEL_TEMPLATE_PATH);
              Workbook workbook = new XSSFWorkbook(file)) {
 
-            Sheet sheet = workbook.getSheetAt(0); // Первый лист
-
-            // Пропускаем заголовок
+            Sheet sheet = workbook.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
-
-                // Колонка P (индекс 15) - Класс
                 Cell classCell = row.getCell(15);
-
                 if (classCell != null) {
                     String className = getCellValueAsString(classCell).trim();
                     String normalized = normalizeClassName(className);
-
-                    // Фильтруем по параллели
                     if (normalized.startsWith(PARALLEL)) {
                         uniqueClasses.add(normalized);
                     }
                 }
             }
         }
-
         classes.addAll(uniqueClasses);
         return classes;
     }
@@ -116,21 +257,15 @@ public class DataCollectionSheetGenerator {
 
     private static String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
-
         switch (cell.getCellType()) {
             case STRING:
                 return cell.getStringCellValue().trim();
             case NUMERIC:
                 if (DateUtil.isCellDateFormatted(cell)) {
                     return cell.getDateCellValue().toString();
-                } else {
-                    double value = cell.getNumericCellValue();
-                    if (value == Math.floor(value)) {
-                        return String.valueOf((int) value);
-                    } else {
-                        return String.valueOf(value);
-                    }
                 }
+                double value = cell.getNumericCellValue();
+                return (value == Math.floor(value)) ? String.valueOf((int) value) : String.valueOf(value);
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
             case FORMULA:
@@ -144,78 +279,75 @@ public class DataCollectionSheetGenerator {
         }
     }
 
-    private static void createDataCollectionFile(String className, String parallelFolder) throws IOException {
-        // Создаем имя файла
-        String safeClassName = className.replaceAll("[\\\\/:*?\"<>|]", "_");
-        String fileName = parallelFolder + "\\Сбор_данных_" + safeClassName + "_" + SUBJECT + ".xlsx";
-
-        // Читаем список учеников класса
-        List<Student> students = readStudentsByClass(className);
-
-        System.out.println("\nСоздание файла для класса: " + className);
-        System.out.println("Количество учеников: " + students.size());
-        System.out.println("Количество заданий: " + CURRENT_TASKS_COUNT);
-        System.out.println("Максимальные баллы за задания:");
-        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
-            System.out.println("Задание " + (i+1) + ": " + getMaxScoreForTask(i) + " балл(ов)");
-        }
-
-        // Создаем новую рабочую книгу
-        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-            // Создаем стили
-            Map<String, XSSFCellStyle> styles = createStyles(workbook);
-
-            // ===== ЛИСТ 1: Информация =====
-            createInfoSheet(workbook, styles, className);
-
-            // ===== ЛИСТ 2: Сбор информации =====
-            createDataCollectionSheet(workbook, styles, className, students);
-
-            // Сохраняем файл
-            try (FileOutputStream fileOut = new FileOutputStream(fileName)) {
-                workbook.write(fileOut);
-            }
-
-            System.out.println("Файл создан: " + fileName);
-        }
-    }
-
     private static List<Student> readStudentsByClass(String className) throws IOException {
         List<Student> students = new ArrayList<>();
-
         try (FileInputStream file = new FileInputStream(EXCEL_TEMPLATE_PATH);
              Workbook workbook = new XSSFWorkbook(file)) {
-
             Sheet sheet = workbook.getSheetAt(0);
-
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
-
                 Cell fioCell = row.getCell(2);
                 Cell classCell = row.getCell(15);
-
                 if (fioCell != null && classCell != null) {
                     String fio = getCellValueAsString(fioCell);
                     String studentClass = getCellValueAsString(classCell).trim();
-
                     if (!fio.isEmpty() && normalizeClassName(studentClass).equals(className)) {
                         students.add(new Student(fio, className));
                     }
                 }
             }
         }
-
-        // Сортируем по ФИО
         students.sort(Comparator.comparing(Student::getFio));
-
         return students;
+    }
+
+    private static void createDataCollectionFile(String className, String parallelFolder,
+                                                 String subjectName, int[] maxScores, int tasksCount,
+                                                 Map<String, Set<String>> ogeStudentSubjects) throws IOException {
+        List<Student> allStudentsInClass = readStudentsByClass(className);
+        List<Student> filteredStudents;
+
+        if (ogeStudentSubjects != null) {
+            // Режим ОГЭ: оставляем только тех, кто сдаёт выбранный предмет
+            filteredStudents = new ArrayList<>();
+            for (Student student : allStudentsInClass) {
+                Set<String> subjects = ogeStudentSubjects.get(student.getFio());
+                if (subjects != null && subjects.contains(subjectName)) {
+                    filteredStudents.add(student);
+                }
+            }
+            if (filteredStudents.isEmpty()) {
+                System.out.println("В классе " + className + " нет учеников, сдающих " + subjectName +
+                        ". Файл не создаётся.");
+                return;
+            }
+        } else {
+            filteredStudents = allStudentsInClass;
+        }
+
+        String safeClassName = className.replaceAll("[\\\\/:*?\"<>|]", "_");
+        String fileName = parallelFolder + "\\Сбор_данных_" + safeClassName + "_" + subjectName + ".xlsx";
+
+        System.out.println("\nСоздание файла для класса: " + className +
+                " (учеников в классе: " + allStudentsInClass.size() +
+                ", сдающих " + subjectName + ": " + filteredStudents.size() + ")");
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Map<String, XSSFCellStyle> styles = createStyles(workbook);
+            createInfoSheet(workbook, styles, className, subjectName, maxScores, tasksCount);
+            createDataCollectionSheet(workbook, styles, className, filteredStudents, maxScores, tasksCount);
+
+            try (FileOutputStream fileOut = new FileOutputStream(fileName)) {
+                workbook.write(fileOut);
+            }
+            System.out.println("Файл создан: " + fileName);
+        }
     }
 
     private static Map<String, XSSFCellStyle> createStyles(XSSFWorkbook workbook) {
         Map<String, XSSFCellStyle> styles = new HashMap<>();
 
-        // Стиль для заголовков
         XSSFCellStyle headerStyle = workbook.createCellStyle();
         headerStyle.setAlignment(HorizontalAlignment.CENTER);
         headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
@@ -230,7 +362,6 @@ public class DataCollectionSheetGenerator {
         headerStyle.setBorderRight(BorderStyle.THIN);
         styles.put("header", headerStyle);
 
-        // Стиль для обычных ячеек
         XSSFCellStyle normalStyle = workbook.createCellStyle();
         normalStyle.setBorderTop(BorderStyle.THIN);
         normalStyle.setBorderBottom(BorderStyle.THIN);
@@ -239,27 +370,23 @@ public class DataCollectionSheetGenerator {
         normalStyle.setVerticalAlignment(VerticalAlignment.CENTER);
         styles.put("normal", normalStyle);
 
-        // Стиль для ячеек с центрированием
         XSSFCellStyle centerStyle = workbook.createCellStyle();
         centerStyle.cloneStyleFrom(normalStyle);
         centerStyle.setAlignment(HorizontalAlignment.CENTER);
         styles.put("center", centerStyle);
 
-        // Стиль для ячеек учителя (желтый фон)
         XSSFCellStyle teacherStyle = workbook.createCellStyle();
         teacherStyle.cloneStyleFrom(normalStyle);
         teacherStyle.setFillForegroundColor(LIGHT_YELLOW);
         teacherStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         styles.put("teacher", teacherStyle);
 
-        // Стиль для зеленого фона (Был)
         XSSFCellStyle greenStyle = workbook.createCellStyle();
         greenStyle.cloneStyleFrom(centerStyle);
         greenStyle.setFillForegroundColor(GREEN_COLOR);
         greenStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         styles.put("green", greenStyle);
 
-        // Стиль для красного фона (Не был)
         XSSFCellStyle redStyle = workbook.createCellStyle();
         redStyle.cloneStyleFrom(centerStyle);
         redStyle.setFillForegroundColor(RED_COLOR);
@@ -269,7 +396,6 @@ public class DataCollectionSheetGenerator {
         redStyle.setFont(redFont);
         styles.put("red", redStyle);
 
-        // Стиль для заголовков заданий
         XSSFCellStyle taskHeaderStyle = workbook.createCellStyle();
         taskHeaderStyle.cloneStyleFrom(centerStyle);
         taskHeaderStyle.setFillForegroundColor(LIGHT_CORNFLOWER_BLUE);
@@ -279,7 +405,6 @@ public class DataCollectionSheetGenerator {
         taskHeaderStyle.setFont(taskFont);
         styles.put("taskHeader", taskHeaderStyle);
 
-        // Стиль для максимальных баллов
         XSSFCellStyle maxScoreStyle = workbook.createCellStyle();
         maxScoreStyle.cloneStyleFrom(centerStyle);
         maxScoreStyle.setFillForegroundColor(LIGHT_GRAY);
@@ -293,32 +418,27 @@ public class DataCollectionSheetGenerator {
         return styles;
     }
 
-    private static void createInfoSheet(XSSFWorkbook workbook, Map<String, XSSFCellStyle> styles, String className) {
+    private static void createInfoSheet(XSSFWorkbook workbook, Map<String, XSSFCellStyle> styles,
+                                        String className, String subjectName, int[] maxScores, int tasksCount) {
         XSSFSheet sheet = workbook.createSheet("Информация");
-
-        // Настраиваем ширину колонок
-        sheet.setColumnWidth(0, 4000); // Колонка A
-        sheet.setColumnWidth(1, 8000); // Колонка B
+        sheet.setColumnWidth(0, 4000);
+        sheet.setColumnWidth(1, 8000);
 
         int rowNum = 0;
-
-        // Создаем строки
         Row row1 = sheet.createRow(rowNum++);
         row1.createCell(0).setCellValue("Учитель");
         row1.getCell(0).setCellStyle(styles.get("header"));
-        Cell teacherCell = row1.createCell(1);
-        teacherCell.setCellStyle(styles.get("teacher"));
+        row1.createCell(1).setCellStyle(styles.get("teacher"));
 
         Row row2 = sheet.createRow(rowNum++);
         row2.createCell(0).setCellValue("Дата написания работы");
         row2.getCell(0).setCellStyle(styles.get("header"));
-        Cell dateCell = row2.createCell(1);
-        dateCell.setCellStyle(styles.get("teacher"));
+        row2.createCell(1).setCellStyle(styles.get("teacher"));
 
         Row row3 = sheet.createRow(rowNum++);
         row3.createCell(0).setCellValue("Предмет");
         row3.getCell(0).setCellStyle(styles.get("header"));
-        row3.createCell(1).setCellValue(SUBJECT);
+        row3.createCell(1).setCellValue(subjectName);
         row3.getCell(1).setCellStyle(styles.get("normal"));
 
         Row row4 = sheet.createRow(rowNum++);
@@ -333,41 +453,35 @@ public class DataCollectionSheetGenerator {
         row5.createCell(1).setCellValue("Входная работа");
         row5.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Добавляем информацию о максимальных баллах
         Row scoreInfoRow = sheet.createRow(rowNum++);
         scoreInfoRow.createCell(0).setCellValue("Макс. баллы за задания:");
         scoreInfoRow.getCell(0).setCellStyle(styles.get("header"));
-
-        StringBuilder scoresBuilder = new StringBuilder();
-        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
-            if (i > 0) scoresBuilder.append(", ");
-            scoresBuilder.append(i + 1).append("=").append(getMaxScoreForTask(i));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < tasksCount; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(i + 1).append("=").append(maxScores[i]);
         }
-        scoreInfoRow.createCell(1).setCellValue(scoresBuilder.toString());
+        scoreInfoRow.createCell(1).setCellValue(sb.toString());
         scoreInfoRow.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Добавляем комментарий
         Row commentRow = sheet.createRow(rowNum++);
         commentRow.createCell(0).setCellValue("Примечание:");
         commentRow.getCell(0).setCellStyle(styles.get("header"));
         commentRow.createCell(1).setCellValue("Заполнить поля 'Учитель' и 'Дата' перед началом работы");
         commentRow.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Добавляем поле "Школа"
         Row schoolRow = sheet.createRow(rowNum++);
         schoolRow.createCell(0).setCellValue("Школа");
         schoolRow.getCell(0).setCellStyle(styles.get("header"));
         schoolRow.createCell(1).setCellValue(SCHOOL_NAME);
         schoolRow.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Добавляем поле "Учебный год"
         Row yearRow = sheet.createRow(rowNum++);
         yearRow.createCell(0).setCellValue("Учебный год");
         yearRow.getCell(0).setCellStyle(styles.get("header"));
         yearRow.createCell(1).setCellValue(ACADEMIC_YEAR);
         yearRow.getCell(1).setCellStyle(styles.get("normal"));
 
-        // Скрываем оставшиеся строки до 20
         for (int i = rowNum; i < 20; i++) {
             Row row = sheet.createRow(i);
             if (row != null) {
@@ -376,239 +490,131 @@ public class DataCollectionSheetGenerator {
                 row.setZeroHeight(true);
             }
         }
-
-        // Скрываем колонки C-Z
-        for (int i = 2; i < 26; i++) {
-            sheet.setColumnHidden(i, true);
-        }
-
-        // Авторазмер для первой колонки
+        for (int i = 2; i < 26; i++) sheet.setColumnHidden(i, true);
         sheet.autoSizeColumn(0);
     }
 
     private static void createDataCollectionSheet(XSSFWorkbook workbook, Map<String, XSSFCellStyle> styles,
-                                                  String className, List<Student> students) {
+                                                  String className, List<Student> students,
+                                                  int[] maxScores, int tasksCount) {
         XSSFSheet sheet = workbook.createSheet("Сбор информации");
+        String[] headers = {"№", "ФИО ученика", "Присутствие", "Вариант"};
+        int taskStartCol = headers.length;
 
-        // ===== ЗАГОЛОВКИ =====
         Row headerRow = sheet.createRow(0);
-        String[] headers = {
-                "№",
-                "ФИО ученика",
-                "Присутствие",
-                "Вариант"
-        };
-
-        // Создаем основные заголовки
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(styles.get("header"));
         }
-
-        // Заголовок "Баллы за задания" (объединенная ячейка) - теперь начинается с колонки 4 (E в Excel)
-        Cell taskHeaderCell = headerRow.createCell(headers.length);
+        Cell taskHeaderCell = headerRow.createCell(taskStartCol);
         taskHeaderCell.setCellValue("Баллы за задания");
         taskHeaderCell.setCellStyle(styles.get("header"));
-
-        // Объединяем ячейку "Баллы за задания" - ИСПРАВЛЕНО: убрали сдвиг
-        sheet.addMergedRegion(new CellRangeAddress(0, 0, headers.length, headers.length + CURRENT_TASKS_COUNT - 1));
-
-        // Заголовок для итогового балла (после всех заданий)
-        Cell totalCell = headerRow.createCell(headers.length + CURRENT_TASKS_COUNT);
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, taskStartCol, taskStartCol + tasksCount - 1));
+        Cell totalCell = headerRow.createCell(taskStartCol + tasksCount);
         totalCell.setCellValue("Итог");
         totalCell.setCellStyle(styles.get("header"));
 
-        // ===== ВТОРАЯ СТРОКА: номера заданий =====
         Row taskNumberRow = sheet.createRow(1);
-
-        // Пустые ячейки для первых 4 колонок
-        for (int i = 0; i < headers.length; i++) {
-            Cell emptyCell = taskNumberRow.createCell(i);
-            emptyCell.setCellStyle(styles.get("header"));
+        for (int i = 0; i < headers.length; i++) taskNumberRow.createCell(i).setCellStyle(styles.get("header"));
+        for (int i = 0; i < tasksCount; i++) {
+            Cell cell = taskNumberRow.createCell(taskStartCol + i);
+            cell.setCellValue(i + 1);
+            cell.setCellStyle(styles.get("taskHeader"));
         }
+        taskNumberRow.createCell(taskStartCol + tasksCount).setCellStyle(styles.get("header"));
 
-        // Номера заданий (1-10 или другое количество) - начинаются сразу после варианта
-        int taskStartCol = headers.length; // Теперь это колонка 4 (E в Excel)
-        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
-            Cell taskNumberCell = taskNumberRow.createCell(taskStartCol + i);
-            taskNumberCell.setCellValue(i + 1);
-            taskNumberCell.setCellStyle(styles.get("taskHeader"));
-        }
-
-        // Пустая ячейка для итога на второй строке
-        Cell emptyTotalCell = taskNumberRow.createCell(taskStartCol + CURRENT_TASKS_COUNT);
-        emptyTotalCell.setCellStyle(styles.get("header"));
-
-        // ===== ТРЕТЬЯ СТРОКА: максимальные баллы за задания =====
         Row maxScoresRow = sheet.createRow(2);
-
-        // Пустые ячейки для первых 4 колонок
-        for (int i = 0; i < headers.length; i++) {
-            Cell emptyCell = maxScoresRow.createCell(i);
-            emptyCell.setCellStyle(styles.get("header"));
+        for (int i = 0; i < headers.length; i++) maxScoresRow.createCell(i).setCellStyle(styles.get("header"));
+        for (int i = 0; i < tasksCount; i++) {
+            Cell cell = maxScoresRow.createCell(taskStartCol + i);
+            cell.setCellValue(maxScores[i]);
+            cell.setCellStyle(styles.get("maxScore"));
         }
+        maxScoresRow.createCell(taskStartCol + tasksCount).setCellStyle(styles.get("header"));
 
-        // Максимальные баллы за каждое задание
-        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
-            Cell maxScoreCell = maxScoresRow.createCell(taskStartCol + i);
-            int maxScore = getMaxScoreForTask(i); // i потому что начинаем с 0
-            maxScoreCell.setCellValue(maxScore);
-            maxScoreCell.setCellStyle(styles.get("maxScore"));
-        }
-
-        // Пустая ячейка для итога на третьей строке
-        Cell emptyTotalCell2 = maxScoresRow.createCell(taskStartCol + CURRENT_TASKS_COUNT);
-        emptyTotalCell2.setCellStyle(styles.get("header"));
-
-        // ===== ДАННЫЕ УЧЕНИКОВ (начинаются с 4 строки) =====
+        int firstStudentRow = 3;
         int studentCount = Math.min(students.size(), MAX_STUDENTS);
-        int firstStudentRow = 3; // Строки с данными начинаются с индекса 3 (4-я строка в Excel)
-
         for (int i = 0; i < studentCount; i++) {
             Row row = sheet.createRow(firstStudentRow + i);
             Student student = students.get(i);
-
-            // № п/п
-            Cell numCell = row.createCell(0);
-            numCell.setCellValue(i + 1);
-            numCell.setCellStyle(styles.get("center"));
-
-            // ФИО
-            Cell fioCell = row.createCell(1);
-            fioCell.setCellValue(student.getFio());
-            fioCell.setCellStyle(styles.get("normal"));
-
-            // Присутствие (выпадающий список)
-            Cell presenceCell = row.createCell(2);
-            presenceCell.setCellStyle(styles.get("center"));
-
-            // Вариант (выпадающий список)
-            Cell variantCell = row.createCell(3);
-            variantCell.setCellStyle(styles.get("center"));
-
-            // Ячейки для баллов за задания - начинаются сразу после варианта
-            for (int taskNum = 0; taskNum < CURRENT_TASKS_COUNT; taskNum++) {
-                Cell taskCell = row.createCell(taskStartCol + taskNum);
-                taskCell.setCellStyle(styles.get("center"));
-                // Валидация будет настроена позже
+            row.createCell(0).setCellValue(i + 1);
+            row.getCell(0).setCellStyle(styles.get("center"));
+            row.createCell(1).setCellValue(student.getFio());
+            row.getCell(1).setCellStyle(styles.get("normal"));
+            row.createCell(2).setCellStyle(styles.get("center"));
+            row.createCell(3).setCellStyle(styles.get("center"));
+            for (int t = 0; t < tasksCount; t++) {
+                row.createCell(taskStartCol + t).setCellStyle(styles.get("center"));
             }
-
-            // Итоговая ячейка (формула суммы с учетом разных весов заданий)
-            Cell totalScoreCell = row.createCell(taskStartCol + CURRENT_TASKS_COUNT);
+            Cell totalScoreCell = row.createCell(taskStartCol + tasksCount);
             totalScoreCell.setCellStyle(styles.get("center"));
-
-            // Формула для итога (Excel строки начинаются с 1, а POI с 0)
-            int excelRowNum = firstStudentRow + i + 1; // +1 потому что Excel считает с 1
-            String formula = createTotalFormula(taskStartCol, excelRowNum);
+            String formula = createTotalFormula(taskStartCol, firstStudentRow + i + 1, tasksCount);
             totalScoreCell.setCellFormula(formula);
         }
 
-        // Добавляем пустые строки до максимума (начиная с текущей позиции)
         for (int i = studentCount; i < MAX_STUDENTS; i++) {
             Row row = sheet.createRow(firstStudentRow + i);
-            for (int col = 0; col < taskStartCol + CURRENT_TASKS_COUNT + 1; col++) {
-                Cell cell = row.createCell(col);
-                cell.setCellStyle(styles.get("normal"));
-            }
+            for (int col = 0; col < taskStartCol + tasksCount + 1; col++)
+                row.createCell(col).setCellStyle(styles.get("normal"));
             row.getCell(0).setCellValue(i + 1);
             row.getCell(0).setCellStyle(styles.get("center"));
         }
 
-        // Скрываем неиспользуемые строки (после максимального количества учеников + заголовки)
         int lastDataRow = firstStudentRow + MAX_STUDENTS - 1;
         for (int i = lastDataRow + 1; i < 100; i++) {
             Row row = sheet.getRow(i);
-            if (row == null) {
-                row = sheet.createRow(i);
-            }
+            if (row == null) row = sheet.createRow(i);
             row.setZeroHeight(true);
         }
 
-        // ===== НАСТРОЙКА ВЫПАДАЮЩИХ СПИСКОВ =====
-        setupDataValidation(sheet, studentCount, firstStudentRow);
-
-        // ===== НАСТРОЙКА УСЛОВНОГО ФОРМАТИРОВАНИЯ =====
+        setupDataValidation(sheet, studentCount, firstStudentRow, tasksCount, maxScores);
         setupConditionalFormatting(workbook, sheet, studentCount, firstStudentRow);
 
-        // ===== НАСТРОЙКА ШИРИНЫ КОЛОНОК =====
-        sheet.setColumnWidth(0, 1000);  // №
-        sheet.setColumnWidth(1, 8000);  // ФИО
-        sheet.setColumnWidth(2, 3000);  // Присутствие
-        sheet.setColumnWidth(3, 2500);  // Вариант
+        sheet.setColumnWidth(0, 1000);
+        sheet.setColumnWidth(1, 8000);
+        sheet.setColumnWidth(2, 3000);
+        sheet.setColumnWidth(3, 2500);
+        for (int i = 0; i < tasksCount; i++) sheet.setColumnWidth(taskStartCol + i, 1500);
+        sheet.setColumnWidth(taskStartCol + tasksCount, 2000);
 
-        // Ширина для заданий
-        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
-            sheet.setColumnWidth(headers.length + i, 1500);
-        }
-
-        sheet.setColumnWidth(headers.length + CURRENT_TASKS_COUNT, 2000); // Итог
-
-        // Скрываем неиспользуемые колонки
-        int lastUsedColumn = headers.length + CURRENT_TASKS_COUNT;
-        int maxPossibleColumn = headers.length + MAX_TASKS; // Максимально возможная колонка
-
-        for (int i = lastUsedColumn + 1; i <= maxPossibleColumn; i++) {
-            sheet.setColumnHidden(i, true);
-        }
-
-        // Замораживаем область с заголовками (3 строки заголовков)
+        int lastUsedColumn = taskStartCol + tasksCount;
+        for (int i = lastUsedColumn + 1; i <= lastUsedColumn + 50; i++) sheet.setColumnHidden(i, true);
         sheet.createFreezePane(0, 3);
     }
 
-    private static void setupDataValidation(XSSFSheet sheet, int studentCount, int firstStudentRow) {
-        XSSFDataValidationHelper dvHelper = new XSSFDataValidationHelper((XSSFSheet) sheet);
-
-        // Список для присутствия
+    private static void setupDataValidation(XSSFSheet sheet, int studentCount, int firstStudentRow,
+                                            int tasksCount, int[] maxScores) {
+        XSSFDataValidationHelper dvHelper = new XSSFDataValidationHelper(sheet);
         String[] presenceOptions = {"Был", "Не был"};
         XSSFDataValidationConstraint presenceConstraint =
                 (XSSFDataValidationConstraint) dvHelper.createExplicitListConstraint(presenceOptions);
-
-        // Список для вариантов
-        List<String> variantOptions = new ArrayList<>();
-        for (int i = 1; i <= VARIANTS_COUNT; i++) {
-            variantOptions.add("Вариант " + i);
-        }
-        XSSFDataValidationConstraint variantConstraint =
-                (XSSFDataValidationConstraint) dvHelper.createExplicitListConstraint(variantOptions.toArray(new String[0]));
-
-        // Применяем валидацию к столбцу присутствия (колонка C)
-        CellRangeAddressList presenceRange = new CellRangeAddressList(
-                firstStudentRow, firstStudentRow + studentCount - 1, 2, 2);
-        XSSFDataValidation presenceValidation =
-                (XSSFDataValidation) dvHelper.createValidation(presenceConstraint, presenceRange);
+        CellRangeAddressList presenceRange = new CellRangeAddressList(firstStudentRow, firstStudentRow + studentCount - 1, 2, 2);
+        XSSFDataValidation presenceValidation = (XSSFDataValidation) dvHelper.createValidation(presenceConstraint, presenceRange);
         presenceValidation.setShowErrorBox(true);
         presenceValidation.setEmptyCellAllowed(true);
         sheet.addValidationData(presenceValidation);
 
-        // Применяем валидацию к столбцу вариантов (колонка D)
-        CellRangeAddressList variantRange = new CellRangeAddressList(
-                firstStudentRow, firstStudentRow + studentCount - 1, 3, 3);
-        XSSFDataValidation variantValidation =
-                (XSSFDataValidation) dvHelper.createValidation(variantConstraint, variantRange);
+        List<String> variantOptions = new ArrayList<>();
+        for (int i = 1; i <= VARIANTS_COUNT; i++) variantOptions.add("Вариант " + i);
+        XSSFDataValidationConstraint variantConstraint =
+                (XSSFDataValidationConstraint) dvHelper.createExplicitListConstraint(variantOptions.toArray(new String[0]));
+        CellRangeAddressList variantRange = new CellRangeAddressList(firstStudentRow, firstStudentRow + studentCount - 1, 3, 3);
+        XSSFDataValidation variantValidation = (XSSFDataValidation) dvHelper.createValidation(variantConstraint, variantRange);
         variantValidation.setShowErrorBox(true);
         variantValidation.setEmptyCellAllowed(true);
         sheet.addValidationData(variantValidation);
 
-        // Применяем валидацию к ячейкам заданий (колонки E и далее)
-        int taskStartCol = 4; // Колонка E (индекс 4)
-        for (int taskNum = 0; taskNum < CURRENT_TASKS_COUNT; taskNum++) {
-            CellRangeAddressList scoreRange = new CellRangeAddressList(
-                    firstStudentRow, firstStudentRow + studentCount - 1,
-                    taskStartCol + taskNum, taskStartCol + taskNum);
-
-            // Создаем выпадающий список с возможными баллами от 0 до максимального
-            int maxScore = getMaxScoreForTask(taskNum);
-            List<String> scoreOptions = new ArrayList<>();
-            for (int score = 0; score <= maxScore; score++) {
-                scoreOptions.add(String.valueOf(score));
-            }
-
+        int taskStartCol = 4;
+        for (int t = 0; t < tasksCount; t++) {
+            int max = maxScores[t];
+            List<String> scores = new ArrayList<>();
+            for (int s = 0; s <= max; s++) scores.add(String.valueOf(s));
             XSSFDataValidationConstraint scoreConstraint =
-                    (XSSFDataValidationConstraint) dvHelper.createExplicitListConstraint(scoreOptions.toArray(new String[0]));
-
-            XSSFDataValidation scoreValidation =
-                    (XSSFDataValidation) dvHelper.createValidation(scoreConstraint, scoreRange);
+                    (XSSFDataValidationConstraint) dvHelper.createExplicitListConstraint(scores.toArray(new String[0]));
+            CellRangeAddressList scoreRange = new CellRangeAddressList(firstStudentRow, firstStudentRow + studentCount - 1,
+                    taskStartCol + t, taskStartCol + t);
+            XSSFDataValidation scoreValidation = (XSSFDataValidation) dvHelper.createValidation(scoreConstraint, scoreRange);
             scoreValidation.setShowErrorBox(true);
             scoreValidation.setEmptyCellAllowed(true);
             sheet.addValidationData(scoreValidation);
@@ -616,50 +622,26 @@ public class DataCollectionSheetGenerator {
     }
 
     private static void setupConditionalFormatting(Workbook workbook, Sheet sheet, int studentCount, int firstStudentRow) {
-        // Правило для подсветки "Был" (зеленый)
         SheetConditionalFormatting scf = sheet.getSheetConditionalFormatting();
-
-        // Условное форматирование для присутствия
-        // Excel строки начинаются с 1, а POI с 0
         int firstExcelRow = firstStudentRow + 1;
-
-        ConditionalFormattingRule rule1 = scf.createConditionalFormattingRule(
-                "EXACT($C" + firstExcelRow + ",\"Был\")");
+        ConditionalFormattingRule rule1 = scf.createConditionalFormattingRule("EXACT($C" + firstExcelRow + ",\"Был\")");
         PatternFormatting fill1 = rule1.createPatternFormatting();
         fill1.setFillBackgroundColor(GREEN_COLOR);
         fill1.setFillPattern(PatternFormatting.SOLID_FOREGROUND);
-
-        ConditionalFormattingRule rule2 = scf.createConditionalFormattingRule(
-                "EXACT($C" + firstExcelRow + ",\"Не был\")");
+        ConditionalFormattingRule rule2 = scf.createConditionalFormattingRule("EXACT($C" + firstExcelRow + ",\"Не был\")");
         PatternFormatting fill2 = rule2.createPatternFormatting();
         fill2.setFillBackgroundColor(RED_COLOR);
         fill2.setFillPattern(PatternFormatting.SOLID_FOREGROUND);
-
-        // Применяем к колонке присутствия
-        CellRangeAddress[] ranges = {
-                new CellRangeAddress(firstStudentRow, firstStudentRow + studentCount - 1, 2, 2)
-        };
+        CellRangeAddress[] ranges = {new CellRangeAddress(firstStudentRow, firstStudentRow + studentCount - 1, 2, 2)};
         scf.addConditionalFormatting(ranges, rule1, rule2);
     }
 
-    private static int getMaxScoreForTask(int taskIndex) {
-        // Если индекс выходит за пределы массива, возвращаем 1 (значение по умолчанию)
-        if (taskIndex >= 0 && taskIndex < MAX_SCORES_PER_TASK.length) {
-            return MAX_SCORES_PER_TASK[taskIndex];
-        }
-        return 1; // Значение по умолчанию для всех остальных заданий
-    }
-
-    private static String createTotalFormula(int taskStartCol, int excelRowNum) {
+    private static String createTotalFormula(int taskStartCol, int excelRowNum, int tasksCount) {
         StringBuilder formula = new StringBuilder("SUM(");
-
-        // Формируем список ячеек для суммирования
-        for (int i = 0; i < CURRENT_TASKS_COUNT; i++) {
+        for (int i = 0; i < tasksCount; i++) {
             if (i > 0) formula.append(",");
-            String cellRef = CellReference.convertNumToColString(taskStartCol + i) + excelRowNum;
-            formula.append(cellRef);
+            formula.append(CellReference.convertNumToColString(taskStartCol + i)).append(excelRowNum);
         }
-
         formula.append(")");
         return formula.toString();
     }
@@ -667,18 +649,8 @@ public class DataCollectionSheetGenerator {
     static class Student {
         private final String fio;
         private final String className;
-
-        public Student(String fio, String className) {
-            this.fio = fio;
-            this.className = className;
-        }
-
-        public String getFio() {
-            return fio;
-        }
-
-        public String getClassName() {
-            return className;
-        }
+        public Student(String fio, String className) { this.fio = fio; this.className = className; }
+        public String getFio() { return fio; }
+        public String getClassName() { return className; }
     }
 }
