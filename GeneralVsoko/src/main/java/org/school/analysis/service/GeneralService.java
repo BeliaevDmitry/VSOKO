@@ -1,7 +1,6 @@
 package org.school.analysis.service;
 
 import org.school.analysis.model.ParseResult;
-import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.model.ReportFile;
 
 import java.util.List;

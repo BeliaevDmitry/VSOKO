@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.analysis.config.AppConfig;
 import org.school.analysis.model.ParseResult;
-import org.school.analysis.model.ProcessingSummary;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.model.dto.StudentDetailedResultDto;
@@ -19,13 +18,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +44,9 @@ public class GeneralServiceImpl implements GeneralService {
 
     public void processAll() {
         PerformanceTracker.startProgram();
-        ProcessingSummary totalSummary = new ProcessingSummary();
+        int totalFilesFound = 0;
+        int totalSuccessfullySaved = 0;
+        int totalGeneratedReports = 0;
 
         try {
             for (String school : SCHOOLS) {
@@ -65,18 +60,19 @@ public class GeneralServiceImpl implements GeneralService {
                 initTeacherDatabase(school);
 
                 String folderPath = INPUT_FOLDER.replace("{школа}", school);
-                ProcessingSummary schoolSummary = new ProcessingSummary();
+                List<ReportFile> failedFiles = new ArrayList<>();
+                int[] schoolCounters = new int[3]; // [0]=найдено, [1]=сохранено, [2]=отчеты
 
                 try {
                     long phase1Start = System.currentTimeMillis();
-                    List<ReportFile> foundFiles = findAndProcessFiles(folderPath, schoolSummary);
+                    List<ReportFile> foundFiles = findAndProcessFiles(folderPath, failedFiles, schoolCounters);
                     long phase1Time = System.currentTimeMillis() - phase1Start;
                     PerformanceTracker.recordPhaseTime(school, "fileFinding", Duration.ofMillis(phase1Time));
 
                     long phase2Start = System.currentTimeMillis();
                     if (!foundFiles.isEmpty()) {
-                        validateProcessingResults(foundFiles, schoolSummary);
-                        generateReports(schoolSummary, school, currentAcademicYear);
+                        validateProcessingResults(foundFiles, schoolCounters[1]);
+                        schoolCounters[2] = generateReports(school, currentAcademicYear);
                     }
                     long phase2Time = System.currentTimeMillis() - phase2Start;
                     PerformanceTracker.recordPhaseTime(school, "reportGeneration", Duration.ofMillis(phase2Time));
@@ -86,30 +82,29 @@ public class GeneralServiceImpl implements GeneralService {
 
                     PerformanceTracker.finishSchoolProcessing(
                             schoolMetrics,
-                            schoolSummary.getTotalFilesFound(),
-                            schoolSummary.getSuccessfullySaved(),
-                            schoolSummary.getGeneratedReportsCount()
+                            schoolCounters[0],
+                            schoolCounters[1],
+                            schoolCounters[2]
                     );
 
-                    printSchoolSummary(schoolSummary, school);
+                    printSchoolSummary(school, schoolCounters[1], schoolCounters[2], failedFiles);
 
-                    totalSummary.incrementTotalFilesFound(schoolSummary.getTotalFilesFound());
-                    totalSummary.incrementSuccessfullyParsed(schoolSummary.getSuccessfullyParsed());
-                    totalSummary.incrementSuccessfullySaved(schoolSummary.getSuccessfullySaved());
-                    totalSummary.incrementSuccessfullyMoved(schoolSummary.getSuccessfullyMoved());
+                    totalFilesFound += schoolCounters[0];
+                    totalSuccessfullySaved += schoolCounters[1];
+                    totalGeneratedReports += schoolCounters[2];
 
                 } catch (Exception e) {
                     log.error("❌ Критическая ошибка при обработке школы {}: {}", school, e.getMessage(), e);
                     PerformanceTracker.finishSchoolProcessing(
                             schoolMetrics,
-                            schoolSummary.getTotalFilesFound(),
-                            schoolSummary.getSuccessfullySaved(),
-                            schoolSummary.getGeneratedReportsCount()
+                            schoolCounters[0],
+                            schoolCounters[1],
+                            schoolCounters[2]
                     );
                 }
             }
 
-            printSummary(totalSummary);
+            printSummary(totalFilesFound, totalSuccessfullySaved, totalGeneratedReports);
 
             System.out.println("\n" + "=".repeat(80));
             System.out.println("СТАТИСТИКА ОБРАБОТКИ");
@@ -220,15 +215,13 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Валидация результатов обработки
      */
-    private void validateProcessingResults(List<ReportFile> processedFiles,
-                                           ProcessingSummary summary) {
+    private void validateProcessingResults(List<ReportFile> processedFiles, int successfullySaved) {
         // Проверка, что хотя бы некоторые файлы обработаны успешно
-        if (summary.getSuccessfullySaved() == 0) {
+        if (successfullySaved == 0) {
             log.warn("Все {} файлов обработаны с ошибками", processedFiles.size());
-            summary.setReportGenerationError("Нет успешно обработанных файлов для отчетов");
         } else {
             log.info("Успешно обработано {}/{} файлов",
-                    summary.getSuccessfullySaved(),
+                    successfullySaved,
                     processedFiles.size());
         }
     }
@@ -236,9 +229,11 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Найти и обработать файлы партиями
      */
-    private List<ReportFile> findAndProcessFiles(String folderPath, ProcessingSummary summary) {
+    private List<ReportFile> findAndProcessFiles(String folderPath,
+                                                 List<ReportFile> failedFiles,
+                                                 int[] schoolCounters) {
         List<ReportFile> foundFiles = findReports(folderPath);
-        summary.setTotalFilesFound(foundFiles.size());
+        schoolCounters[0] = foundFiles.size();
 
         log.info("Найдено {} файлов для обработки", foundFiles.size());
 
@@ -246,12 +241,10 @@ public class GeneralServiceImpl implements GeneralService {
             return foundFiles;
         }
 
-        List<ReportFile> failedFiles = new ArrayList<>();
-
         // Обработка партиями
         for (int batchIndex = 0; batchIndex < foundFiles.size(); batchIndex += AppConfig.BATCH_SIZE) {
             List<ReportFile> batch = getBatch(foundFiles, batchIndex);
-            List<ReportFile> processedInBatch = processBatch(batch, summary, failedFiles);
+            List<ReportFile> processedInBatch = processBatch(batch, failedFiles, schoolCounters);
 
             log.debug("Партия {}-{} обработана: {} успешно",
                     batchIndex,
@@ -259,7 +252,6 @@ public class GeneralServiceImpl implements GeneralService {
                     processedInBatch.size());
         }
 
-        summary.setFailedFiles(failedFiles);
         return foundFiles;
     }
 
@@ -267,23 +259,14 @@ public class GeneralServiceImpl implements GeneralService {
      * Обработка одной партии файлов
      */
     private List<ReportFile> processBatch(List<ReportFile> batch,
-                                          ProcessingSummary summary,
-                                          List<ReportFile> failedFiles) {
+                                          List<ReportFile> failedFiles,
+                                          int[] schoolCounters) {
         List<ParseResult> parseResults = parseReports(batch);
-
-        // Статистика парсинга
-        long successfullyParsed = parseResults.stream()
-                .filter(ParseResult::isSuccess)
-                .count();
-        summary.incrementSuccessfullyParsed((int) successfullyParsed);
 
         // Сохранение в БД
         List<ReportFile> savedFiles = saveResultsToDatabase(parseResults);
-        summary.incrementSuccessfullySaved(savedFiles.size());
-
-        // Перемещение файлов
-        List<ReportFile> movedFiles = moveProcessedFiles(savedFiles);
-        summary.incrementSuccessfullyMoved(movedFiles.size());
+        schoolCounters[1] += savedFiles.size();
+        moveProcessedFiles(savedFiles);
 
         // Сбор информации о неудачных файлах
         collectFailedFiles(parseResults, failedFiles);
@@ -311,20 +294,18 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Генерация всех отчетов
      */
-    private void generateReports(ProcessingSummary summary, String school, String currentAcademicYear) {
+    private int generateReports(String school, String currentAcademicYear) {
         try {
             log.info("Начинаем генерацию отчетов...");
 
             List<File> generatedReports = generateAllReports(school, currentAcademicYear);
 
-            summary.setGeneratedReportsCount(generatedReports.size());
-            summary.setGeneratedReportFiles(generatedReports);
-
             log.info("Успешно сгенерировано {} отчетов", generatedReports.size());
+            return generatedReports.size();
 
         } catch (Exception e) {
             log.error("Ошибка при генерации отчетов", e);
-            summary.setReportGenerationError(e.getMessage());
+            return 0;
         }
     }
 
@@ -589,68 +570,36 @@ public class GeneralServiceImpl implements GeneralService {
     /**
      * Вывод промежуточных результатов по школе
      */
-    private void printSchoolSummary(ProcessingSummary summary, String schoolName) {
+    private void printSchoolSummary(String schoolName,
+                                    int processedFiles,
+                                    int generatedReportsCount,
+                                    List<ReportFile> failedFiles) {
         log.info("\n" + "-".repeat(60));
         log.info("✅ ИТОГИ ОБРАБОТКИ ШКОЛЫ: {}", schoolName);
         log.info("-".repeat(60));
-        log.info("📁 Всего найдено файлов: {}", summary.getTotalFilesFound());
-        log.info("✅ Успешно распарсено: {}", summary.getSuccessfullyParsed());
-        log.info("💾 Сохранено в БД: {}", summary.getSuccessfullySaved());
-        log.info("📂 Перемещено файлов: {}", summary.getSuccessfullyMoved());
-        log.info("📊 Сгенерировано отчетов: {}", summary.getGeneratedReportsCount());
+        log.info("✅ Обработано файлов: {}", processedFiles);
+        log.info("📊 Создано отчетов: {}", generatedReportsCount);
+        log.info("❌ Ошибок обработки: {}", failedFiles.size());
 
-        if (summary.getTotalFilesFound() > 0) {
-            double successRate = (summary.getSuccessfullySaved() * 100.0) / summary.getTotalFilesFound();
-            log.info("📈 Эффективность обработки: {:.1f}%", String.format("%.1f", successRate));
-
-            if (successRate < 80) {
-                log.warn("⚠️ Низкий процент обработки файлов!");
-            }
+        for (ReportFile failedFile : failedFiles) {
+            String reason = failedFile.getErrorMessage() != null
+                    ? failedFile.getErrorMessage()
+                    : String.valueOf(failedFile.getStatus());
+            log.warn("  • {} — {}", failedFile.getFileName(), reason);
         }
         log.info("=".repeat(60));
     }
-
-    /**
-     * Сохранить статистику в файл
-     */
-    private void saveStatisticsToFile(ProcessingSummary totalSummary) {
-        try {
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"));
-            Path statsFile = Paths.get("vsoko_statistics_" + timestamp + ".txt");
-
-            List<String> lines = new ArrayList<>();
-            lines.add("=".repeat(80));
-            lines.add("СТАТИСТИКА ОБРАБОТКИ ОТЧЕТОВ ВСОКО");
-            lines.add("Время генерации: " + LocalDateTime.now());
-            lines.add("=".repeat(80));
-            lines.add("");
-
-            lines.add(PerformanceTracker.getSchoolsStatistics());
-            lines.add(PerformanceTracker.getFinalSummary());
-
-            lines.add("\nОБЩАЯ СТАТИСТИКА:");
-            lines.add("-".repeat(80));
-            lines.add(String.format("Всего школ: %d", SCHOOLS.size()));
-            lines.add(String.format("Всего файлов: %d", totalSummary.getTotalFilesFound()));
-            lines.add(String.format("Обработано файлов: %d", totalSummary.getSuccessfullySaved()));
-            lines.add(String.format("Сгенерировано отчетов: %d", totalSummary.getGeneratedReportsCount()));
-
-            Files.write(statsFile, lines);
-            log.info("📄 Статистика сохранена в файл: {}", statsFile.toAbsolutePath());
-
-        } catch (IOException e) {
-            log.error("⚠️ Не удалось сохранить статистику в файл", e);
-        }
-    }
-
-    private static void printSummary(ProcessingSummary summary) {
+    
+    private static void printSummary(int totalFilesFound,
+                                     int totalSuccessfullySaved,
+                                     int totalGeneratedReports) {
         System.out.println("\n" + "=".repeat(50));
         System.out.println("ИТОГИ ОБРАБОТКИ:");
         System.out.println("=".repeat(50));
-        System.out.println("📁 Всего найдено файлов: " + summary.getTotalFilesFound());
-        System.out.println("✅ Успешно распарсено: " + summary.getSuccessfullyParsed());
-        System.out.println("💾 Сохранено в БД: " + summary.getSuccessfullySaved());
-        System.out.println("📂 Перемещено файлов: " + summary.getSuccessfullyMoved());
+        System.out.println("📁 Всего найдено файлов: " + totalFilesFound);
+        System.out.println("✅ Обработано файлов: " + totalSuccessfullySaved);
+        System.out.println("📊 Создано отчетов: " + totalGeneratedReports);
+        System.out.println("❌ Не обработано файлов: " + (totalFilesFound - totalSuccessfullySaved));
         System.out.println("\n" + "=".repeat(50));
     }
 }
