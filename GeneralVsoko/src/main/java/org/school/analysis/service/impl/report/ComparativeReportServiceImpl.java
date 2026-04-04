@@ -63,6 +63,284 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         }
     }
 
+    @Override
+    public File generateEgkrEgeSubjectComparativeReport(String school, String currentAcademicYear) {
+        try {
+            List<TestSummaryDto> allTests = analysisService.getAllTestsSummary(school, currentAcademicYear);
+            List<SubjectComparisonGroup> subjectGroups = buildSubjectGroups(allTests);
+
+            if (subjectGroups.isEmpty()) {
+                log.warn("Нет данных для сравнительного отчета ЕГКР/ЕГЭ по предметам");
+                return null;
+            }
+
+            try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+                Map<SubjectComparisonGroup, String> sheetNames = buildUniqueSubjectSheetNames(subjectGroups);
+                createSubjectSummarySheet(workbook, sheetNames);
+                for (Map.Entry<SubjectComparisonGroup, String> entry : sheetNames.entrySet()) {
+                    createSubjectComparisonSheet(workbook, entry.getKey(), entry.getValue());
+                }
+
+                return saveWorkbook(
+                        workbook,
+                        createReportsFolder(school),
+                        "ЕГКР_ЕГЭ_сравнение_по_предметам.xlsx"
+                );
+            }
+        } catch (Exception e) {
+            log.error("Ошибка генерации сравнительного отчета ЕГКР/ЕГЭ по предметам", e);
+            return null;
+        }
+    }
+
+    private Map<SubjectComparisonGroup, String> buildUniqueSubjectSheetNames(List<SubjectComparisonGroup> groups) {
+        Map<SubjectComparisonGroup, String> names = new LinkedHashMap<>();
+        Set<String> usedNames = new HashSet<>();
+        for (SubjectComparisonGroup group : groups) {
+            String base = group.sheetName();
+            String candidate = base;
+            int suffix = 2;
+            while (usedNames.contains(candidate)) {
+                String suffixPart = "_" + suffix++;
+                int maxBaseLength = Math.max(1, 31 - suffixPart.length());
+                String truncatedBase = base.length() > maxBaseLength ? base.substring(0, maxBaseLength) : base;
+                candidate = truncatedBase + suffixPart;
+            }
+            usedNames.add(candidate);
+            names.put(group, candidate);
+        }
+        return names;
+    }
+
+    private List<SubjectComparisonGroup> buildSubjectGroups(List<TestSummaryDto> allTests) {
+        Map<String, List<TestSummaryDto>> bySubject = allTests.stream()
+                .filter(t -> t.getSubject() != null && !t.getSubject().isBlank())
+                .filter(t -> t.getClassName() != null && !t.getClassName().isBlank())
+                .collect(Collectors.groupingBy(TestSummaryDto::getSubject));
+
+        List<SubjectComparisonGroup> result = new ArrayList<>();
+        for (Map.Entry<String, List<TestSummaryDto>> entry : bySubject.entrySet()) {
+            Map<String, List<TestSummaryDto>> byClass = entry.getValue().stream()
+                    .collect(Collectors.groupingBy(TestSummaryDto::getClassName));
+
+            List<ClassComparison> classComparisons = new ArrayList<>();
+            for (Map.Entry<String, List<TestSummaryDto>> classEntry : byClass.entrySet()) {
+                List<TestSummaryDto> egkr = classEntry.getValue().stream()
+                        .filter(t -> t.getTestType() != null && t.getTestType().startsWith("ЕГКР"))
+                        .sorted(Comparator.comparing(TestSummaryDto::getTestDate))
+                        .collect(Collectors.toList());
+                if (egkr.size() < 2) {
+                    continue;
+                }
+
+                TestSummaryDto egkr1 = egkr.get(egkr.size() - 2);
+                TestSummaryDto egkr2 = egkr.get(egkr.size() - 1);
+                Optional<TestSummaryDto> ege = classEntry.getValue().stream()
+                        .filter(t -> t.getTestType() != null && t.getTestType().contains("ЕГЭ"))
+                        .max(Comparator.comparing(TestSummaryDto::getTestDate));
+
+                classComparisons.add(new ClassComparison(classEntry.getKey(), egkr1, egkr2, ege.orElse(null)));
+            }
+
+            if (!classComparisons.isEmpty()) {
+                classComparisons.sort(Comparator.comparing(ClassComparison::className));
+                result.add(new SubjectComparisonGroup(entry.getKey(), classComparisons));
+            }
+        }
+
+        result.sort(Comparator.comparing(SubjectComparisonGroup::subject));
+        return result;
+    }
+
+    private void createSubjectSummarySheet(XSSFWorkbook workbook, Map<SubjectComparisonGroup, String> groups) {
+        Sheet sheet = workbook.createSheet("Сводка по предметам");
+        Row header = sheet.createRow(0);
+        createHeaderCell(header, 0, "Предмет", getTableHeaderStyle(workbook));
+        createHeaderCell(header, 1, "Классов в сравнении", getTableHeaderStyle(workbook));
+        createHeaderCell(header, 2, "Лист", getTableHeaderStyle(workbook));
+
+        int rowNum = 1;
+        for (Map.Entry<SubjectComparisonGroup, String> entry : groups.entrySet()) {
+            SubjectComparisonGroup group = entry.getKey();
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(group.subject());
+            row.createCell(1).setCellValue(group.classes().size());
+            row.createCell(2).setCellValue(entry.getValue());
+        }
+
+        for (int i = 0; i < 3; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private void createSubjectComparisonSheet(XSSFWorkbook workbook, SubjectComparisonGroup group, String sheetName) {
+        Sheet sheet = workbook.createSheet(sheetName);
+        CellStyle titleStyle = createTitleStyle(workbook);
+        CellStyle headerStyle = getTableHeaderStyle(workbook);
+        CellStyle centeredStyle = getStyle(workbook, StyleType.CENTERED);
+        CellStyle percentStyle = getStyle(workbook, StyleType.PERCENT);
+
+        Row title = sheet.createRow(0);
+        Cell titleCell = title.createCell(0);
+        titleCell.setCellValue("Сравнение по предмету: " + group.subject());
+        titleCell.setCellStyle(titleStyle);
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 7));
+
+        Row header = sheet.createRow(2);
+        createHeaderCell(header, 0, "Класс", headerStyle);
+        createHeaderCell(header, 1, "ЕГКР 1 (дата)", headerStyle);
+        createHeaderCell(header, 2, "ЕГКР 1 %", headerStyle);
+        createHeaderCell(header, 3, "ЕГКР 2 (дата)", headerStyle);
+        createHeaderCell(header, 4, "ЕГКР 2 %", headerStyle);
+        createHeaderCell(header, 5, "ЕГЭ (дата)", headerStyle);
+        createHeaderCell(header, 6, "ЕГЭ %", headerStyle);
+
+        int rowNum = 3;
+        for (ClassComparison classComparison : group.classes()) {
+            Row row = sheet.createRow(rowNum++);
+            setStyledValue(row, 0, classComparison.className(), centeredStyle);
+            setStyledValue(row, 1, formatDate(classComparison.egkr1().getTestDate()), centeredStyle);
+            setStyledValue(row, 2, safePercent(classComparison.egkr1().getSuccessPercentage()), percentStyle);
+            setStyledValue(row, 3, formatDate(classComparison.egkr2().getTestDate()), centeredStyle);
+            setStyledValue(row, 4, safePercent(classComparison.egkr2().getSuccessPercentage()), percentStyle);
+            setStyledValue(row, 5, classComparison.ege() != null ? formatDate(classComparison.ege().getTestDate()) : "", centeredStyle);
+            setStyledValue(row, 6, classComparison.ege() != null
+                    ? safePercent(classComparison.ege().getSuccessPercentage())
+                    : 0.0, percentStyle);
+        }
+
+        int averageRowNum = rowNum + 1;
+        Row avgHeader = sheet.createRow(averageRowNum);
+        createHeaderCell(avgHeader, 0, "Средние значения", headerStyle);
+        createHeaderCell(avgHeader, 1, "ЕГКР 1", headerStyle);
+        createHeaderCell(avgHeader, 2, "ЕГКР 2", headerStyle);
+        createHeaderCell(avgHeader, 3, "ЕГЭ", headerStyle);
+
+        Row avgValues = sheet.createRow(averageRowNum + 1);
+        setStyledValue(avgValues, 0, "Средний % выполнения", centeredStyle);
+        setStyledValue(avgValues, 1, averageEgkr1(group.classes()) / 100.0, percentStyle);
+        setStyledValue(avgValues, 2, averageEgkr2(group.classes()) / 100.0, percentStyle);
+        setStyledValue(avgValues, 3, averageEge(group.classes()) / 100.0, percentStyle);
+
+        createClassComparisonChart(sheet, 2, rowNum - 1);
+        createAverageComparisonChart(sheet, averageRowNum + 1);
+
+        for (int i = 0; i < 8; i++) {
+            sheet.autoSizeColumn(i);
+        }
+        applyPrintLayout(sheet);
+    }
+
+    private void createClassComparisonChart(Sheet sheet, int startHeaderRow, int endDataRow) {
+        if (endDataRow <= startHeaderRow) {
+            return;
+        }
+
+        XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
+        XSSFChart chart = drawing.createChart(drawing.createAnchor(0, 0, 0, 0, 8, 2, 15, 18));
+        chart.setTitleText("ЕГКР 1 и ЕГКР 2 по классам");
+        chart.setTitleOverlay(false);
+        chart.getOrAddLegend().setPosition(LegendPosition.BOTTOM);
+
+        XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        bottomAxis.setTitle("Класс");
+        XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+        leftAxis.setTitle("% выполнения");
+
+        XDDFDataSource<String> classes = XDDFDataSourcesFactory.fromStringCellRange(
+                (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
+                new CellRangeAddress(startHeaderRow + 1, endDataRow, 0, 0)
+        );
+
+        XDDFLineChartData data = (XDDFLineChartData) chart.createData(ChartTypes.LINE, bottomAxis, leftAxis);
+        XDDFNumericalDataSource<Double> egkr1 = XDDFDataSourcesFactory.fromNumericCellRange(
+                (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
+                new CellRangeAddress(startHeaderRow + 1, endDataRow, 2, 2)
+        );
+        XDDFNumericalDataSource<Double> egkr2 = XDDFDataSourcesFactory.fromNumericCellRange(
+                (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
+                new CellRangeAddress(startHeaderRow + 1, endDataRow, 4, 4)
+        );
+
+        XDDFLineChartData.Series s1 = (XDDFLineChartData.Series) data.addSeries(classes, egkr1);
+        s1.setTitle("ЕГКР 1", null);
+        s1.setMarkerStyle(MarkerStyle.CIRCLE);
+        applySeriesColor(s1, 0);
+
+        XDDFLineChartData.Series s2 = (XDDFLineChartData.Series) data.addSeries(classes, egkr2);
+        s2.setTitle("ЕГКР 2", null);
+        s2.setMarkerStyle(MarkerStyle.CIRCLE);
+        applySeriesColor(s2, 1);
+
+        chart.plot(data);
+    }
+
+    private void createAverageComparisonChart(Sheet sheet, int averageValueRow) {
+        XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
+        XSSFChart chart = drawing.createChart(drawing.createAnchor(0, 0, 0, 0, 8, 19, 15, 32));
+        chart.setTitleText("Средние ЕГКР 1 / ЕГКР 2 / ЕГЭ");
+        chart.setTitleOverlay(false);
+        chart.getOrAddLegend().setPosition(LegendPosition.BOTTOM);
+
+        XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+        leftAxis.setTitle("% выполнения");
+
+        if (sheet.getRow(averageValueRow - 1) == null) {
+            return;
+        }
+
+        XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromStringCellRange(
+                (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
+                new CellRangeAddress(averageValueRow - 1, averageValueRow - 1, 1, 3)
+        );
+        XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromNumericCellRange(
+                (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
+                new CellRangeAddress(averageValueRow, averageValueRow, 1, 3)
+        );
+
+        XDDFBarChartData data = (XDDFBarChartData) chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+        data.setBarDirection(BarDirection.COL);
+        XDDFBarChartData.Series series = (XDDFBarChartData.Series) data.addSeries(categories, values);
+        series.setTitle("Средний %", null);
+        chart.plot(data);
+    }
+
+    private double safePercent(Double value) {
+        return value == null ? 0.0 : value / 100.0;
+    }
+
+    private double averageEgkr1(List<ClassComparison> classes) {
+        return classes.stream()
+                .map(ClassComparison::egkr1)
+                .map(TestSummaryDto::getSuccessPercentage)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
+    }
+
+    private double averageEgkr2(List<ClassComparison> classes) {
+        return classes.stream()
+                .map(ClassComparison::egkr2)
+                .map(TestSummaryDto::getSuccessPercentage)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
+    }
+
+    private double averageEge(List<ClassComparison> classes) {
+        return classes.stream()
+                .map(ClassComparison::ege)
+                .filter(Objects::nonNull)
+                .map(TestSummaryDto::getSuccessPercentage)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
+    }
+
     private List<ComparisonGroup> buildGroups(List<TestSummaryDto> allTests) {
         List<TestSummaryDto> egkrTests = allTests.stream()
                 .filter(t -> t.getTestType() != null && t.getTestType().startsWith("ЕГКР"))
@@ -389,6 +667,16 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         String sheetName() {
             String raw = (subject + "_" + className).replaceAll("[\\\\/*\\[\\]:?]", "_");
             return raw.length() > 28 ? raw.substring(0, 28) : raw;
+        }
+    }
+
+    private record ClassComparison(String className, TestSummaryDto egkr1, TestSummaryDto egkr2, TestSummaryDto ege) {
+    }
+
+    private record SubjectComparisonGroup(String subject, List<ClassComparison> classes) {
+        String sheetName() {
+            String raw = ("Предмет_" + subject).replaceAll("[\\\\/*\\[\\]:?]", "_");
+            return raw.length() > 31 ? raw.substring(0, 31) : raw;
         }
     }
 }
