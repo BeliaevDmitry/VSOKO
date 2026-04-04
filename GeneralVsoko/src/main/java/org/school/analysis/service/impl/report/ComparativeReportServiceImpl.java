@@ -44,10 +44,11 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
             }
 
             try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-                createSummarySheet(workbook, groups);
+                Map<ComparisonGroup, String> sheetNames = buildUniqueSheetNames(groups);
+                createSummarySheet(workbook, sheetNames);
 
-                for (ComparisonGroup group : groups) {
-                    createComparisonSheet(workbook, group);
+                for (Map.Entry<ComparisonGroup, String> entry : sheetNames.entrySet()) {
+                    createComparisonSheet(workbook, entry.getKey(), entry.getValue());
                 }
 
                 return saveWorkbook(
@@ -118,7 +119,30 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         return result;
     }
 
-    private void createSummarySheet(XSSFWorkbook workbook, List<ComparisonGroup> groups) {
+    private Map<ComparisonGroup, String> buildUniqueSheetNames(List<ComparisonGroup> groups) {
+        Map<ComparisonGroup, String> names = new LinkedHashMap<>();
+        Set<String> usedNames = new HashSet<>();
+
+        for (ComparisonGroup group : groups) {
+            String base = group.sheetName();
+            String candidate = base;
+            int suffix = 2;
+
+            while (usedNames.contains(candidate)) {
+                String suffixPart = "_" + suffix++;
+                int maxBaseLength = Math.max(1, 31 - suffixPart.length());
+                String truncatedBase = base.length() > maxBaseLength ? base.substring(0, maxBaseLength) : base;
+                candidate = truncatedBase + suffixPart;
+            }
+
+            usedNames.add(candidate);
+            names.put(group, candidate);
+        }
+
+        return names;
+    }
+
+    private void createSummarySheet(XSSFWorkbook workbook, Map<ComparisonGroup, String> groups) {
         Sheet sheet = workbook.createSheet("Сводка сравнения");
         Row header = sheet.createRow(0);
         header.createCell(0).setCellValue("Предмет");
@@ -128,13 +152,14 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         header.createCell(4).setCellValue("Лист");
 
         int rowNum = 1;
-        for (ComparisonGroup group : groups) {
+        for (Map.Entry<ComparisonGroup, String> entry : groups.entrySet()) {
+            ComparisonGroup group = entry.getKey();
             Row row = sheet.createRow(rowNum++);
             row.createCell(0).setCellValue(group.subject());
             row.createCell(1).setCellValue(group.className());
             row.createCell(2).setCellValue(group.teacher());
             row.createCell(3).setCellValue(group.tests().size());
-            row.createCell(4).setCellValue(group.sheetName());
+            row.createCell(4).setCellValue(entry.getValue());
         }
 
         for (int i = 0; i < 5; i++) {
@@ -142,8 +167,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         }
     }
 
-    private void createComparisonSheet(XSSFWorkbook workbook, ComparisonGroup group) {
-        String sheetName = group.sheetName();
+    private void createComparisonSheet(XSSFWorkbook workbook, ComparisonGroup group, String sheetName) {
         Sheet sheet = workbook.createSheet(sheetName);
         CellStyle titleStyle = createTitleStyle(workbook);
         CellStyle headerStyle = getTableHeaderStyle(workbook);
