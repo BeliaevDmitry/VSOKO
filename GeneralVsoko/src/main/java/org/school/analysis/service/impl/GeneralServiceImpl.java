@@ -10,7 +10,14 @@ import org.school.analysis.model.dto.StudentDetailedResultDto;
 import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
-import org.school.analysis.service.*;
+import org.school.analysis.service.AnalysisService;
+import org.school.analysis.service.ComparativeReportService;
+import org.school.analysis.service.ExcelReportService;
+import org.school.analysis.service.FileOrganizerService;
+import org.school.analysis.service.GeneralService;
+import org.school.analysis.service.ParserService;
+import org.school.analysis.service.SavedService;
+import org.school.analysis.service.TeacherService;
 import org.school.analysis.util.JsonScoreUtils;
 import org.school.analysis.util.PerformanceTracker;
 import org.springframework.stereotype.Service;
@@ -38,6 +45,7 @@ public class GeneralServiceImpl implements GeneralService {
     private final AnalysisService analysisService;
     private final ExcelReportService excelReportService;
     private final TeacherService teacherService;
+    private final ComparativeReportService comparativeReportService;
 
     private static class ParsePhaseResult {
         private int totalFilesFound;
@@ -407,6 +415,11 @@ public class GeneralServiceImpl implements GeneralService {
         generateTeacherReports(allReports, school, currentAcademicYear);
         log.info("✅ [{}] Шаг 2.3 завершен", school);
 
+        // 4. Сравнительный ЕГКР/ЕГЭ отчет
+        log.info("📊 [{}] Шаг 2.4: генерация сравнительного отчета ЕГКР/ЕГЭ", school);
+        generateComparativeEgkrReport(allReports, school, currentAcademicYear);
+        log.info("✅ [{}] Шаг 2.4 завершен", school);
+
         return allReports;
     }
 
@@ -567,6 +580,16 @@ public class GeneralServiceImpl implements GeneralService {
             log.info("✅ {} сгенерирован: {}", reportName, report.getName());
         } else {
             log.warn("⚠️ {} не был сгенерирован", reportName);
+        }
+    }
+
+    private void generateComparativeEgkrReport(List<File> allReports, String schoolName,
+                                               String currentAcademicYear) {
+        try {
+            File report = comparativeReportService.generateEgkrEgeComparativeReport(schoolName, currentAcademicYear);
+            addReportIfValid(report, allReports, "Сравнительный отчет ЕГКР/ЕГЭ");
+        } catch (Exception e) {
+            log.error("Ошибка генерации сравнительного отчета ЕГКР/ЕГЭ: {}", e.getMessage(), e);
         }
     }
 
