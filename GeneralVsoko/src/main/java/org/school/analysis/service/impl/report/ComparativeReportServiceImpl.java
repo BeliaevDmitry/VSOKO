@@ -238,6 +238,9 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
         XSSFChart chart = drawing.createChart(drawing.createAnchor(0, 0, 0, 0, 0, endDataRow + 2, 12, endDataRow + 20));
         chart.setTitleText("Сравнение выполнения заданий");
+        chart.setTitleOverlay(false);
+        XDDFChartLegend legend = chart.getOrAddLegend();
+        legend.setPosition(LegendPosition.BOTTOM);
 
         XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
         bottomAxis.setTitle("Задание");
@@ -332,10 +335,12 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
     private void applyPrintLayout(Sheet sheet) {
         PrintSetup printSetup = sheet.getPrintSetup();
         printSetup.setLandscape(true);
+        printSetup.setPaperSize(PrintSetup.A4_PAPERSIZE);
         printSetup.setFitWidth((short) 1);
         printSetup.setFitHeight((short) 0);
         sheet.setAutobreaks(true);
         sheet.setFitToPage(true);
+        sheet.setHorizontallyCenter(true);
         sheet.createFreezePane(0, 3);
         sheet.setMargin(Sheet.LeftMargin, 0.3);
         sheet.setMargin(Sheet.RightMargin, 0.3);

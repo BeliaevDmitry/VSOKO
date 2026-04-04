@@ -544,6 +544,9 @@ public class TeacherReportGenerator extends ExcelReportBase {
         XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
         XSSFChart chart = drawing.createChart(drawing.createAnchor(0, 0, 0, 0, 0, dataEndRow + 2, 10, dataEndRow + 18));
         chart.setTitleText("Сравнение выполнения заданий");
+        chart.setTitleOverlay(false);
+        XDDFChartLegend legend = chart.getOrAddLegend();
+        legend.setPosition(LegendPosition.BOTTOM);
 
         XDDFCategoryAxis xAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
         xAxis.setTitle("Задание");
@@ -609,10 +612,12 @@ public class TeacherReportGenerator extends ExcelReportBase {
     private void applyPrintLayout(Sheet sheet) {
         PrintSetup printSetup = sheet.getPrintSetup();
         printSetup.setLandscape(true);
+        printSetup.setPaperSize(PrintSetup.A4_PAPERSIZE);
         printSetup.setFitWidth((short) 1);
         printSetup.setFitHeight((short) 0);
         sheet.setAutobreaks(true);
         sheet.setFitToPage(true);
+        sheet.setHorizontallyCenter(true);
         sheet.createFreezePane(0, 3);
         sheet.setMargin(Sheet.LeftMargin, 0.3);
         sheet.setMargin(Sheet.RightMargin, 0.3);
