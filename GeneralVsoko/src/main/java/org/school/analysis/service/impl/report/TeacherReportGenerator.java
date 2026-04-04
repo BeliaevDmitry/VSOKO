@@ -3,7 +3,15 @@ package org.school.analysis.service.impl.report;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xddf.usermodel.chart.*;
+import org.apache.poi.xddf.usermodel.XDDFColor;
+import org.apache.poi.xddf.usermodel.XDDFLineProperties;
+import org.apache.poi.xddf.usermodel.XDDFSolidFillProperties;
+import org.apache.poi.xssf.usermodel.XSSFChart;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
 import org.school.analysis.util.DateTimeFormatters;
@@ -13,7 +21,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -56,6 +65,7 @@ public class TeacherReportGenerator extends ExcelReportBase {
 
             try (XSSFWorkbook workbook = new XSSFWorkbook()) {
                 createTeacherSummarySheet(workbook, teacherName, teacherTests);
+                createTeacherComparativeSheets(workbook, teacherTests, teacherTestDetails);
 
                 for (TeacherTestDetailDto testDetail : teacherTestDetails) {
                     createTeacherTestDetailSheet(workbook, testDetail);
@@ -403,6 +413,248 @@ public class TeacherReportGenerator extends ExcelReportBase {
             log.error("❌ Ошибка создания листа для теста {}: {}",
                     testSummary.getFileName(), e.getMessage(), e);
         }
+    }
+
+    private void createTeacherComparativeSheets(XSSFWorkbook workbook,
+                                                List<TestSummaryDto> teacherTests,
+                                                List<TeacherTestDetailDto> teacherTestDetails) {
+        Map<String, Map<Integer, TaskStatisticsDto>> statsById = teacherTestDetails.stream()
+                .filter(d -> d.getTestSummary() != null && d.getTestSummary().getReportFileId() != null)
+                .collect(Collectors.toMap(
+                        d -> d.getTestSummary().getReportFileId(),
+                        TeacherTestDetailDto::getTaskStatistics,
+                        (first, second) -> first
+                ));
+
+        Map<String, List<TestSummaryDto>> bySubjectClass = teacherTests.stream()
+                .filter(t -> t.getTestType() != null && t.getTestType().startsWith("ЕГКР"))
+                .collect(Collectors.groupingBy(t -> t.getSubject() + "||" + t.getClassName()));
+
+        for (Map.Entry<String, List<TestSummaryDto>> entry : bySubjectClass.entrySet()) {
+            List<TestSummaryDto> egkrTests = entry.getValue().stream()
+                    .sorted(Comparator.comparing(TestSummaryDto::getTestDate))
+                    .collect(Collectors.toList());
+
+            if (egkrTests.size() < 2) {
+                continue;
+            }
+
+            List<TestSummaryDto> selected = new ArrayList<>(egkrTests.subList(egkrTests.size() - 2, egkrTests.size()));
+            Optional<TestSummaryDto> ege = teacherTests.stream()
+                    .filter(t -> Objects.equals(t.getSubject(), selected.get(0).getSubject()))
+                    .filter(t -> Objects.equals(t.getClassName(), selected.get(0).getClassName()))
+                    .filter(t -> t.getTestType() != null && t.getTestType().contains("ЕГЭ"))
+                    .max(Comparator.comparing(TestSummaryDto::getTestDate));
+            ege.ifPresent(selected::add);
+
+            String sheetName = createSafeUniqueSheetName(
+                    workbook, "Сравнение_" + selected.get(0).getSubject() + "_" + selected.get(0).getClassName());
+            createTeacherComparisonSheet(workbook, sheetName, selected, statsById);
+        }
+    }
+
+    private void createTeacherComparisonSheet(XSSFWorkbook workbook,
+                                              String sheetName,
+                                              List<TestSummaryDto> tests,
+                                              Map<String, Map<Integer, TaskStatisticsDto>> statsById) {
+        Sheet sheet = workbook.createSheet(sheetName);
+        CellStyle titleStyle = getTitleStyle(workbook);
+        CellStyle headerStyle = getTableHeaderStyle(workbook);
+        CellStyle percentStyle = getStyle(workbook, StyleType.PERCENT);
+        CellStyle decimalStyle = getStyle(workbook, StyleType.DECIMAL);
+        CellStyle centeredStyle = getStyle(workbook, StyleType.CENTERED);
+
+        Row title = sheet.createRow(0);
+        Cell titleCell = title.createCell(0);
+        titleCell.setCellValue("Сравнительный анализ");
+        titleCell.setCellStyle(titleStyle);
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 8));
+
+        Row header = sheet.createRow(2);
+        createHeaderCell(header, 0, "Дата", headerStyle);
+        createHeaderCell(header, 1, "Тип", headerStyle);
+        createHeaderCell(header, 2, "% выполнения", headerStyle);
+        createHeaderCell(header, 3, "Средний балл", headerStyle);
+        createHeaderCell(header, 4, "% присутствия", headerStyle);
+        createHeaderCell(header, 5, "Участников", headerStyle);
+
+        int row = 3;
+        for (TestSummaryDto test : tests) {
+            Row data = sheet.createRow(row++);
+            setStyledValue(data, 0, test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE), centeredStyle);
+            setStyledValue(data, 1, test.getTestType(), centeredStyle);
+            setStyledValue(data, 2, test.getSuccessPercentage() / 100.0, percentStyle);
+            setStyledValue(data, 3, test.getAverageScore() != null ? test.getAverageScore() : 0.0, decimalStyle);
+            setStyledValue(data, 4, test.getAttendancePercentage() / 100.0, percentStyle);
+            setStyledValue(data, 5, test.getStudentsPresent() != null ? test.getStudentsPresent() : 0, centeredStyle);
+        }
+
+        int legendStart = row + 1;
+        createLegendRow(sheet, legendStart, tests, workbook);
+        int taskHeaderRowNum = legendStart + tests.size() + 2;
+        Row taskHeader = sheet.createRow(taskHeaderRowNum);
+        createHeaderCell(taskHeader, 0, "Задание", headerStyle);
+        for (int i = 0; i < tests.size(); i++) {
+            createHeaderCell(taskHeader, i + 1,
+                    tests.get(i).getTestType() + " " + tests.get(i).getTestDate().format(DateTimeFormatters.DISPLAY_DATE),
+                    headerStyle);
+        }
+
+        Map<Integer, List<Double>> taskData = buildTaskData(tests, statsById);
+        int taskRowNum = taskHeaderRowNum + 1;
+        for (Map.Entry<Integer, List<Double>> entry : taskData.entrySet()) {
+            Row taskRow = sheet.createRow(taskRowNum++);
+            setStyledValue(taskRow, 0, entry.getKey(), centeredStyle);
+            for (int i = 0; i < entry.getValue().size(); i++) {
+                setStyledValue(taskRow, i + 1, entry.getValue().get(i) / 100.0, percentStyle);
+            }
+        }
+
+        if (!taskData.isEmpty()) {
+            createTaskComparisonLineChart(sheet, taskHeaderRowNum, taskRowNum - 1, tests.size());
+        }
+        for (int i = 0; i < 9; i++) {
+            sheet.autoSizeColumn(i);
+        }
+        applyPrintLayout(sheet);
+    }
+
+    private Map<Integer, List<Double>> buildTaskData(List<TestSummaryDto> tests,
+                                                     Map<String, Map<Integer, TaskStatisticsDto>> statsById) {
+        List<Map<Integer, TaskStatisticsDto>> stats = tests.stream()
+                .map(t -> statsById.getOrDefault(t.getReportFileId(), Map.of()))
+                .collect(Collectors.toList());
+
+        Set<Integer> allTasks = new TreeSet<>();
+        stats.forEach(map -> allTasks.addAll(map.keySet()));
+
+        Map<Integer, List<Double>> result = new LinkedHashMap<>();
+        for (Integer task : allTasks) {
+            List<Double> values = new ArrayList<>();
+            for (Map<Integer, TaskStatisticsDto> map : stats) {
+                TaskStatisticsDto dto = map.get(task);
+                values.add(dto != null ? dto.getCompletionPercentage() : 0.0);
+            }
+            result.put(task, values);
+        }
+        return result;
+    }
+
+    private void createTaskComparisonLineChart(Sheet sheet, int headerRow, int dataEndRow, int seriesCount) {
+        XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
+        XSSFChart chart = drawing.createChart(drawing.createAnchor(0, 0, 0, 0, 0, dataEndRow + 2, 10, dataEndRow + 18));
+        chart.setTitleText("Сравнение выполнения заданий");
+
+        XDDFCategoryAxis xAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        xAxis.setTitle("Задание");
+        XDDFValueAxis yAxis = chart.createValueAxis(AxisPosition.LEFT);
+        yAxis.setTitle("% выполнения");
+
+        XDDFDataSource<Double> categories = XDDFDataSourcesFactory.fromNumericCellRange(
+                (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
+                new CellRangeAddress(headerRow + 1, dataEndRow, 0, 0)
+        );
+        XDDFLineChartData data = (XDDFLineChartData) chart.createData(ChartTypes.LINE, xAxis, yAxis);
+
+        for (int i = 1; i <= seriesCount; i++) {
+            XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromNumericCellRange(
+                    (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
+                    new CellRangeAddress(headerRow + 1, dataEndRow, i, i)
+            );
+            XDDFLineChartData.Series series = (XDDFLineChartData.Series) data.addSeries(categories, values);
+            series.setTitle(sheet.getRow(headerRow).getCell(i).getStringCellValue(), null);
+            series.setMarkerStyle(MarkerStyle.CIRCLE);
+            applySeriesColor(series, i - 1);
+        }
+
+        chart.plot(data);
+    }
+
+    private void applySeriesColor(XDDFLineChartData.Series series, int index) {
+        byte[][] palette = {
+                {(byte) 31, (byte) 119, (byte) 180},
+                {(byte) 214, (byte) 39, (byte) 40},
+                {(byte) 44, (byte) 160, (byte) 44}
+        };
+        byte[] rgb = palette[index % palette.length];
+        XDDFSolidFillProperties fill = new XDDFSolidFillProperties(XDDFColor.from(rgb));
+        XDDFLineProperties lineProperties = new XDDFLineProperties();
+        lineProperties.setFillProperties(fill);
+        series.setLineProperties(lineProperties);
+    }
+
+    private void createLegendRow(Sheet sheet, int rowNum, List<TestSummaryDto> tests, Workbook workbook) {
+        Row legendTitle = sheet.createRow(rowNum);
+        legendTitle.createCell(0).setCellValue("Легенда графика:");
+        byte[][] palette = {
+                {(byte) 31, (byte) 119, (byte) 180},
+                {(byte) 214, (byte) 39, (byte) 40},
+                {(byte) 44, (byte) 160, (byte) 44}
+        };
+        CellStyle baseStyle = getStyle(workbook, StyleType.NORMAL);
+        for (int i = 0; i < tests.size(); i++) {
+            Row row = sheet.createRow(rowNum + i + 1);
+            Cell colorCell = row.createCell(0);
+            CellStyle colorStyle = workbook.createCellStyle();
+            colorStyle.cloneStyleFrom(baseStyle);
+            colorStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            byte[] rgb = palette[i % palette.length];
+            colorStyle.setFillForegroundColor(new XSSFColor(new java.awt.Color(rgb[0] & 0xFF, rgb[1] & 0xFF, rgb[2] & 0xFF), null));
+            colorCell.setCellStyle(colorStyle);
+            row.createCell(1).setCellValue(
+                    tests.get(i).getTestType() + " " + tests.get(i).getTestDate().format(DateTimeFormatters.DISPLAY_DATE));
+        }
+    }
+
+    private void applyPrintLayout(Sheet sheet) {
+        PrintSetup printSetup = sheet.getPrintSetup();
+        printSetup.setLandscape(true);
+        printSetup.setFitWidth((short) 1);
+        printSetup.setFitHeight((short) 0);
+        sheet.setAutobreaks(true);
+        sheet.setFitToPage(true);
+        sheet.createFreezePane(0, 3);
+        sheet.setMargin(Sheet.LeftMargin, 0.3);
+        sheet.setMargin(Sheet.RightMargin, 0.3);
+        sheet.setMargin(Sheet.TopMargin, 0.5);
+        sheet.setMargin(Sheet.BottomMargin, 0.5);
+    }
+
+    private void createHeaderCell(Row row, int col, String value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private void setStyledValue(Row row, int col, String value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private void setStyledValue(Row row, int col, double value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private void setStyledValue(Row row, int col, int value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private String createSafeUniqueSheetName(XSSFWorkbook workbook, String baseName) {
+        String sanitized = baseName.replaceAll("[\\\\/*\\[\\]:?]", "_");
+        sanitized = sanitized.length() > 25 ? sanitized.substring(0, 25) : sanitized;
+        String candidate = sanitized;
+        int suffix = 1;
+        while (workbook.getSheet(candidate) != null) {
+            String tail = "_" + suffix++;
+            int maxBase = Math.max(1, 31 - tail.length());
+            candidate = sanitized.substring(0, Math.min(sanitized.length(), maxBase)) + tail;
+        }
+        return candidate;
     }
 
     /**
