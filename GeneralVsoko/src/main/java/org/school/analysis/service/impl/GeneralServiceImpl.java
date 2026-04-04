@@ -241,11 +241,31 @@ public class GeneralServiceImpl implements GeneralService {
             log.info("↪️ Перед validateProcessingResults: найдено={}, сохранено={}, ошибок={}",
                     result.totalFilesFound, result.successfullySaved, result.failedFiles.size());
             validateProcessingResults(foundFiles, result.successfullySaved);
+            logFailureHints(result);
             log.info("↩️ После validateProcessingResults");
         } catch (Exception e) {
             log.error("❌ Ошибка на этапе парсинга/сохранения данных: {}", e.getMessage(), e);
         }
         return result;
+    }
+
+    private void logFailureHints(ParsePhaseResult result) {
+        if (result.totalFilesFound == 0 || result.successfullySaved > 0 || result.failedFiles.isEmpty()) {
+            return;
+        }
+
+        long missingTeacherErrors = result.failedFiles.stream()
+                .map(ReportFile::getErrorMessage)
+                .filter(message -> message != null && message.contains("не найден в базе"))
+                .count();
+
+        if (missingTeacherErrors == result.failedFiles.size()) {
+            log.error("🛑 Все файлы упали из-за отсутствия учителей в базе. " +
+                    "Проверьте импорт учителей перед обработкой.");
+        } else if (missingTeacherErrors > 0) {
+            log.warn("⚠️ {} из {} файлов упали из-за отсутствия учителя в базе.",
+                    missingTeacherErrors, result.failedFiles.size());
+        }
     }
 
     /**
