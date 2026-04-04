@@ -863,20 +863,24 @@ public class DetailReportGenerator extends ExcelReportBase {
                 classNameCleaned,
                 testSummary.getTestDate().format(DateTimeFormatter.ofPattern("ddMM")));
 
-        if (baseName.length() > 31) {
-            baseName = baseName.substring(0, 31);
+        String normalizedBase = baseName.length() > 31 ? baseName.substring(0, 31) : baseName;
+        if (workbook.getSheet(normalizedBase) == null) {
+            return normalizedBase;
         }
 
-        String finalName = baseName;
         int counter = 1;
-        while (workbook.getSheet(finalName) != null) {
-            finalName = String.format("%s_%d", baseName, counter++);
-            if (finalName.length() > 31) {
-                finalName = finalName.substring(0, 31);
+        while (true) {
+            String suffix = "_" + counter++;
+            int maxBaseLength = Math.max(1, 31 - suffix.length());
+            String truncatedBase = normalizedBase.length() > maxBaseLength
+                    ? normalizedBase.substring(0, maxBaseLength)
+                    : normalizedBase;
+            String candidate = truncatedBase + suffix;
+
+            if (workbook.getSheet(candidate) == null) {
+                return candidate;
             }
         }
-
-        return finalName;
     }
 
     /**
