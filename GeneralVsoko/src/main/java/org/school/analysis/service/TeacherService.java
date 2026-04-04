@@ -93,7 +93,7 @@ public class TeacherService {
                     continue;
                 }
 
-                Cell nameCell = row.getCell(1);
+                Cell nameCell = row.getCell(0);
                 if (nameCell == null || isCellEmpty(nameCell)) {
                     continue;
                 }
