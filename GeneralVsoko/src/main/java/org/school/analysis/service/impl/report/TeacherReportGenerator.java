@@ -4,7 +4,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xddf.usermodel.chart.*;
+import org.apache.poi.xddf.usermodel.XDDFColor;
+import org.apache.poi.xddf.usermodel.XDDFLineProperties;
+import org.apache.poi.xddf.usermodel.XDDFSolidFillProperties;
 import org.apache.poi.xssf.usermodel.XSSFChart;
+import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.analysis.model.dto.TaskStatisticsDto;
@@ -454,49 +458,65 @@ public class TeacherReportGenerator extends ExcelReportBase {
                                               List<TestSummaryDto> tests,
                                               Map<String, Map<Integer, TaskStatisticsDto>> statsById) {
         Sheet sheet = workbook.createSheet(sheetName);
+        CellStyle titleStyle = getTitleStyle(workbook);
+        CellStyle headerStyle = getTableHeaderStyle(workbook);
+        CellStyle percentStyle = getStyle(workbook, StyleType.PERCENT);
+        CellStyle decimalStyle = getStyle(workbook, StyleType.DECIMAL);
+        CellStyle centeredStyle = getStyle(workbook, StyleType.CENTERED);
+
         Row title = sheet.createRow(0);
-        title.createCell(0).setCellValue("Сравнительный анализ");
+        Cell titleCell = title.createCell(0);
+        titleCell.setCellValue("Сравнительный анализ");
+        titleCell.setCellStyle(titleStyle);
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 8));
 
         Row header = sheet.createRow(2);
-        header.createCell(0).setCellValue("Дата");
-        header.createCell(1).setCellValue("Тип");
-        header.createCell(2).setCellValue("% выполнения");
-        header.createCell(3).setCellValue("Средний балл");
-        header.createCell(4).setCellValue("% присутствия");
-        header.createCell(5).setCellValue("Участников");
+        createHeaderCell(header, 0, "Дата", headerStyle);
+        createHeaderCell(header, 1, "Тип", headerStyle);
+        createHeaderCell(header, 2, "% выполнения", headerStyle);
+        createHeaderCell(header, 3, "Средний балл", headerStyle);
+        createHeaderCell(header, 4, "% присутствия", headerStyle);
+        createHeaderCell(header, 5, "Участников", headerStyle);
 
         int row = 3;
         for (TestSummaryDto test : tests) {
             Row data = sheet.createRow(row++);
-            data.createCell(0).setCellValue(test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE));
-            data.createCell(1).setCellValue(test.getTestType());
-            data.createCell(2).setCellValue(test.getSuccessPercentage());
-            data.createCell(3).setCellValue(test.getAverageScore() != null ? test.getAverageScore() : 0.0);
-            data.createCell(4).setCellValue(test.getAttendancePercentage());
-            data.createCell(5).setCellValue(test.getStudentsPresent() != null ? test.getStudentsPresent() : 0);
+            setStyledValue(data, 0, test.getTestDate().format(DateTimeFormatters.DISPLAY_DATE), centeredStyle);
+            setStyledValue(data, 1, test.getTestType(), centeredStyle);
+            setStyledValue(data, 2, test.getSuccessPercentage() / 100.0, percentStyle);
+            setStyledValue(data, 3, test.getAverageScore() != null ? test.getAverageScore() : 0.0, decimalStyle);
+            setStyledValue(data, 4, test.getAttendancePercentage() / 100.0, percentStyle);
+            setStyledValue(data, 5, test.getStudentsPresent() != null ? test.getStudentsPresent() : 0, centeredStyle);
         }
 
-        int taskHeaderRowNum = row + 2;
+        int legendStart = row + 1;
+        createLegendRow(sheet, legendStart, tests, workbook);
+        int taskHeaderRowNum = legendStart + tests.size() + 2;
         Row taskHeader = sheet.createRow(taskHeaderRowNum);
-        taskHeader.createCell(0).setCellValue("Задание");
+        createHeaderCell(taskHeader, 0, "Задание", headerStyle);
         for (int i = 0; i < tests.size(); i++) {
-            taskHeader.createCell(i + 1).setCellValue(
-                    tests.get(i).getTestType() + " " + tests.get(i).getTestDate().format(DateTimeFormatters.DISPLAY_DATE));
+            createHeaderCell(taskHeader, i + 1,
+                    tests.get(i).getTestType() + " " + tests.get(i).getTestDate().format(DateTimeFormatters.DISPLAY_DATE),
+                    headerStyle);
         }
 
         Map<Integer, List<Double>> taskData = buildTaskData(tests, statsById);
         int taskRowNum = taskHeaderRowNum + 1;
         for (Map.Entry<Integer, List<Double>> entry : taskData.entrySet()) {
             Row taskRow = sheet.createRow(taskRowNum++);
-            taskRow.createCell(0).setCellValue(entry.getKey());
+            setStyledValue(taskRow, 0, entry.getKey(), centeredStyle);
             for (int i = 0; i < entry.getValue().size(); i++) {
-                taskRow.createCell(i + 1).setCellValue(entry.getValue().get(i));
+                setStyledValue(taskRow, i + 1, entry.getValue().get(i) / 100.0, percentStyle);
             }
         }
 
         if (!taskData.isEmpty()) {
             createTaskComparisonLineChart(sheet, taskHeaderRowNum, taskRowNum - 1, tests.size());
         }
+        for (int i = 0; i < 9; i++) {
+            sheet.autoSizeColumn(i);
+        }
+        applyPrintLayout(sheet);
     }
 
     private Map<Integer, List<Double>> buildTaskData(List<TestSummaryDto> tests,
@@ -544,9 +564,84 @@ public class TeacherReportGenerator extends ExcelReportBase {
             XDDFLineChartData.Series series = (XDDFLineChartData.Series) data.addSeries(categories, values);
             series.setTitle(sheet.getRow(headerRow).getCell(i).getStringCellValue(), null);
             series.setMarkerStyle(MarkerStyle.CIRCLE);
+            applySeriesColor(series, i - 1);
         }
 
         chart.plot(data);
+    }
+
+    private void applySeriesColor(XDDFLineChartData.Series series, int index) {
+        byte[][] palette = {
+                {(byte) 31, (byte) 119, (byte) 180},
+                {(byte) 214, (byte) 39, (byte) 40},
+                {(byte) 44, (byte) 160, (byte) 44}
+        };
+        byte[] rgb = palette[index % palette.length];
+        XDDFSolidFillProperties fill = new XDDFSolidFillProperties(XDDFColor.from(rgb));
+        XDDFLineProperties lineProperties = new XDDFLineProperties();
+        lineProperties.setFillProperties(fill);
+        series.setLineProperties(lineProperties);
+    }
+
+    private void createLegendRow(Sheet sheet, int rowNum, List<TestSummaryDto> tests, Workbook workbook) {
+        Row legendTitle = sheet.createRow(rowNum);
+        legendTitle.createCell(0).setCellValue("Легенда графика:");
+        byte[][] palette = {
+                {(byte) 31, (byte) 119, (byte) 180},
+                {(byte) 214, (byte) 39, (byte) 40},
+                {(byte) 44, (byte) 160, (byte) 44}
+        };
+        CellStyle baseStyle = getStyle(workbook, StyleType.NORMAL);
+        for (int i = 0; i < tests.size(); i++) {
+            Row row = sheet.createRow(rowNum + i + 1);
+            Cell colorCell = row.createCell(0);
+            CellStyle colorStyle = workbook.createCellStyle();
+            colorStyle.cloneStyleFrom(baseStyle);
+            colorStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            byte[] rgb = palette[i % palette.length];
+            colorStyle.setFillForegroundColor(new XSSFColor(new java.awt.Color(rgb[0] & 0xFF, rgb[1] & 0xFF, rgb[2] & 0xFF), null));
+            colorCell.setCellStyle(colorStyle);
+            row.createCell(1).setCellValue(
+                    tests.get(i).getTestType() + " " + tests.get(i).getTestDate().format(DateTimeFormatters.DISPLAY_DATE));
+        }
+    }
+
+    private void applyPrintLayout(Sheet sheet) {
+        PrintSetup printSetup = sheet.getPrintSetup();
+        printSetup.setLandscape(true);
+        printSetup.setFitWidth((short) 1);
+        printSetup.setFitHeight((short) 0);
+        sheet.setAutobreaks(true);
+        sheet.setFitToPage(true);
+        sheet.createFreezePane(0, 3);
+        sheet.setMargin(Sheet.LeftMargin, 0.3);
+        sheet.setMargin(Sheet.RightMargin, 0.3);
+        sheet.setMargin(Sheet.TopMargin, 0.5);
+        sheet.setMargin(Sheet.BottomMargin, 0.5);
+    }
+
+    private void createHeaderCell(Row row, int col, String value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private void setStyledValue(Row row, int col, String value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private void setStyledValue(Row row, int col, double value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private void setStyledValue(Row row, int col, int value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
     }
 
     private String createSafeUniqueSheetName(XSSFWorkbook workbook, String baseName) {
