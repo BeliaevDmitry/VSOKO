@@ -238,7 +238,10 @@ public class GeneralServiceImpl implements GeneralService {
         ParsePhaseResult result = new ParsePhaseResult();
         try {
             List<ReportFile> foundFiles = findAndProcessFiles(folderPath, result);
+            log.info("↪️ Перед validateProcessingResults: найдено={}, сохранено={}, ошибок={}",
+                    result.totalFilesFound, result.successfullySaved, result.failedFiles.size());
             validateProcessingResults(foundFiles, result.successfullySaved);
+            log.info("↩️ После validateProcessingResults");
         } catch (Exception e) {
             log.error("❌ Ошибка на этапе парсинга/сохранения данных: {}", e.getMessage(), e);
         }
@@ -254,19 +257,9 @@ public class GeneralServiceImpl implements GeneralService {
                                        ParsePhaseResult parseResult) {
         try {
             if (parseResult.successfullySaved == 0) {
-                List<TestSummaryDto> existingTests =
-                        analysisService.getAllTestsSummary(school, currentAcademicYear);
-
-                if (!existingTests.isEmpty()) {
-                    log.info("ℹ️ [{}] В текущем запуске новых сохранений нет (0/{}), " +
-                                    "но в БД уже есть {} тестов. Продолжаем генерацию отчетов из данных БД.",
-                            school, parseResult.totalFilesFound, existingTests.size());
-                } else {
-                    log.warn("⚠️ [{}] После парсинга нет сохраненных файлов (0/{}) " +
-                                    "и в БД не найдено данных по тестам. Генерация отчетов будет запущена, " +
-                                    "но отчеты могут не создаться.",
-                            school, parseResult.totalFilesFound);
-                }
+                log.warn("⚠️ [{}] После парсинга нет сохраненных файлов (0/{}). " +
+                                "Запускаем генерацию отчетов по уже существующим данным в БД (если они есть).",
+                        school, parseResult.totalFilesFound);
             }
             return generateReports(school, currentAcademicYear);
         } catch (Exception e) {
@@ -335,7 +328,17 @@ public class GeneralServiceImpl implements GeneralService {
         int initialSize = failedFiles.size();
         parseResults.stream()
                 .filter(result -> !result.isSuccess() && result.getReportFile() != null)
-                .forEach(result -> failedFiles.add(result.getReportFile()));
+                .forEach(result -> {
+                    ReportFile reportFile = result.getReportFile();
+                    if (reportFile.getStatus() == null || reportFile.getStatus() == PENDING) {
+                        reportFile.setStatus(ERROR_PARSING);
+                    }
+                    if ((reportFile.getErrorMessage() == null || reportFile.getErrorMessage().isBlank())
+                            && result.getErrorMessage() != null && !result.getErrorMessage().isBlank()) {
+                        reportFile.setErrorMessage(result.getErrorMessage());
+                    }
+                    failedFiles.add(reportFile);
+                });
 
         for (int i = initialSize; i < failedFiles.size(); i++) {
             ReportFile file = failedFiles.get(i);
