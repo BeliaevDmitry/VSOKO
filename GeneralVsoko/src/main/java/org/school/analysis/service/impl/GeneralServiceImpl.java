@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.*;
 
 import static org.school.analysis.config.AppConfig.*;
 import static org.school.analysis.model.ProcessingStatus.*;
@@ -381,11 +382,11 @@ public class GeneralServiceImpl implements GeneralService {
      */
     private int generateReports(String school, String currentAcademicYear) {
         try {
-            log.info("Начинаем генерацию отчетов...");
+            log.warn("🟡 [{}] Старт генерации отчетов (сводные/детальные/учителя/сравнение)", school);
 
             List<File> generatedReports = generateAllReports(school, currentAcademicYear);
 
-            log.info("Успешно сгенерировано {} отчетов", generatedReports.size());
+            log.warn("🟢 [{}] Генерация отчетов завершена. Создано: {}", school, generatedReports.size());
             return generatedReports.size();
 
         } catch (Exception e) {
@@ -585,11 +586,20 @@ public class GeneralServiceImpl implements GeneralService {
 
     private void generateComparativeEgkrReport(List<File> allReports, String schoolName,
                                                String currentAcademicYear) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            File report = comparativeReportService.generateEgkrEgeComparativeReport(schoolName, currentAcademicYear);
+            Future<File> future = executor.submit(() ->
+                    comparativeReportService.generateEgkrEgeComparativeReport(schoolName, currentAcademicYear));
+
+            File report = future.get(90, TimeUnit.SECONDS);
             addReportIfValid(report, allReports, "Сравнительный отчет ЕГКР/ЕГЭ");
+
+        } catch (TimeoutException e) {
+            log.error("Сравнительный отчет ЕГКР/ЕГЭ превысил лимит времени (90с) и будет пропущен");
         } catch (Exception e) {
             log.error("Ошибка генерации сравнительного отчета ЕГКР/ЕГЭ: {}", e.getMessage(), e);
+        } finally {
+            executor.shutdownNow();
         }
     }
 
