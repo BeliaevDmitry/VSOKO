@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +39,12 @@ public class GeneralServiceImpl implements GeneralService {
     private final ExcelReportService excelReportService;
     private final TeacherService teacherService;
 
+    private static class ParsePhaseResult {
+        private int totalFilesFound;
+        private int successfullySaved;
+        private final List<ReportFile> failedFiles = new ArrayList<>();
+    }
+
     @Override
 
     public void processAll() {
@@ -60,46 +65,36 @@ public class GeneralServiceImpl implements GeneralService {
                 initTeacherDatabase(school);
 
                 String folderPath = INPUT_FOLDER.replace("{школа}", school);
-                List<ReportFile> failedFiles = new ArrayList<>();
-                int[] schoolCounters = new int[3]; // [0]=найдено, [1]=сохранено, [2]=отчеты
 
                 try {
-                    long phase1Start = System.currentTimeMillis();
-                    List<ReportFile> foundFiles = findAndProcessFiles(folderPath, failedFiles, schoolCounters);
-                    long phase1Time = System.currentTimeMillis() - phase1Start;
-                    PerformanceTracker.recordPhaseTime(school, "fileFinding", Duration.ofMillis(phase1Time));
-
-                    long phase2Start = System.currentTimeMillis();
-                    if (!foundFiles.isEmpty()) {
-                        validateProcessingResults(foundFiles, schoolCounters[1]);
-                        schoolCounters[2] = generateReports(school, currentAcademicYear);
-                    }
-                    long phase2Time = System.currentTimeMillis() - phase2Start;
-                    PerformanceTracker.recordPhaseTime(school, "reportGeneration", Duration.ofMillis(phase2Time));
-
-                    PerformanceTracker.recordPhaseTime(school, "fileProcessing",
-                            Duration.ofMillis(phase1Time + phase2Time));
+                    ParsePhaseResult parseResult = parseDataForSchool(folderPath);
+                    int generatedReportsCount = createReportsForSchool(school, currentAcademicYear);
 
                     PerformanceTracker.finishSchoolProcessing(
                             schoolMetrics,
-                            schoolCounters[0],
-                            schoolCounters[1],
-                            schoolCounters[2]
+                            parseResult.totalFilesFound,
+                            parseResult.successfullySaved,
+                            generatedReportsCount
                     );
 
-                    printSchoolSummary(school, schoolCounters[1], schoolCounters[2], failedFiles);
+                    printSchoolSummary(
+                            school,
+                            parseResult.successfullySaved,
+                            generatedReportsCount,
+                            parseResult.failedFiles
+                    );
 
-                    totalFilesFound += schoolCounters[0];
-                    totalSuccessfullySaved += schoolCounters[1];
-                    totalGeneratedReports += schoolCounters[2];
+                    totalFilesFound += parseResult.totalFilesFound;
+                    totalSuccessfullySaved += parseResult.successfullySaved;
+                    totalGeneratedReports += generatedReportsCount;
 
                 } catch (Exception e) {
                     log.error("❌ Критическая ошибка при обработке школы {}: {}", school, e.getMessage(), e);
                     PerformanceTracker.finishSchoolProcessing(
                             schoolMetrics,
-                            schoolCounters[0],
-                            schoolCounters[1],
-                            schoolCounters[2]
+                            0,
+                            0,
+                            0
                     );
                 }
             }
@@ -227,13 +222,39 @@ public class GeneralServiceImpl implements GeneralService {
     }
 
     /**
+     * Фаза 1: парсинг и сохранение данных.
+     * Ошибки внутри фазы не прерывают выполнение программы.
+     */
+    private ParsePhaseResult parseDataForSchool(String folderPath) {
+        ParsePhaseResult result = new ParsePhaseResult();
+        try {
+            List<ReportFile> foundFiles = findAndProcessFiles(folderPath, result);
+            validateProcessingResults(foundFiles, result.successfullySaved);
+        } catch (Exception e) {
+            log.error("❌ Ошибка на этапе парсинга/сохранения данных: {}", e.getMessage(), e);
+        }
+        return result;
+    }
+
+    /**
+     * Фаза 2: генерация отчетов.
+     * Вызывается независимо от результата парсинга.
+     */
+    private int createReportsForSchool(String school, String currentAcademicYear) {
+        try {
+            return generateReports(school, currentAcademicYear);
+        } catch (Exception e) {
+            log.error("❌ Ошибка на этапе генерации отчетов: {}", e.getMessage(), e);
+            return 0;
+        }
+    }
+
+    /**
      * Найти и обработать файлы партиями
      */
-    private List<ReportFile> findAndProcessFiles(String folderPath,
-                                                 List<ReportFile> failedFiles,
-                                                 int[] schoolCounters) {
+    private List<ReportFile> findAndProcessFiles(String folderPath, ParsePhaseResult result) {
         List<ReportFile> foundFiles = findReports(folderPath);
-        schoolCounters[0] = foundFiles.size();
+        result.totalFilesFound = foundFiles.size();
 
         log.info("Найдено {} файлов для обработки", foundFiles.size());
 
@@ -244,7 +265,7 @@ public class GeneralServiceImpl implements GeneralService {
         // Обработка партиями
         for (int batchIndex = 0; batchIndex < foundFiles.size(); batchIndex += AppConfig.BATCH_SIZE) {
             List<ReportFile> batch = getBatch(foundFiles, batchIndex);
-            List<ReportFile> processedInBatch = processBatch(batch, failedFiles, schoolCounters);
+            List<ReportFile> processedInBatch = processBatch(batch, result);
 
             log.debug("Партия {}-{} обработана: {} успешно",
                     batchIndex,
@@ -259,17 +280,16 @@ public class GeneralServiceImpl implements GeneralService {
      * Обработка одной партии файлов
      */
     private List<ReportFile> processBatch(List<ReportFile> batch,
-                                          List<ReportFile> failedFiles,
-                                          int[] schoolCounters) {
+                                          ParsePhaseResult result) {
         List<ParseResult> parseResults = parseReports(batch);
 
         // Сохранение в БД
         List<ReportFile> savedFiles = saveResultsToDatabase(parseResults);
-        schoolCounters[1] += savedFiles.size();
+        result.successfullySaved += savedFiles.size();
         moveProcessedFiles(savedFiles);
 
         // Сбор информации о неудачных файлах
-        collectFailedFiles(parseResults, failedFiles);
+        collectFailedFiles(parseResults, result.failedFiles);
 
         return savedFiles;
     }
