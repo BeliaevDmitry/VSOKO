@@ -10,7 +10,14 @@ import org.school.analysis.model.dto.StudentDetailedResultDto;
 import org.school.analysis.model.dto.TaskStatisticsDto;
 import org.school.analysis.model.dto.TeacherTestDetailDto;
 import org.school.analysis.model.dto.TestSummaryDto;
-import org.school.analysis.service.*;
+import org.school.analysis.service.AnalysisService;
+import org.school.analysis.service.ComparativeReportService;
+import org.school.analysis.service.ExcelReportService;
+import org.school.analysis.service.FileOrganizerService;
+import org.school.analysis.service.GeneralService;
+import org.school.analysis.service.ParserService;
+import org.school.analysis.service.SavedService;
+import org.school.analysis.service.TeacherService;
 import org.school.analysis.util.JsonScoreUtils;
 import org.school.analysis.util.PerformanceTracker;
 import org.springframework.stereotype.Service;
@@ -39,12 +46,6 @@ public class GeneralServiceImpl implements GeneralService {
     private final ExcelReportService excelReportService;
     private final TeacherService teacherService;
     private final ComparativeReportService comparativeReportService;
-
-    private static class ParsePhaseResult {
-        private int totalFilesFound;
-        private int successfullySaved;
-        private final List<ReportFile> failedFiles = new ArrayList<>();
-    }
 
     private static class ParsePhaseResult {
         private int totalFilesFound;
