@@ -133,8 +133,10 @@ public class ParserServiceImpl implements ParserService {
             return ParseResult.success(reportFile, studentResults);
 
         } catch (ValidationException e) {
-            log.error("Ошибка валидации в файле {}: {}",
-                    reportFile.getFile().getName(), e.getMessage(), e);
+            log.warn("Ошибка валидации в файле {}: {}",
+                    reportFile.getFile().getName(), e.getMessage());
+            log.debug("ValidationException stacktrace для файла {}",
+                    reportFile.getFile().getName(), e);
             return ParseResult.error(reportFile,
                     "Ошибка валидации данных. Проверьте файл:\n" + e.getMessage());
 
