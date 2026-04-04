@@ -14,7 +14,6 @@
 │   ├── ReportFile.java               # Файл отчета + метаданные ✓
 │   ├── ParseResult.java              # Результат парсинга ✓
 │   ├── ProcessingStatus.java         # Enum статусов обработки ✓
-│   ├── ProcessingSummary.java        # Итоги обработки ✓
 │   └── TestMetadata.java             # Метаданные теста ✓
 │
 ├── 📂 service/                        # Сервисный слой
@@ -71,4 +70,3 @@
 │   └── ReportMapper.java            # Маппер между моделями и сущностями ✓
 │
 ├── Main.java                 # Точка входа (Spring Boot)
-
