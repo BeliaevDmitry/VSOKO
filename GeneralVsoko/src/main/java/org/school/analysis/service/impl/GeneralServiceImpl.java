@@ -402,24 +402,24 @@ public class GeneralServiceImpl implements GeneralService {
         List<File> allReports = new ArrayList<>();
 
         // 1. Сводный отчет по всем тестам
-        log.info("📊 [{}] Шаг 2.1: генерация сводного отчета", school);
+        log.warn("📊 [{}] Шаг 2.1: генерация сводного отчета", school);
         generateSummaryReport(allReports, school, currentAcademicYear);
-        log.info("✅ [{}] Шаг 2.1 завершен", school);
+        log.warn("✅ [{}] Шаг 2.1 завершен", school);
 
         // 2. Детальные отчеты по тестам
-        log.info("📊 [{}] Шаг 2.2: генерация детальных отчетов по тестам", school);
+        log.warn("📊 [{}] Шаг 2.2: генерация детальных отчетов по тестам", school);
         generateTestDetailReports(allReports, school, currentAcademicYear);
-        log.info("✅ [{}] Шаг 2.2 завершен", school);
+        log.warn("✅ [{}] Шаг 2.2 завершен", school);
 
         // 3. Отчеты по учителям
-        log.info("📊 [{}] Шаг 2.3: генерация отчетов по учителям", school);
+        log.warn("📊 [{}] Шаг 2.3: генерация отчетов по учителям", school);
         generateTeacherReports(allReports, school, currentAcademicYear);
-        log.info("✅ [{}] Шаг 2.3 завершен", school);
+        log.warn("✅ [{}] Шаг 2.3 завершен", school);
 
         // 4. Сравнительный ЕГКР/ЕГЭ отчет
-        log.info("📊 [{}] Шаг 2.4: генерация сравнительного отчета ЕГКР/ЕГЭ", school);
+        log.warn("📊 [{}] Шаг 2.4: генерация сравнительного отчета ЕГКР/ЕГЭ", school);
         generateComparativeEgkrReport(allReports, school, currentAcademicYear);
-        log.info("✅ [{}] Шаг 2.4 завершен", school);
+        log.warn("✅ [{}] Шаг 2.4 завершен", school);
 
         return allReports;
     }
@@ -522,7 +522,7 @@ public class GeneralServiceImpl implements GeneralService {
                 List<TeacherTestDetailDto> teacherTestDetails = getTeacherTestDetails(teacherTests);
                 log.info("✅ размер teacherTestDetails '{}' ", teacherTestDetails.size());
                 // Генерируем полный отчет учителя с детальными данными
-                File teacherReport = excelReportService.generateTeacherReportWithDetails(
+                File teacherReport = generateTeacherReportWithTimeout(
                         teacher, teacherTests, teacherTestDetails, schoolName);
 
                 addReportIfValid(teacherReport, allReports,
@@ -532,6 +532,27 @@ public class GeneralServiceImpl implements GeneralService {
                 log.error("Ошибка генерации отчета для учителя {}: {}",
                         teacher, e.getMessage(), e);
             }
+        }
+    }
+
+    private File generateTeacherReportWithTimeout(String teacher,
+                                                  List<TestSummaryDto> teacherTests,
+                                                  List<TeacherTestDetailDto> teacherTestDetails,
+                                                  String schoolName) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<File> future = executor.submit(() ->
+                    excelReportService.generateTeacherReportWithDetails(
+                            teacher, teacherTests, teacherTestDetails, schoolName));
+            return future.get(90, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            log.error("Отчет для учителя '{}' превысил лимит времени (90с) и будет пропущен", teacher);
+            return null;
+        } catch (Exception e) {
+            log.error("Ошибка генерации отчета для учителя '{}': {}", teacher, e.getMessage(), e);
+            return null;
+        } finally {
+            executor.shutdownNow();
         }
     }
 
