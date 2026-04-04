@@ -38,6 +38,13 @@ public class GeneralServiceImpl implements GeneralService {
     private final AnalysisService analysisService;
     private final ExcelReportService excelReportService;
     private final TeacherService teacherService;
+    private final ComparativeReportService comparativeReportService;
+
+    private static class ParsePhaseResult {
+        private int totalFilesFound;
+        private int successfullySaved;
+        private final List<ReportFile> failedFiles = new ArrayList<>();
+    }
 
     private static class ParsePhaseResult {
         private int totalFilesFound;
@@ -407,6 +414,11 @@ public class GeneralServiceImpl implements GeneralService {
         generateTeacherReports(allReports, school, currentAcademicYear);
         log.info("✅ [{}] Шаг 2.3 завершен", school);
 
+        // 4. Сравнительный ЕГКР/ЕГЭ отчет
+        log.info("📊 [{}] Шаг 2.4: генерация сравнительного отчета ЕГКР/ЕГЭ", school);
+        generateComparativeEgkrReport(allReports, school, currentAcademicYear);
+        log.info("✅ [{}] Шаг 2.4 завершен", school);
+
         return allReports;
     }
 
@@ -567,6 +579,16 @@ public class GeneralServiceImpl implements GeneralService {
             log.info("✅ {} сгенерирован: {}", reportName, report.getName());
         } else {
             log.warn("⚠️ {} не был сгенерирован", reportName);
+        }
+    }
+
+    private void generateComparativeEgkrReport(List<File> allReports, String schoolName,
+                                               String currentAcademicYear) {
+        try {
+            File report = comparativeReportService.generateEgkrEgeComparativeReport(schoolName, currentAcademicYear);
+            addReportIfValid(report, allReports, "Сравнительный отчет ЕГКР/ЕГЭ");
+        } catch (Exception e) {
+            log.error("Ошибка генерации сравнительного отчета ЕГКР/ЕГЭ: {}", e.getMessage(), e);
         }
     }
 
