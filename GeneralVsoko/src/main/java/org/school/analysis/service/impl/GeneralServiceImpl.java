@@ -46,6 +46,12 @@ public class GeneralServiceImpl implements GeneralService {
         private final List<ReportFile> failedFiles = new ArrayList<>();
     }
 
+    private static class ParsePhaseResult {
+        private int totalFilesFound;
+        private int successfullySaved;
+        private final List<ReportFile> failedFiles = new ArrayList<>();
+    }
+
     @Override
 
     public void processAll() {
