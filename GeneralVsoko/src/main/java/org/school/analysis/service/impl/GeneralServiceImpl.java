@@ -67,8 +67,17 @@ public class GeneralServiceImpl implements GeneralService {
                 String folderPath = INPUT_FOLDER.replace("{школа}", school);
 
                 try {
+                    log.info("▶️ [{}] ФАЗА 1: парсинг и сохранение данных", school);
                     ParsePhaseResult parseResult = parseDataForSchool(folderPath);
-                    int generatedReportsCount = createReportsForSchool(school, currentAcademicYear);
+                    log.info("✅ [{}] ФАЗА 1 завершена: найдено={}, сохранено={}, ошибок={}",
+                            school,
+                            parseResult.totalFilesFound,
+                            parseResult.successfullySaved,
+                            parseResult.failedFiles.size());
+
+                    log.info("▶️ [{}] ФАЗА 2: генерация отчетов", school);
+                    int generatedReportsCount = createReportsForSchool(school, currentAcademicYear, parseResult);
+                    log.info("✅ [{}] ФАЗА 2 завершена: создано отчетов={}", school, generatedReportsCount);
 
                     PerformanceTracker.finishSchoolProcessing(
                             schoolMetrics,
@@ -240,8 +249,25 @@ public class GeneralServiceImpl implements GeneralService {
      * Фаза 2: генерация отчетов.
      * Вызывается независимо от результата парсинга.
      */
-    private int createReportsForSchool(String school, String currentAcademicYear) {
+    private int createReportsForSchool(String school,
+                                       String currentAcademicYear,
+                                       ParsePhaseResult parseResult) {
         try {
+            if (parseResult.successfullySaved == 0) {
+                List<TestSummaryDto> existingTests =
+                        analysisService.getAllTestsSummary(school, currentAcademicYear);
+
+                if (!existingTests.isEmpty()) {
+                    log.info("ℹ️ [{}] В текущем запуске новых сохранений нет (0/{}), " +
+                                    "но в БД уже есть {} тестов. Продолжаем генерацию отчетов из данных БД.",
+                            school, parseResult.totalFilesFound, existingTests.size());
+                } else {
+                    log.warn("⚠️ [{}] После парсинга нет сохраненных файлов (0/{}) " +
+                                    "и в БД не найдено данных по тестам. Генерация отчетов будет запущена, " +
+                                    "но отчеты могут не создаться.",
+                            school, parseResult.totalFilesFound);
+                }
+            }
             return generateReports(school, currentAcademicYear);
         } catch (Exception e) {
             log.error("❌ Ошибка на этапе генерации отчетов: {}", e.getMessage(), e);
@@ -306,9 +332,17 @@ public class GeneralServiceImpl implements GeneralService {
      * Собрать информацию о неудачных файлах
      */
     private void collectFailedFiles(List<ParseResult> parseResults, List<ReportFile> failedFiles) {
+        int initialSize = failedFiles.size();
         parseResults.stream()
                 .filter(result -> !result.isSuccess() && result.getReportFile() != null)
                 .forEach(result -> failedFiles.add(result.getReportFile()));
+
+        for (int i = initialSize; i < failedFiles.size(); i++) {
+            ReportFile file = failedFiles.get(i);
+            log.warn("❌ Файл '{}' не обработан. Причина: {}",
+                    file.getFileName(),
+                    file.getErrorMessage() != null ? file.getErrorMessage() : file.getStatus());
+        }
     }
 
     /**
@@ -336,13 +370,19 @@ public class GeneralServiceImpl implements GeneralService {
         List<File> allReports = new ArrayList<>();
 
         // 1. Сводный отчет по всем тестам
+        log.info("📊 [{}] Шаг 2.1: генерация сводного отчета", school);
         generateSummaryReport(allReports, school, currentAcademicYear);
+        log.info("✅ [{}] Шаг 2.1 завершен", school);
 
         // 2. Детальные отчеты по тестам
+        log.info("📊 [{}] Шаг 2.2: генерация детальных отчетов по тестам", school);
         generateTestDetailReports(allReports, school, currentAcademicYear);
+        log.info("✅ [{}] Шаг 2.2 завершен", school);
 
         // 3. Отчеты по учителям
+        log.info("📊 [{}] Шаг 2.3: генерация отчетов по учителям", school);
         generateTeacherReports(allReports, school, currentAcademicYear);
+        log.info("✅ [{}] Шаг 2.3 завершен", school);
 
         return allReports;
     }
