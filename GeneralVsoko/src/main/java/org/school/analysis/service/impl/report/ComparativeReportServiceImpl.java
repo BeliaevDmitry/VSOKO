@@ -191,6 +191,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         CellStyle headerStyle = getTableHeaderStyle(workbook);
         CellStyle centeredStyle = getStyle(workbook, StyleType.CENTERED);
         CellStyle percentStyle = getStyle(workbook, StyleType.PERCENT);
+        CellStyle decimalStyle = getStyle(workbook, StyleType.DECIMAL);
 
         Row title = sheet.createRow(0);
         Cell titleCell = title.createCell(0);
@@ -204,6 +205,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         createHeaderCell(header, 2, "ЕГКР Декабрь %", headerStyle);
         createHeaderCell(header, 3, "ЕГКР Весна %", headerStyle);
         createHeaderCell(header, 4, "ЕГЭ %", headerStyle);
+        createHeaderCell(header, 5, "ЕГЭ балл", headerStyle);
 
         int rowNum = 3;
         for (ClassComparison classComparison : group.classes()) {
@@ -216,6 +218,8 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
                     ? toPercentCellValue(classComparison.egkrSpring().getSuccessPercentage()) : 0.0, percentStyle);
             setStyledValue(row, 4, classComparison.ege() != null
                     ? toPercentCellValue(classComparison.ege().getSuccessPercentage()) : 0.0, percentStyle);
+            setStyledValue(row, 5, classComparison.ege() != null && classComparison.ege().getAverageScore() != null
+                    ? classComparison.ege().getAverageScore() : 0.0, decimalStyle);
         }
 
         int tableEndRow = rowNum - 1;
@@ -230,7 +234,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         chartTop = createAverageTaskChart(sheet, typeSeries, chartTop);
         createClassComparisonChart(sheet, 2, rowNum - 1, chartTop);
 
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 6; i++) {
             sheet.autoSizeColumn(i);
         }
         applyPrintLayout(sheet);
@@ -244,9 +248,9 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
             if (entry.getValue().isEmpty()) {
                 continue;
             }
-            TaskTableRange range = writeTaskSeriesTable(sheet, chartTop, entry.getKey(), entry.getValue());
-            createTaskLinesChart(sheet, range, entry.getKey(), 8, chartTop, 15, chartTop + chartHeight);
-            chartTop += chartHeight + range.tableHeight() + 4;
+            TaskTableRange range = writeTaskSeriesTable(sheet, chartTop, 10, entry.getKey(), entry.getValue());
+            createTaskLinesChart(sheet, range, entry.getKey(), 0, chartTop, 13, chartTop + chartHeight + 3);
+            chartTop += chartHeight + 6;
             sheet.setRowBreak(Math.max(0, chartTop - 2));
         }
         return chartTop;
@@ -260,9 +264,9 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
             return chartTop;
         }
 
-        TaskTableRange range = writeTaskSeriesTable(sheet, chartTop, "Среднее выполнение заданий", averages);
-        createTaskLinesChart(sheet, range, "Среднее выполнение заданий", 8, chartTop, 15, chartTop + 14);
-        int nextTop = chartTop + 18 + range.tableHeight();
+        TaskTableRange range = writeTaskSeriesTable(sheet, chartTop, 10, "Среднее выполнение заданий", averages);
+        createTaskLinesChart(sheet, range, "Среднее выполнение заданий", 0, chartTop, 13, chartTop + 17);
+        int nextTop = chartTop + 21;
         sheet.setRowBreak(Math.max(0, nextTop - 2));
         return nextTop;
     }
@@ -273,15 +277,15 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         }
 
         XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
-        XSSFChart chart = drawing.createChart(drawing.createAnchor(0, 0, 0, 0, 8, chartTop, 15, chartTop + 14));
-        chart.setTitleText("% выполнения по классам");
+        XSSFChart chart = drawing.createChart(drawing.createAnchor(0, 0, 0, 0, 0, chartTop, 13, chartTop + 17));
+        chart.setTitleText("Баллы ЕГЭ по классам");
         chart.setTitleOverlay(false);
         chart.getOrAddLegend().setPosition(LegendPosition.BOTTOM);
 
         XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
         bottomAxis.setTitle("Класс");
         XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
-        leftAxis.setTitle("% выполнения");
+        leftAxis.setTitle("Баллы ЕГЭ");
 
         XDDFDataSource<String> classes = XDDFDataSourcesFactory.fromStringCellRange(
                 (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
@@ -289,11 +293,9 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         );
 
         XDDFLineChartData data = (XDDFLineChartData) chart.createData(ChartTypes.LINE, bottomAxis, leftAxis);
-        addSeriesFromColumn(sheet, data, classes, startHeaderRow + 1, endDataRow, 2, "ЕГКР Декабрь", 0);
-        addSeriesFromColumn(sheet, data, classes, startHeaderRow + 1, endDataRow, 3, "ЕГКР Весна", 1);
-        addSeriesFromColumn(sheet, data, classes, startHeaderRow + 1, endDataRow, 4, "ЕГЭ", 2);
+        addSeriesFromColumn(sheet, data, classes, startHeaderRow + 1, endDataRow, 5, "ЕГЭ балл", 2);
         chart.plot(data);
-        sheet.setRowBreak(chartTop + 14);
+        sheet.setRowBreak(chartTop + 18);
     }
 
     private void addSeriesFromColumn(Sheet sheet, XDDFLineChartData data, XDDFDataSource<String> categories,
@@ -310,6 +312,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
 
     private TaskTableRange writeTaskSeriesTable(Sheet sheet,
                                                 int startRow,
+                                                int startCol,
                                                 String caption,
                                                 Map<String, Map<Integer, Double>> seriesMap) {
         CellStyle headerStyle = getTableHeaderStyle(sheet.getWorkbook());
@@ -317,13 +320,13 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         CellStyle centeredStyle = getStyle(sheet.getWorkbook(), StyleType.CENTERED);
 
         Row captionRow = sheet.createRow(startRow);
-        captionRow.createCell(0).setCellValue(caption);
+        captionRow.createCell(startCol).setCellValue(caption);
 
         Row header = sheet.createRow(startRow + 1);
-        createHeaderCell(header, 0, "№ задания", headerStyle);
+        createHeaderCell(header, startCol, "№ задания", headerStyle);
         List<String> seriesNames = new ArrayList<>(seriesMap.keySet());
         for (int i = 0; i < seriesNames.size(); i++) {
-            createHeaderCell(header, i + 1, seriesNames.get(i), headerStyle);
+            createHeaderCell(header, startCol + i + 1, seriesNames.get(i), headerStyle);
         }
 
         Set<Integer> allTasks = new TreeSet<>();
@@ -334,14 +337,14 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         int rowNum = startRow + 2;
         for (Integer task : allTasks) {
             Row row = sheet.createRow(rowNum++);
-            setStyledValue(row, 0, task, centeredStyle);
+            setStyledValue(row, startCol, task, centeredStyle);
             for (int i = 0; i < seriesNames.size(); i++) {
                 Double value = seriesMap.get(seriesNames.get(i)).get(task);
-                setStyledValue(row, i + 1, value == null ? 0.0 : value / 100.0, percentStyle);
+                setStyledValue(row, startCol + i + 1, value == null ? 0.0 : value / 100.0, percentStyle);
             }
         }
 
-        return new TaskTableRange(startRow + 1, rowNum - 1, seriesNames.size(), rowNum - startRow);
+        return new TaskTableRange(startRow + 1, rowNum - 1, startCol, seriesNames.size(), rowNum - startRow);
     }
 
     private void createTaskLinesChart(Sheet sheet, TaskTableRange range, String title,
@@ -363,17 +366,18 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
 
         XDDFDataSource<Double> tasks = XDDFDataSourcesFactory.fromNumericCellRange(
                 (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
-                new CellRangeAddress(range.headerRow() + 1, range.endDataRow(), 0, 0)
+                new CellRangeAddress(range.headerRow() + 1, range.endDataRow(), range.startColumn(), range.startColumn())
         );
 
         XDDFLineChartData data = (XDDFLineChartData) chart.createData(ChartTypes.LINE, bottomAxis, leftAxis);
         for (int i = 1; i <= range.seriesCount(); i++) {
             XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromNumericCellRange(
                     (org.apache.poi.xssf.usermodel.XSSFSheet) sheet,
-                    new CellRangeAddress(range.headerRow() + 1, range.endDataRow(), i, i)
+                    new CellRangeAddress(range.headerRow() + 1, range.endDataRow(),
+                            range.startColumn() + i, range.startColumn() + i)
             );
             XDDFLineChartData.Series series = (XDDFLineChartData.Series) data.addSeries(tasks, values);
-            series.setTitle(sheet.getRow(range.headerRow()).getCell(i).getStringCellValue(), null);
+            series.setTitle(sheet.getRow(range.headerRow()).getCell(range.startColumn() + i).getStringCellValue(), null);
             series.setMarkerStyle(MarkerStyle.CIRCLE);
             applySeriesColor(series, i - 1);
         }
@@ -804,7 +808,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         }
     }
 
-    private record TaskTableRange(int headerRow, int endDataRow, int seriesCount, int tableHeight) {
+    private record TaskTableRange(int headerRow, int endDataRow, int startColumn, int seriesCount, int tableHeight) {
     }
 
     private record ClassComparison(String className, TestSummaryDto egkrDecember, TestSummaryDto egkrSpring, TestSummaryDto ege) {
