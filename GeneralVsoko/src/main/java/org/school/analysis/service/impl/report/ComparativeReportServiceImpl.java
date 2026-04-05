@@ -220,7 +220,9 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
 
         int tableEndRow = rowNum - 1;
         sheet.setRowBreak(tableEndRow + 1);
-        workbook.setRepeatingRowsAndColumns(workbook.getSheetIndex(sheet), -1, -1, 2, 2);
+        if (sheet instanceof org.apache.poi.xssf.usermodel.XSSFSheet xssfSheet) {
+            xssfSheet.setRepeatingRows(new CellRangeAddress(2, 2, -1, -1));
+        }
 
         Map<String, LinkedHashMap<String, Map<Integer, Double>>> typeSeries = buildTaskSeriesByType(group.classes());
         int chartTop = tableEndRow + 3;
