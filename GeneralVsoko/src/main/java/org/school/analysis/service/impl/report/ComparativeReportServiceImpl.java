@@ -218,8 +218,12 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
                     ? toPercentCellValue(classComparison.ege().getSuccessPercentage()) : 0.0, percentStyle);
         }
 
+        int tableEndRow = rowNum - 1;
+        sheet.setRowBreak(tableEndRow + 1);
+        workbook.setRepeatingRowsAndColumns(workbook.getSheetIndex(sheet), -1, -1, 2, 2);
+
         Map<String, LinkedHashMap<String, Map<Integer, Double>>> typeSeries = buildTaskSeriesByType(group.classes());
-        int chartTop = rowNum + 2;
+        int chartTop = tableEndRow + 3;
         chartTop = createPerTypeTaskCharts(sheet, typeSeries, chartTop);
         chartTop = createAverageTaskChart(sheet, typeSeries, chartTop);
         createClassComparisonChart(sheet, 2, rowNum - 1, chartTop);
@@ -241,6 +245,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
             TaskTableRange range = writeTaskSeriesTable(sheet, chartTop, entry.getKey(), entry.getValue());
             createTaskLinesChart(sheet, range, entry.getKey(), 8, chartTop, 15, chartTop + chartHeight);
             chartTop += chartHeight + range.tableHeight() + 4;
+            sheet.setRowBreak(Math.max(0, chartTop - 2));
         }
         return chartTop;
     }
@@ -255,7 +260,9 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
 
         TaskTableRange range = writeTaskSeriesTable(sheet, chartTop, "Среднее выполнение заданий", averages);
         createTaskLinesChart(sheet, range, "Среднее выполнение заданий", 8, chartTop, 15, chartTop + 14);
-        return chartTop + 18 + range.tableHeight();
+        int nextTop = chartTop + 18 + range.tableHeight();
+        sheet.setRowBreak(Math.max(0, nextTop - 2));
+        return nextTop;
     }
 
     private void createClassComparisonChart(Sheet sheet, int startHeaderRow, int endDataRow, int chartTop) {
@@ -284,6 +291,7 @@ public class ComparativeReportServiceImpl extends ExcelReportBase implements Com
         addSeriesFromColumn(sheet, data, classes, startHeaderRow + 1, endDataRow, 3, "ЕГКР Весна", 1);
         addSeriesFromColumn(sheet, data, classes, startHeaderRow + 1, endDataRow, 4, "ЕГЭ", 2);
         chart.plot(data);
+        sheet.setRowBreak(chartTop + 14);
     }
 
     private void addSeriesFromColumn(Sheet sheet, XDDFLineChartData data, XDDFDataSource<String> categories,
