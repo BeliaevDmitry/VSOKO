@@ -279,6 +279,7 @@ public class OgeMockResultsAggregator {
             CellStyle headerStyle = createHeaderStyle(workbook);
             CellStyle redStyle = createFillStyle(workbook, IndexedColors.ROSE.getIndex());
             CellStyle yellowStyle = createFillStyle(workbook, IndexedColors.LIGHT_YELLOW.getIndex());
+            CellStyle orangeStyle = createFillStyle(workbook, IndexedColors.LIGHT_ORANGE.getIndex());
 
             Sheet results = workbook.createSheet("Результаты пробника");
             createResultsHeader(results, headerStyle);
@@ -294,8 +295,26 @@ public class OgeMockResultsAggregator {
                 Row row = results.createRow(rowNum++);
                 row.createCell(0).setCellValue(student.className == null ? "" : student.className);
                 row.createCell(1).setCellValue(student.fio);
+                row.createCell(2).setCellValue(student.subjects.size());
 
-                int col = 2;
+                List<Integer> gradesForChosenSubjects = student.subjects.stream()
+                        .map(student.results::get)
+                        .filter(Objects::nonNull)
+                        .map(v -> v.grade)
+                        .filter(Objects::nonNull)
+                        .toList();
+                Double avgGrade = gradesForChosenSubjects.isEmpty()
+                        ? null
+                        : gradesForChosenSubjects.stream().mapToInt(Integer::intValue).average().orElse(0.0);
+                Cell avgCell = row.createCell(3);
+                if (avgGrade != null) {
+                    avgCell.setCellValue(avgGrade);
+                    if (student.subjects.size() == 4 && avgGrade < 3.75) {
+                        avgCell.setCellStyle(orangeStyle);
+                    }
+                }
+
+                int col = 4;
                 for (String subject : SUBJECT_ORDER) {
                     ResultCell rc = student.results.get(subject);
                     Cell scoreCell = row.createCell(col++);
@@ -320,8 +339,16 @@ public class OgeMockResultsAggregator {
                 }
             }
 
-            autoSize(results, 2 + SUBJECT_ORDER.size() * 2);
-            results.createFreezePane(0, 1);
+            autoSize(results, 4 + SUBJECT_ORDER.size() * 2);
+            // Компактный вид: фиксируем шапку (2 строки) и первые 2 колонки (Класс/ФИО).
+            results.createFreezePane(2, 2);
+            results.setColumnWidth(0, 3600);   // Класс
+            results.setColumnWidth(1, 13000);  // ФИО
+            results.setColumnWidth(2, 3400);   // Кол-во предметов
+            results.setColumnWidth(3, 4200);   // Средний балл
+            for (int c = 4; c < 4 + SUBJECT_ORDER.size() * 2; c++) {
+                results.setColumnWidth(c, 1700); // Узкие колонки под вертикальные подписи
+            }
 
             Sheet missing = workbook.createSheet("Недостающая информация");
             Row mh = missing.createRow(0);
@@ -450,6 +477,16 @@ public class OgeMockResultsAggregator {
     private static void createResultsHeader(Sheet sheet, CellStyle headerStyle) {
         Row row0 = sheet.createRow(0);
         Row row1 = sheet.createRow(1);
+        row0.setHeightInPoints(38);
+        row1.setHeightInPoints(120);
+
+        Workbook wb = sheet.getWorkbook();
+        CellStyle subHeaderStyle = wb.createCellStyle();
+        subHeaderStyle.cloneStyleFrom(headerStyle);
+        subHeaderStyle.setRotation((short) 90);
+        subHeaderStyle.setAlignment(HorizontalAlignment.CENTER);
+        subHeaderStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        subHeaderStyle.setWrapText(true);
 
         Cell c0 = row0.createCell(0);
         c0.setCellValue("Класс");
@@ -457,11 +494,19 @@ public class OgeMockResultsAggregator {
         Cell c1 = row0.createCell(1);
         c1.setCellValue("ФИО");
         c1.setCellStyle(headerStyle);
+        Cell c2 = row0.createCell(2);
+        c2.setCellValue("Кол-во предметов для сдачи");
+        c2.setCellStyle(headerStyle);
+        Cell c3 = row0.createCell(3);
+        c3.setCellValue("Средний балл за сданные предметы");
+        c3.setCellStyle(headerStyle);
 
         row1.createCell(0).setCellStyle(headerStyle);
         row1.createCell(1).setCellStyle(headerStyle);
+        row1.createCell(2).setCellStyle(headerStyle);
+        row1.createCell(3).setCellStyle(headerStyle);
 
-        int col = 2;
+        int col = 4;
         for (String subject : SUBJECT_ORDER) {
             Cell head = row0.createCell(col);
             head.setCellValue(subject);
@@ -469,11 +514,11 @@ public class OgeMockResultsAggregator {
 
             Cell sub1 = row1.createCell(col);
             sub1.setCellValue("Тестовый балл");
-            sub1.setCellStyle(headerStyle);
+            sub1.setCellStyle(subHeaderStyle);
 
             Cell sub2 = row1.createCell(col + 1);
             sub2.setCellValue("Оценка");
-            sub2.setCellStyle(headerStyle);
+            sub2.setCellStyle(subHeaderStyle);
 
             sheet.addMergedRegion(new CellRangeAddress(0, 0, col, col + 1));
             col += 2;
@@ -481,6 +526,8 @@ public class OgeMockResultsAggregator {
 
         sheet.addMergedRegion(new CellRangeAddress(0, 1, 0, 0));
         sheet.addMergedRegion(new CellRangeAddress(0, 1, 1, 1));
+        sheet.addMergedRegion(new CellRangeAddress(0, 1, 2, 2));
+        sheet.addMergedRegion(new CellRangeAddress(0, 1, 3, 3));
     }
 
     private static HeaderPos detectHeader(Sheet sheet) {
