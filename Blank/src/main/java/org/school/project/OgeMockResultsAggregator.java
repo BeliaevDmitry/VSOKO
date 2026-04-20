@@ -424,17 +424,25 @@ public class OgeMockResultsAggregator {
         h2.createCell(0).setCellValue("Класс");
         h2.createCell(1).setCellValue("ФИО");
         h2.createCell(2).setCellValue("Количество двоек");
+        h2.createCell(3).setCellValue("Предметы (оценка 2)");
         h2.getCell(0).setCellStyle(headerStyle);
         h2.getCell(1).setCellStyle(headerStyle);
         h2.getCell(2).setCellStyle(headerStyle);
+        h2.getCell(3).setCellStyle(headerStyle);
 
         for (StudentRow student : students.values()) {
-            long twos = student.results.values().stream().filter(v -> v.grade != null && v.grade == 2).count();
+            List<String> twoSubjects = student.results.entrySet().stream()
+                    .filter(e -> e.getValue().grade != null && e.getValue().grade == 2)
+                    .map(Map.Entry::getKey)
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .toList();
+            long twos = twoSubjects.size();
             if (twos >= 2) {
                 Row row = stats.createRow(r++);
                 row.createCell(0).setCellValue(student.className == null ? "" : student.className);
                 row.createCell(1).setCellValue(student.fio);
                 row.createCell(2).setCellValue(twos);
+                row.createCell(3).setCellValue(String.join(", ", twoSubjects));
             }
         }
     }
