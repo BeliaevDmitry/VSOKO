@@ -213,7 +213,7 @@ public class OgeMockResultsAggregator {
             for (Path file : files) {
                 LOG.info("Обработка файла: " + file);
                 try (Workbook workbook = new XSSFWorkbook(new FileInputStream(file.toFile()))) {
-                    String subject = extractSubject(workbook.getSheet("Информация"), workbook.getSheet("Сбор информации"), file);
+                    String subject = extractSubject(workbook.getSheet("Информация"), file);
                     if (subject == null || !SUBJECT_ORDER.contains(subject)) {
                         LOG.warning("Не удалось определить предмет, файл пропущен: " + file.getFileName());
                         continue;
@@ -241,6 +241,10 @@ public class OgeMockResultsAggregator {
                         String classFromFile = extractClassFromFileName(file.getFileName().toString());
                         String className = normalizeClassName(!classFromRow.isBlank() ? classFromRow : classFromFile);
                         Integer score = pos.scoreCol >= 0 ? parseInt(getCellText(row.getCell(pos.scoreCol))) : null;
+                        if (!isMeaningfulResultRow(row, pos, score)) {
+                            LOG.fine("Пропуск незаполненной строки: " + fio + " (" + file.getFileName() + ")");
+                            continue;
+                        }
                         Integer grade = score == null ? null : scoreToGrade.getOrDefault(subject, Map.of()).get(score);
 
                         upsert.setString(1, fio);
@@ -484,53 +488,49 @@ public class OgeMockResultsAggregator {
         return null;
     }
 
-    private static String extractSubject(Sheet infoSheet, Sheet dataSheet, Path file) {
-        if (infoSheet != null) {
-            for (int r = 0; r <= Math.min(30, infoSheet.getLastRowNum()); r++) {
-                Row row = infoSheet.getRow(r);
-                if (row == null) continue;
-                for (int c = 0; c <= Math.min(20, row.getLastCellNum()); c++) {
-                    String value = getCellText(row.getCell(c));
-                    String subject = normalizeSubject(value);
-                    if (subject != null) return subject;
+    private static boolean isMeaningfulResultRow(Row row, HeaderPos pos, Integer score) {
+        if (score != null && score > 0) {
+            return true;
+        }
+        // Для итог=0 берем только реально заполненные строки
+        // (присутствие/вариант/баллы за задания и т.д.), а шаблонные пропускаем.
+        return hasNonEmptyCellsAroundScore(row, pos);
+    }
+
+    private static boolean hasNonEmptyCellsAroundScore(Row row, HeaderPos pos) {
+        if (pos.scoreCol < 0) return false;
+        int start = Math.max(0, Math.min(pos.fioCol, pos.scoreCol) + 1);
+        int end = Math.max(pos.fioCol, pos.scoreCol) - 1;
+        for (int c = start; c <= end; c++) {
+            if (c == pos.classCol) continue;
+            String value = getCellText(row.getCell(c)).trim();
+            if (!value.isEmpty()) {
+                if (!"0".equals(value)) {
+                    return true;
+                }
+                // нули в баллах за задания тоже считаем признаком заполненной строки
+                Integer numeric = parseInt(value);
+                if (numeric != null) {
+                    return true;
                 }
             }
         }
-
-        // fallback: ищем предмет в полном пути (папки + имя файла)
-        String fromPath = normalizeSubject(file.toString());
-        if (fromPath != null) return fromPath;
-
-        // fallback для математики: определение по структуре бланка (25 заданий, хвост из "2")
-        String inferred = inferSubjectByTaskStructure(dataSheet);
-        if (inferred != null) {
-            LOG.info("Предмет определен по структуре отчета: " + inferred + " (" + file.getFileName() + ")");
-            return inferred;
-        }
-        return null;
+        return false;
     }
 
-    private static String inferSubjectByTaskStructure(Sheet dataSheet) {
-        if (dataSheet == null) return null;
-        Row tasksRow = dataSheet.getRow(1);   // строка с номерами заданий
-        Row weightsRow = dataSheet.getRow(2); // строка с макс. баллами
-        if (tasksRow == null || weightsRow == null) return null;
-
-        int lastTaskNumber = -1;
-        int twos = 0;
-        for (int c = 0; c <= Math.min(80, tasksRow.getLastCellNum()); c++) {
-            Integer taskNum = parseInt(getCellText(tasksRow.getCell(c)));
-            if (taskNum != null) {
-                lastTaskNumber = Math.max(lastTaskNumber, taskNum);
-                Integer weight = parseInt(getCellText(weightsRow.getCell(c)));
-                if (weight != null && weight == 2) twos++;
-            }
+    private static String extractSubject(Sheet infoSheet, Path file) {
+        if (infoSheet == null) {
+            LOG.warning("Лист 'Информация' отсутствует, предмет не определен: " + file.getFileName());
+            return null;
         }
 
-        // Эвристика для ОГЭ математики: 25 заданий, в шаблоне есть несколько задач по 2 балла.
-        if (lastTaskNumber == 25 && twos >= 4) {
-            return "Математика";
-        }
+        // По согласованному правилу предмет всегда берется из B3.
+        Row row = infoSheet.getRow(2);
+        String b3 = row == null ? "" : getCellText(row.getCell(1));
+        String subject = normalizeSubject(b3);
+        if (subject != null) return subject;
+
+        LOG.warning("Не удалось определить предмет из 'Информация'!B3: '" + b3 + "' (" + file.getFileName() + ")");
         return null;
     }
 
