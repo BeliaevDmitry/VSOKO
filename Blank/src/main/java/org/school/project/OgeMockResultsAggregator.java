@@ -278,8 +278,14 @@ public class OgeMockResultsAggregator {
             Sheet results = workbook.createSheet("Результаты пробника");
             createResultsHeader(results, headerStyle);
 
-            int rowNum = 2;
-            for (StudentRow student : students.values()) {
+        List<StudentRow> orderedStudents = students.values().stream()
+                .sorted(Comparator
+                        .comparing((StudentRow s) -> sortableClass(s.className))
+                        .thenComparing(s -> normalizeFio(s.fio), String.CASE_INSENSITIVE_ORDER))
+                .toList();
+
+        int rowNum = 2;
+        for (StudentRow student : orderedStudents) {
                 Row row = results.createRow(rowNum++);
                 row.createCell(0).setCellValue(student.className == null ? "" : student.className);
                 row.createCell(1).setCellValue(student.fio);
@@ -310,6 +316,7 @@ public class OgeMockResultsAggregator {
             }
 
             autoSize(results, 2 + SUBJECT_ORDER.size() * 2);
+            results.createFreezePane(0, 1);
 
             Sheet missing = workbook.createSheet("Недостающая информация");
             Row mh = missing.createRow(0);
@@ -472,18 +479,22 @@ public class OgeMockResultsAggregator {
 
         int fioCol = -1;
         int classCol = -1;
+        int presenceCol = -1;
+        int variantCol = -1;
         int scoreCol = -1;
 
         for (int c = 0; c <= Math.min(70, headerRow.getLastCellNum()); c++) {
             String val = getCellText(headerRow.getCell(c)).toLowerCase(Locale.ROOT);
             if (val.contains("фио")) fioCol = c;
             if (val.contains("класс")) classCol = c;
+            if (val.contains("присутств")) presenceCol = c;
+            if (val.contains("вариант")) variantCol = c;
             String compact = val.replaceAll("\\s+", "");
             if ("итог".equals(compact) || "итого".equals(compact)) scoreCol = c;
         }
 
         if (fioCol >= 0 && scoreCol >= 0) {
-            return new HeaderPos(fioCol, classCol, scoreCol, 3);
+            return new HeaderPos(fioCol, classCol, presenceCol, variantCol, scoreCol, 3);
         }
         return null;
     }
@@ -492,17 +503,33 @@ public class OgeMockResultsAggregator {
         if (score != null && score > 0) {
             return true;
         }
-        // Для итог=0 берем только реально заполненные строки
-        // (присутствие/вариант/баллы за задания и т.д.), а шаблонные пропускаем.
-        return hasNonEmptyCellsAroundScore(row, pos);
+        String presence = pos.presenceCol >= 0 ? getCellText(row.getCell(pos.presenceCol)).trim().toLowerCase(Locale.ROOT) : "";
+        boolean variantFilled = pos.variantCol >= 0 && !getCellText(row.getCell(pos.variantCol)).trim().isEmpty();
+        boolean taskPointsFilled = hasTaskPoints(row, pos);
+
+        // Явно отсутствовал на работе и других данных нет -> это пропуск, а не "0 баллов".
+        if ((presence.contains("не был") || presence.contains("отсутств")) && !variantFilled && !taskPointsFilled) {
+            return false;
+        }
+
+        // Во многих протоколах "Присутствие" может быть пустым:
+        // если при этом нет варианта и нет баллов за задания, считаем, что ученик не писал.
+        if (presence.isBlank() && !variantFilled && !taskPointsFilled && (score == null || score == 0)) {
+            return false;
+        }
+
+        // Для итог=0 или пустого итога берем только реально заполненные строки.
+        return variantFilled || taskPointsFilled;
     }
 
-    private static boolean hasNonEmptyCellsAroundScore(Row row, HeaderPos pos) {
+    private static boolean hasTaskPoints(Row row, HeaderPos pos) {
         if (pos.scoreCol < 0) return false;
         int start = Math.max(0, Math.min(pos.fioCol, pos.scoreCol) + 1);
         int end = Math.max(pos.fioCol, pos.scoreCol) - 1;
         for (int c = start; c <= end; c++) {
             if (c == pos.classCol) continue;
+            if (c == pos.presenceCol) continue;
+            if (c == pos.variantCol) continue;
             String value = getCellText(row.getCell(c)).trim();
             if (!value.isEmpty()) {
                 // "0" в промежуточных полях не считаем заполнением:
@@ -511,6 +538,11 @@ public class OgeMockResultsAggregator {
             }
         }
         return false;
+    }
+
+    private static String sortableClass(String className) {
+        String normalized = normalizeClassName(className);
+        return normalized.isBlank() ? "ZZZ" : normalized;
     }
 
     private static String extractSubject(Sheet infoSheet, Path file) {
@@ -668,7 +700,7 @@ public class OgeMockResultsAggregator {
         }
     }
 
-    private record HeaderPos(int fioCol, int classCol, int scoreCol, int dataStartRow) {
+    private record HeaderPos(int fioCol, int classCol, int presenceCol, int variantCol, int scoreCol, int dataStartRow) {
     }
 
     private static class ResultCell {
