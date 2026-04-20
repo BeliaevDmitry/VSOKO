@@ -192,6 +192,11 @@ public class OgeMockResultsAggregator {
 
     private static void loadMockReports(Connection connection,
                                         Map<String, Map<Integer, Integer>> scoreToGrade) throws IOException, SQLException {
+        try (Statement st = connection.createStatement()) {
+            // Пересобираем результаты из текущего набора файлов, чтобы не тянуть ошибочные
+            // значения из прошлых запусков (например, старые "0/2" по пустым строкам).
+            st.execute("TRUNCATE TABLE mock_results");
+        }
 
         List<Path> files;
         try (var stream = Files.walk(Paths.get(REPORTS_FOLDER))) {
@@ -500,12 +505,13 @@ public class OgeMockResultsAggregator {
     }
 
     private static boolean isMeaningfulResultRow(Row row, HeaderPos pos, Integer score) {
-        if (score != null && score > 0) {
-            return true;
-        }
         String presence = pos.presenceCol >= 0 ? getCellText(row.getCell(pos.presenceCol)).trim().toLowerCase(Locale.ROOT) : "";
         boolean variantFilled = pos.variantCol >= 0 && !getCellText(row.getCell(pos.variantCol)).trim().isEmpty();
         boolean taskPointsFilled = hasTaskPoints(row, pos);
+
+        if (score != null && score > 0) {
+            return true;
+        }
 
         // Явно отсутствовал на работе и других данных нет -> это пропуск, а не "0 баллов".
         if ((presence.contains("не был") || presence.contains("отсутств")) && !variantFilled && !taskPointsFilled) {
@@ -518,7 +524,12 @@ public class OgeMockResultsAggregator {
             return false;
         }
 
-        // Для итог=0 или пустого итога берем только реально заполненные строки.
+        // Ключевое бизнес-правило: итог=0 считаем попыткой только если реально заполнялись баллы за задания.
+        if (score != null && score == 0) {
+            return taskPointsFilled;
+        }
+
+        // Для пустого итога допускаем загрузку только при наличии явных заполненных данных.
         return variantFilled || taskPointsFilled;
     }
 
