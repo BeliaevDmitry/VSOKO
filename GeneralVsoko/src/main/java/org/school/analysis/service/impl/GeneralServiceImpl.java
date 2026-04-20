@@ -419,6 +419,7 @@ public class GeneralServiceImpl implements GeneralService {
         // 4. Сравнительный ЕГКР/ЕГЭ отчет
         log.warn("📊 [{}] Шаг 2.4: генерация сравнительного отчета ЕГКР/ЕГЭ", school);
         generateComparativeEgkrReport(allReports, school, currentAcademicYear);
+        generateComparativeEgkrBySubjectReport(allReports, school, currentAcademicYear);
         log.warn("✅ [{}] Шаг 2.4 завершен", school);
 
         return allReports;
@@ -619,6 +620,25 @@ public class GeneralServiceImpl implements GeneralService {
             log.error("Сравнительный отчет ЕГКР/ЕГЭ превысил лимит времени (90с) и будет пропущен");
         } catch (Exception e) {
             log.error("Ошибка генерации сравнительного отчета ЕГКР/ЕГЭ: {}", e.getMessage(), e);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private void generateComparativeEgkrBySubjectReport(List<File> allReports, String schoolName,
+                                                        String currentAcademicYear) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<File> future = executor.submit(() ->
+                    comparativeReportService.generateEgkrEgeSubjectComparativeReport(schoolName, currentAcademicYear));
+
+            File report = future.get(90, TimeUnit.SECONDS);
+            addReportIfValid(report, allReports, "Сравнительный отчет ЕГКР/ЕГЭ по предметам");
+
+        } catch (TimeoutException e) {
+            log.error("Сравнительный отчет ЕГКР/ЕГЭ по предметам превысил лимит времени (90с) и будет пропущен");
+        } catch (Exception e) {
+            log.error("Ошибка генерации сравнительного отчета ЕГКР/ЕГЭ по предметам: {}", e.getMessage(), e);
         } finally {
             executor.shutdownNow();
         }
