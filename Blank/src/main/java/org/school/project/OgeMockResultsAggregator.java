@@ -12,6 +12,8 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -27,9 +29,10 @@ import java.util.stream.Collectors;
  * </ol>
  */
 public class OgeMockResultsAggregator {
+    private static final Logger LOG = Logger.getLogger(OgeMockResultsAggregator.class.getName());
 
     private static final String REPORTS_FOLDER =
-            "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы 2025 2026\\ОГЭ\\апрель 2025\\внутрение";
+            "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ВСОКО\\Работы 2025 2026\\ОГЭ\\апрель 2025";
     private static final String ADMIN_FILE =
             "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\ОГЭ 2026\\ОГЭ 2026 админ.xlsx";
 
@@ -58,6 +61,8 @@ public class OgeMockResultsAggregator {
 
     public static void main(String[] args) {
         try {
+            LOG.info("Старт OGE Mock Aggregator");
+            LOG.info("Папка отчетов: " + REPORTS_FOLDER);
             Path outputPath = Paths.get(REPORTS_FOLDER,
                     "Свод_пробники_ОГЭ_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")) + ".xlsx");
 
@@ -70,10 +75,11 @@ public class OgeMockResultsAggregator {
                 loadMockReports(connection, scoreToGrade);
                 generateOutputWorkbook(connection, outputPath);
 
-                System.out.println("Готово. Файл отчета: " + outputPath);
+                LOG.info("Готово. Файл отчета: " + outputPath);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.log(Level.SEVERE, "Критическая ошибка выполнения", e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -81,11 +87,17 @@ public class OgeMockResultsAggregator {
         try (Statement st = connection.createStatement()) {
             st.execute("""
                     CREATE TABLE IF NOT EXISTS exam_choices (
+                        class_name VARCHAR(100),
                         fio VARCHAR(500) NOT NULL,
                         subject VARCHAR(200) NOT NULL,
                         PRIMARY KEY (fio, subject)
                     )
                     """);
+            try {
+                st.execute("ALTER TABLE exam_choices ADD COLUMN IF NOT EXISTS class_name VARCHAR(100)");
+            } catch (SQLException ignored) {
+                // На старых версиях H2 IF NOT EXISTS может не поддерживаться в ALTER, оставляем совместимость.
+            }
             st.execute("""
                     CREATE TABLE IF NOT EXISTS mock_results (
                         fio VARCHAR(500) NOT NULL,
@@ -105,28 +117,32 @@ public class OgeMockResultsAggregator {
         if (examSheet == null) {
             throw new IllegalArgumentException("Лист 'Выбор экзамена' не найден в файле админа.");
         }
+        LOG.info("Загрузка выборов экзаменов из листа 'Выбор экзамена'");
 
         try (PreparedStatement upsert = connection.prepareStatement("""
-                MERGE INTO exam_choices (fio, subject) KEY (fio, subject) VALUES (?, ?)
+                MERGE INTO exam_choices (class_name, fio, subject) KEY (fio, subject) VALUES (?, ?, ?)
                 """)) {
 
             for (int rowIdx = 1; rowIdx <= examSheet.getLastRowNum(); rowIdx++) {
                 Row row = examSheet.getRow(rowIdx);
                 if (row == null) continue;
 
+                String className = normalizeClassName(getCellText(row.getCell(0)).trim());
                 String fio = getCellText(row.getCell(1)).trim();
                 String subjectsRaw = getCellText(row.getCell(3)).trim();
                 if (fio.isEmpty() || subjectsRaw.isEmpty()) continue;
 
                 Set<String> subjects = extractSubjects(subjectsRaw);
                 for (String subject : subjects) {
-                    upsert.setString(1, normalizeFio(fio));
-                    upsert.setString(2, subject);
+                    upsert.setString(1, className);
+                    upsert.setString(2, normalizeFio(fio));
+                    upsert.setString(3, subject);
                     upsert.addBatch();
                 }
             }
             upsert.executeBatch();
         }
+        LOG.info("Загрузка выборов завершена");
     }
 
     private static Map<String, Map<Integer, Integer>> loadScoreToGrade(Sheet scoreSheet) {
@@ -183,8 +199,10 @@ public class OgeMockResultsAggregator {
                     .filter(Files::isRegularFile)
                     .filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".xlsx"))
                     .filter(p -> !p.getFileName().toString().toLowerCase(Locale.ROOT).contains("свод_пробники_огэ"))
+                    .filter(p -> !p.getFileName().toString().toLowerCase(Locale.ROOT).contains("админ"))
                     .collect(Collectors.toList());
         }
+        LOG.info("Найдено excel-файлов для обработки: " + files.size());
 
         try (PreparedStatement upsert = connection.prepareStatement("""
                 MERGE INTO mock_results (fio, class_name, subject, test_score, grade, source_file, loaded_at)
@@ -193,16 +211,24 @@ public class OgeMockResultsAggregator {
                 """)) {
 
             for (Path file : files) {
+                LOG.info("Обработка файла: " + file);
                 try (Workbook workbook = new XSSFWorkbook(new FileInputStream(file.toFile()))) {
                     String subject = extractSubject(workbook.getSheet("Информация"), file.getFileName().toString());
                     if (subject == null || !SUBJECT_ORDER.contains(subject)) {
+                        LOG.warning("Не удалось определить предмет, файл пропущен: " + file.getFileName());
                         continue;
                     }
 
                     Sheet data = workbook.getSheet("Сбор информации");
-                    if (data == null) continue;
+                    if (data == null) {
+                        LOG.warning("Лист 'Сбор информации' отсутствует, файл пропущен: " + file.getFileName());
+                        continue;
+                    }
                     HeaderPos pos = detectHeader(data);
-                    if (pos == null) continue;
+                    if (pos == null) {
+                        LOG.warning("Не найдены нужные заголовки (ФИО/Итог), файл пропущен: " + file.getFileName());
+                        continue;
+                    }
 
                     for (int r = pos.dataStartRow; r <= data.getLastRowNum(); r++) {
                         Row row = data.getRow(r);
@@ -227,12 +253,13 @@ public class OgeMockResultsAggregator {
                         upsert.addBatch();
                     }
                 } catch (Exception ex) {
-                    System.err.println("Пропуск файла из-за ошибки: " + file + " -> " + ex.getMessage());
+                    LOG.log(Level.WARNING, "Пропуск файла из-за ошибки: " + file, ex);
                 }
             }
 
             upsert.executeBatch();
         }
+        LOG.info("Загрузка результатов из отчетов завершена");
     }
 
     private static void generateOutputWorkbook(Connection connection, Path outputPath) throws SQLException, IOException {
@@ -310,11 +337,14 @@ public class OgeMockResultsAggregator {
         Map<String, StudentRow> map = new TreeMap<>();
 
         try (Statement st = connection.createStatement();
-             ResultSet rs = st.executeQuery("SELECT fio, subject FROM exam_choices")) {
+             ResultSet rs = st.executeQuery("SELECT class_name, fio, subject FROM exam_choices")) {
             while (rs.next()) {
+                String className = normalizeClassName(rs.getString("class_name"));
                 String fio = rs.getString("fio");
                 String subject = rs.getString("subject");
-                map.computeIfAbsent(fio, k -> new StudentRow(fio)).subjects.add(subject);
+                StudentRow student = map.computeIfAbsent(fio, k -> new StudentRow(fio));
+                if (student.className == null || student.className.isBlank()) student.className = className;
+                student.subjects.add(subject);
             }
         }
 
@@ -324,7 +354,7 @@ public class OgeMockResultsAggregator {
                 String fio = rs.getString("fio");
                 StudentRow row = map.computeIfAbsent(fio, k -> new StudentRow(fio));
                 String className = rs.getString("class_name");
-                if (row.className == null || row.className.isBlank()) row.className = className;
+                if (row.className == null || row.className.isBlank()) row.className = normalizeClassName(className);
 
                 String subject = rs.getString("subject");
                 Integer score = (Integer) rs.getObject("test_score");
@@ -431,8 +461,8 @@ public class OgeMockResultsAggregator {
 
     private static HeaderPos detectHeader(Sheet sheet) {
         // Бизнес-правило для текущих форматов:
-        // 1-я строка содержит заголовки, нужная колонка результата называется "Итого",
-        // данные начинаются с 3-й строки.
+        // 1-я строка содержит заголовки с ФИО/Класс/Итог (или Итого),
+        // данные начинаются с 4-й строки (после 3 строк шапки).
         Row headerRow = sheet.getRow(0);
         if (headerRow == null) return null;
 
@@ -444,11 +474,12 @@ public class OgeMockResultsAggregator {
             String val = getCellText(headerRow.getCell(c)).toLowerCase(Locale.ROOT);
             if (val.contains("фио")) fioCol = c;
             if (val.contains("класс")) classCol = c;
-            if ("итого".equals(val.trim())) scoreCol = c;
+            String compact = val.replaceAll("\\s+", "");
+            if ("итог".equals(compact) || "итого".equals(compact)) scoreCol = c;
         }
 
         if (fioCol >= 0 && scoreCol >= 0) {
-            return new HeaderPos(fioCol, classCol, scoreCol, 2);
+            return new HeaderPos(fioCol, classCol, scoreCol, 3);
         }
         return null;
     }
