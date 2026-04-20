@@ -558,14 +558,21 @@ public class OgeMockResultsAggregator {
             }
             case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
             case FORMULA -> {
-                try {
+                CellType cached = cell.getCachedFormulaResultType();
+                if (cached == CellType.STRING) {
                     yield cell.getStringCellValue().trim();
-                } catch (Exception e) {
+                }
+                if (cached == CellType.NUMERIC) {
                     double v = cell.getNumericCellValue();
                     if (v == Math.floor(v)) yield String.valueOf((int) v);
                     yield String.valueOf(v);
                 }
+                if (cached == CellType.BOOLEAN) {
+                    yield String.valueOf(cell.getBooleanCellValue());
+                }
+                yield "";
             }
+            case ERROR, BLANK, _NONE -> "";
             default -> "";
         };
     }
