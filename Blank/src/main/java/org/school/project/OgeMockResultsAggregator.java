@@ -505,14 +505,9 @@ public class OgeMockResultsAggregator {
             if (c == pos.classCol) continue;
             String value = getCellText(row.getCell(c)).trim();
             if (!value.isEmpty()) {
-                if (!"0".equals(value)) {
-                    return true;
-                }
-                // нули в баллах за задания тоже считаем признаком заполненной строки
-                Integer numeric = parseInt(value);
-                if (numeric != null) {
-                    return true;
-                }
+                // "0" в промежуточных полях не считаем заполнением:
+                // это часто шаблон/формула для не писавших работу.
+                if (!"0".equals(value)) return true;
             }
         }
         return false;
