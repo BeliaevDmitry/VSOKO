@@ -213,7 +213,7 @@ public class OgeMockResultsAggregator {
             for (Path file : files) {
                 LOG.info("Обработка файла: " + file);
                 try (Workbook workbook = new XSSFWorkbook(new FileInputStream(file.toFile()))) {
-                    String subject = extractSubject(workbook.getSheet("Информация"), file.getFileName().toString());
+                    String subject = extractSubject(workbook.getSheet("Информация"), workbook.getSheet("Сбор информации"), file);
                     if (subject == null || !SUBJECT_ORDER.contains(subject)) {
                         LOG.warning("Не удалось определить предмет, файл пропущен: " + file.getFileName());
                         continue;
@@ -484,7 +484,7 @@ public class OgeMockResultsAggregator {
         return null;
     }
 
-    private static String extractSubject(Sheet infoSheet, String fileName) {
+    private static String extractSubject(Sheet infoSheet, Sheet dataSheet, Path file) {
         if (infoSheet != null) {
             for (int r = 0; r <= Math.min(30, infoSheet.getLastRowNum()); r++) {
                 Row row = infoSheet.getRow(r);
@@ -497,7 +497,41 @@ public class OgeMockResultsAggregator {
             }
         }
 
-        return normalizeSubject(fileName);
+        // fallback: ищем предмет в полном пути (папки + имя файла)
+        String fromPath = normalizeSubject(file.toString());
+        if (fromPath != null) return fromPath;
+
+        // fallback для математики: определение по структуре бланка (25 заданий, хвост из "2")
+        String inferred = inferSubjectByTaskStructure(dataSheet);
+        if (inferred != null) {
+            LOG.info("Предмет определен по структуре отчета: " + inferred + " (" + file.getFileName() + ")");
+            return inferred;
+        }
+        return null;
+    }
+
+    private static String inferSubjectByTaskStructure(Sheet dataSheet) {
+        if (dataSheet == null) return null;
+        Row tasksRow = dataSheet.getRow(1);   // строка с номерами заданий
+        Row weightsRow = dataSheet.getRow(2); // строка с макс. баллами
+        if (tasksRow == null || weightsRow == null) return null;
+
+        int lastTaskNumber = -1;
+        int twos = 0;
+        for (int c = 0; c <= Math.min(80, tasksRow.getLastCellNum()); c++) {
+            Integer taskNum = parseInt(getCellText(tasksRow.getCell(c)));
+            if (taskNum != null) {
+                lastTaskNumber = Math.max(lastTaskNumber, taskNum);
+                Integer weight = parseInt(getCellText(weightsRow.getCell(c)));
+                if (weight != null && weight == 2) twos++;
+            }
+        }
+
+        // Эвристика для ОГЭ математики: 25 заданий, в шаблоне есть несколько задач по 2 балла.
+        if (lastTaskNumber == 25 && twos >= 4) {
+            return "Математика";
+        }
+        return null;
     }
 
     private static Set<String> extractSubjects(String raw) {
