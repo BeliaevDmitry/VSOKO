@@ -20,7 +20,7 @@ public class EGKRReportGenerator {
     // ========== НАСТРОЙКИ ==========
 
     // Выбор типа отчета (изменяйте эту переменную)
-    private static final int REPORT_TYPE = 1;
+    private static final int REPORT_TYPE = 3;
     // 1 - по основному учителю и классу,
     // 2 - по учителю практикума и группе,
     // 3 - по основному учителю и адресу
@@ -1555,47 +1555,62 @@ public class EGKRReportGenerator {
     }
 
     private static int findDataStartRow(Sheet sheet) {
-        // Ищем строку с заголовком "№ п/п" или подобным
-        for (int i = 0; i <= 20; i++) {
+        // Ищем строку с заголовками таблицы (не служебную информацию)
+        for (int i = 0; i <= 30; i++) { // увеличил диапазон поиска до 30 строк
             Row row = sheet.getRow(i);
-            if (row != null) {
-                Cell cell = row.getCell(0);
-                if (cell != null) {
-                    String cellValue = getCellValue(cell).trim();
-                    // Проверяем различные варианты написания заголовка
-                    if (cellValue.equals("№ п/п") ||
-                            cellValue.equals("№") ||
-                            cellValue.startsWith("№ п") ||
-                            cellValue.equalsIgnoreCase("№ п/п") ||
-                            cellValue.contains("№") && (cellValue.contains("п/п") || cellValue.contains("п/п"))) {
-                        return i;
-                    }
+            if (row == null) continue;
+
+            int headerMatches = 0;
+            int totalCells = row.getLastCellNum();
+
+            for (int j = 0; j < totalCells; j++) {
+                Cell cell = row.getCell(j);
+                if (cell == null) continue;
+                String cellValue = getCellValue(cell).trim();
+                if (cellValue.isEmpty()) continue;
+
+                // Проверяем на ключевые слова для старого формата
+                if (cellValue.equals("№ п/п") ||
+                        cellValue.equals("№") ||
+                        cellValue.startsWith("№ п") ||
+                        cellValue.equalsIgnoreCase("№ п/п")) {
+                    return i; // старый формат найден
                 }
+
+                // Проверяем на ключевые слова для нового формата
+                if (cellValue.equals("Код ОО") ||
+                        cellValue.equals("Класс") ||
+                        cellValue.equals("Фамилия") ||
+                        cellValue.equals("Имя") ||
+                        cellValue.equals("Отчество") ||
+                        cellValue.equals("Первичный балл") ||
+                        cellValue.equals("Задания с кратким ответом") ||
+                        cellValue.equals("Задания с развернутым ответом")) {
+                    headerMatches++;
+                }
+            }
+
+            // Если найдено 3 и более ключевых слова из нового формата – считаем это строкой заголовков
+            if (headerMatches >= 3) {
+                return i;
             }
         }
 
-        // Если не нашли стандартный заголовок, ищем по другим признакам
-        for (int i = 0; i <= 20; i++) {
+        // Если ничего не нашли, пробуем найти строку, где есть "Фамилия" и "Класс" одновременно
+        for (int i = 0; i <= 30; i++) {
             Row row = sheet.getRow(i);
-            if (row != null) {
-                // Проверяем, содержит ли строка несколько заголовков
-                int headerCount = 0;
-                for (int j = 0; j < row.getLastCellNum(); j++) {
-                    Cell cell = row.getCell(j);
-                    if (cell != null) {
-                        String cellValue = getCellValue(cell).trim().toLowerCase();
-                        if (cellValue.contains("фамилия") ||
-                                cellValue.contains("имя") ||
-                                cellValue.contains("класс") ||
-                                cellValue.contains("код оо") ||
-                                cellValue.contains("фио")) {
-                            headerCount++;
-                        }
-                    }
-                }
-                if (headerCount >= 2) {
-                    return i;
-                }
+            if (row == null) continue;
+            boolean hasLastName = false;
+            boolean hasClass = false;
+            for (int j = 0; j < row.getLastCellNum(); j++) {
+                Cell cell = row.getCell(j);
+                if (cell == null) continue;
+                String val = getCellValue(cell).trim();
+                if (val.equals("Фамилия")) hasLastName = true;
+                if (val.equals("Класс")) hasClass = true;
+            }
+            if (hasLastName && hasClass) {
+                return i;
             }
         }
 

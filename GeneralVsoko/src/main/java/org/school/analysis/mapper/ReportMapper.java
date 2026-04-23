@@ -5,12 +5,23 @@ import org.school.analysis.model.entity.StudentResultEntity;
 import org.school.analysis.model.ReportFile;
 import org.school.analysis.model.StudentResult;
 import org.school.analysis.util.JsonScoreUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
 @Component
 public class ReportMapper {
+    private static final Logger log = LoggerFactory.getLogger(ReportMapper.class);
+
+    private static final int SUBJECT_MAX = 100;
+    private static final int CLASS_NAME_MAX = 50;
+    private static final int TEST_TYPE_MAX = 50;
+    private static final int FILE_NAME_MAX = 255;
+    private static final int FIO_MAX = 200;
+    private static final int VARIANT_MAX = 100;
+    private static final int PRESENCE_MAX = 50;
 
     public ReportFileEntity toEntity(ReportFile model) {
         if (model == null) {
@@ -19,20 +30,20 @@ public class ReportMapper {
 
         return ReportFileEntity.builder()
                 .filePath(model.getFile() != null ? model.getFile().getAbsolutePath() : "")
-                .fileName(model.getFileName())
+                .fileName(truncate(model.getFileName(), FILE_NAME_MAX, "report_files.file_name"))
                 .fileHash("") // Вычисляется отдельно
-                .subject(model.getSubject())
-                .className(model.getClassName())
+                .subject(truncate(model.getSubject(), SUBJECT_MAX, "report_files.subject"))
+                .className(truncate(model.getClassName(), CLASS_NAME_MAX, "report_files.class_name"))
                 .status(model.getStatus())
                 .processedAt(model.getProcessedAt())
                 .errorMessage(model.getErrorMessage())
                 .studentCount(model.getStudentCount())
                 .testDate(model.getTestDate())
-                .teacher(model.getTeacher())
+                .teacher(truncate(model.getTeacher(), FIO_MAX, "report_files.teacher"))
                 .schoolName(model.getSchoolName() != null ? model.getSchoolName() : "ГБОУ №7")
                 .academicYear(model.getAcademicYear() != null ? model.getAcademicYear() : "2025-2026")
                 .taskCount(model.getMaxScores() != null ? model.getMaxScores().size() : 0)
-                .testType(model.getTestType())
+                .testType(truncate(model.getTestType(), TEST_TYPE_MAX, "report_files.test_type"))
                 .comment(model.getComment())
                 .maxScoresJson(JsonScoreUtils.mapToJson(model.getMaxScores()))
                 .createdAt(LocalDateTime.now())
@@ -70,12 +81,12 @@ public class ReportMapper {
 
         return StudentResultEntity.builder()
                 .reportFile(reportFile)
-                .subject(model.getSubject())
-                .className(model.getClassName())
-                .fio(model.getFio())
-                .presence(model.getPresence())
-                .variant(model.getVariant())
-                .testType(model.getTestType())
+                .subject(truncate(model.getSubject(), SUBJECT_MAX, "student_results.subject"))
+                .className(truncate(model.getClassName(), CLASS_NAME_MAX, "student_results.class_name"))
+                .fio(truncate(model.getFio(), FIO_MAX, "student_results.fio"))
+                .presence(truncate(model.getPresence(), PRESENCE_MAX, "student_results.presence"))
+                .variant(truncate(model.getVariant(), VARIANT_MAX, "student_results.variant"))
+                .testType(truncate(model.getTestType(), TEST_TYPE_MAX, "student_results.test_type"))
                 .testDate(model.getTestDate())
                 .totalScore(JsonScoreUtils.calculateTotalScore(model.getTaskScores()))
                 .percentageScore(model.getPercentageScore())
@@ -114,21 +125,33 @@ public class ReportMapper {
         }
 
         entity.setFilePath(model.getFile() != null ? model.getFile().getAbsolutePath() : entity.getFilePath());
-        entity.setFileName(model.getFileName());
-        entity.setSubject(model.getSubject());
-        entity.setClassName(model.getClassName());
+        entity.setFileName(truncate(model.getFileName(), FILE_NAME_MAX, "report_files.file_name"));
+        entity.setSubject(truncate(model.getSubject(), SUBJECT_MAX, "report_files.subject"));
+        entity.setClassName(truncate(model.getClassName(), CLASS_NAME_MAX, "report_files.class_name"));
         entity.setStatus(model.getStatus());
         entity.setProcessedAt(model.getProcessedAt());
         entity.setErrorMessage(model.getErrorMessage());
         entity.setStudentCount(model.getStudentCount());
         entity.setTestDate(model.getTestDate());
-        entity.setTeacher(model.getTeacher());
+        entity.setTeacher(truncate(model.getTeacher(), FIO_MAX, "report_files.teacher"));
         entity.setSchoolName(model.getSchoolName() != null ? model.getSchoolName() : entity.getSchoolName());
         entity.setTaskCount(model.getMaxScores() != null ? model.getMaxScores().size() : entity.getTaskCount());
-        entity.setTestType(model.getTestType());
+        entity.setTestType(truncate(model.getTestType(), TEST_TYPE_MAX, "report_files.test_type"));
         entity.setComment(model.getComment());
         entity.setMaxScoresJson(JsonScoreUtils.mapToJson(model.getMaxScores()));
         entity.setUpdatedAt(LocalDateTime.now());
         entity.setAcademicYear(model.getAcademicYear());
+    }
+
+    private String truncate(String value, int maxLength, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() <= maxLength) {
+            return trimmed;
+        }
+        log.warn("Поле {} превышает лимит {} символов. Значение будет обрезано.", fieldName, maxLength);
+        return trimmed.substring(0, maxLength);
     }
 }
